@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy,
-  onSnapshot, writeBatch, serverTimestamp, getCountFromServer,
+  onSnapshot, writeBatch, serverTimestamp, getCountFromServer, increment, Bytes,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
 import { dayList, addDays, toDateStr } from './lib/dates.js';
@@ -47,7 +47,7 @@ export function updateTrip(tripId, data) {
 
 export async function deleteTrip(tripId) {
   const batch = writeBatch(db);
-  for (const name of ['days', 'places', 'checklist', 'reservations']) {
+  for (const name of ['days', 'places', 'photos', 'checklist', 'reservations']) {
     const snap = await getDocs(sub(tripId, name));
     snap.docs.forEach((d) => batch.delete(d.ref));
   }
@@ -99,7 +99,11 @@ export async function deleteDay(tripId, dayId) {
   const remaining = docsOf(daysSnap).filter((d) => d.id !== dayId);
   if (remaining.length === 0) throw new Error('last-day');
   const batch = writeBatch(db);
-  placesSnap.docs.forEach((d) => batch.delete(d.ref));
+  for (const d of placesSnap.docs) {
+    const photosSnap = await getDocs(query(sub(tripId, 'photos'), where('placeId', '==', d.id)));
+    photosSnap.docs.forEach((p) => batch.delete(p.ref));
+    batch.delete(d.ref);
+  }
   batch.delete(doc(sub(tripId, 'days'), dayId));
   const first = remaining[0].date;
   remaining.forEach((d, i) => {
@@ -129,8 +133,40 @@ export function updatePlace(tripId, placeId, data) {
   return updateDoc(doc(sub(tripId, 'places'), placeId), data);
 }
 
-export function deletePlace(tripId, placeId) {
-  return deleteDoc(doc(sub(tripId, 'places'), placeId));
+export async function deletePlace(tripId, placeId) {
+  const photosSnap = await getDocs(query(sub(tripId, 'photos'), where('placeId', '==', placeId)));
+  const batch = writeBatch(db);
+  photosSnap.docs.forEach((p) => batch.delete(p.ref));
+  batch.delete(doc(sub(tripId, 'places'), placeId));
+  await batch.commit();
+}
+
+// ---------- photos ----------
+// 사진은 긴 변 1280px JPEG 바이트를 Firestore 문서에 직접 저장한다 (Storage는 카드 등록이 필요해서 쓰지 않는다).
+// trips/{tripId}/photos/{photoId}: { placeId, data: Bytes, width, height, createdAt }
+export function watchPhotos(tripId, placeId, cb, onError = logError) {
+  return onSnapshot(query(sub(tripId, 'photos'), where('placeId', '==', placeId)), (s) => {
+    const photos = docsOf(s)
+      .map((p) => ({ ...p, bytes: p.data instanceof Bytes ? p.data.toUint8Array() : new Uint8Array() }))
+      .sort((a, b) => (a.createdAt?.toMillis?.() ?? 0) - (b.createdAt?.toMillis?.() ?? 0));
+    cb(photos);
+  }, onError);
+}
+
+export async function addPhoto(tripId, { placeId, bytes, width, height }) {
+  const batch = writeBatch(db);
+  const ref = doc(sub(tripId, 'photos'));
+  batch.set(ref, { placeId, data: Bytes.fromUint8Array(bytes), width, height, createdAt: serverTimestamp() });
+  batch.update(doc(sub(tripId, 'places'), placeId), { photoCount: increment(1) });
+  await batch.commit();
+  return ref.id;
+}
+
+export async function deletePhoto(tripId, photoId, placeId) {
+  const batch = writeBatch(db);
+  batch.delete(doc(sub(tripId, 'photos'), photoId));
+  batch.update(doc(sub(tripId, 'places'), placeId), { photoCount: increment(-1) });
+  await batch.commit();
 }
 
 export async function reorderPlaces(tripId, updates) {

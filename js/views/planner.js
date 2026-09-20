@@ -172,6 +172,7 @@ export function mount(content, ctx) {
           p.time && el('span', { class: 'muted', text: p.time }),
           el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }),
           p.stayMinutes ? el('span', { class: 'muted', text: `${p.stayMinutes}분` }) : null,
+          p.photoCount > 0 ? el('span', { class: 'tag', text: `사진 ${p.photoCount}` }) : null,
           state.reservations.some((r) => r.linkedPlaceId === p.id) ? el('span', { class: 'badge', text: '예약' }) : null),
         el('div', { class: 'tl-name', text: p.name || '(이름 없음)' }),
         p.memo && el('div', { class: 'muted tl-memo', text: p.memo.split('\n')[0] })),

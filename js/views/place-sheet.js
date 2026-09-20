@@ -1,7 +1,8 @@
 import { el, toast, confirmDialog, icon, photoPath, CATEGORY_LABELS, CATEGORY_ORDER } from '../ui.js';
-import { addPlace, updatePlace, deletePlace } from '../db.js';
+import { addPlace, updatePlace, deletePlace, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
 import { parseCoordsInput, googleMapsSearchUrl } from '../lib/coords.js';
+import { compressImage, bytesToObjectUrl } from '../photo.js';
 
 export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
   const draft = {
@@ -20,8 +21,18 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
   memo.value = draft.memo;
   const location = el('p', { class: 'muted ps-location' });
   const photoList = el('div', { class: 'photo-list' });
-  const photoInput = el('input', { class: 'input', id: 'ps-photo', placeholder: '파일명 (예: 01.jpg) 입력 후 Enter' });
+  const fileInput = el('input', { type: 'file', id: 'ps-photo', accept: 'image/*', multiple: true, class: 'visually-hidden' });
+  const uploadBtn = el('button', { type: 'button', class: 'btn btn-sm', onClick: () => fileInput.click() }, icon('plus'), '사진 올리기');
+  const photoStatus = el('span', { class: 'muted ps-photo-status' });
   const categoryRow = el('div', { class: 'chips' });
+
+  // 저장된 사진(Firestore)과 아직 저장 전인 사진(새 장소일 때 대기열)
+  let savedPhotos = [];
+  let pendingPhotos = [];
+  const objectUrls = new Set();
+  let unsubPhotos = null;
+  const urlFor = (bytes) => { const u = bytesToObjectUrl(bytes); objectUrls.add(u); return u; };
+  const revokeAll = () => { objectUrls.forEach((u) => URL.revokeObjectURL(u)); objectUrls.clear(); };
 
   function drawLocation() {
     location.textContent = draft.lat != null ? `위치 설정됨 · ${draft.address ?? `${draft.lat.toFixed(4)}, ${draft.lng.toFixed(4)}`}` : '위치 없음 · 검색해서 고르면 지도에 표시돼요';
@@ -34,10 +45,67 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
     }, CATEGORY_LABELS[key])));
   }
 
+  function openLightbox(src) {
+    const box = el('div', { class: 'lightbox', onClick: () => box.remove() },
+      el('img', { src, alt: '' }),
+      el('button', { type: 'button', class: 'btn btn-icon lightbox-close', 'aria-label': '닫기' }, icon('close')));
+    document.body.append(box);
+  }
+
+  function photoChip(src, label, onRemove) {
+    return el('div', { class: 'photo-chip' },
+      el('button', { type: 'button', class: 'photo-open', 'aria-label': `${label} 크게 보기`, onClick: () => openLightbox(src) }, el('img', { src, alt: '' })),
+      el('button', { type: 'button', class: 'photo-remove', 'aria-label': `${label} 삭제`, onClick: onRemove }, icon('close')));
+  }
+
   function drawPhotos() {
-    photoList.replaceChildren(...draft.photos.map((file) => el('div', { class: 'photo-chip' },
+    revokeAll();
+    const saved = savedPhotos.map((p, i) => photoChip(urlFor(p.bytes), `사진 ${i + 1}`, async () => {
+      if (!(await confirmDialog('이 사진을 삭제할까요?'))) return;
+      await deletePhoto(tripId, p.id, place.id).catch((err) => { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); });
+    }));
+    const pending = pendingPhotos.map((p, i) => photoChip(urlFor(p.bytes), `대기 중 사진 ${i + 1}`, () => {
+      pendingPhotos = pendingPhotos.filter((x) => x !== p); drawPhotos();
+    }));
+    // 예전 방식(GitHub photos 폴더 파일명)으로 남아 있는 사진은 그대로 보여 준다.
+    const legacy = draft.photos.map((file) => el('div', { class: 'photo-chip' },
       el('img', { src: photoPath(tripId, file), alt: '', onError: (e) => { e.target.replaceWith(el('span', { class: 'photo-missing', text: file })); } }),
-      el('button', { type: 'button', class: 'photo-remove', 'aria-label': `${file} 제거`, onClick: () => { draft.photos = draft.photos.filter((f) => f !== file); drawPhotos(); } }, icon('close')))));
+      el('button', { type: 'button', class: 'photo-remove', 'aria-label': `${file} 제거`, onClick: () => { draft.photos = draft.photos.filter((f) => f !== file); drawPhotos(); } }, icon('close'))));
+    photoList.replaceChildren(...saved, ...pending, ...legacy);
+    photoStatus.textContent = pendingPhotos.length ? `저장하면 사진 ${pendingPhotos.length}장이 함께 올라가요` : '';
+  }
+
+  async function uploadPhotos(placeId, items) {
+    for (let i = 0; i < items.length; i++) {
+      photoStatus.textContent = `사진 올리는 중 ${i + 1} / ${items.length}`;
+      await addPhoto(tripId, { placeId, bytes: items[i].bytes, width: items[i].width, height: items[i].height });
+    }
+    photoStatus.textContent = '';
+  }
+
+  fileInput.addEventListener('change', async () => {
+    const files = [...fileInput.files];
+    fileInput.value = '';
+    if (!files.length) return;
+    const compressed = [];
+    for (let i = 0; i < files.length; i++) {
+      photoStatus.textContent = `사진 줄이는 중 ${i + 1} / ${files.length}`;
+      try { compressed.push(await compressImage(files[i])); }
+      catch (err) { console.error(err); toast(`${files[i].name}은(는) 열 수 없는 사진이에요`, { kind: 'error' }); }
+    }
+    if (!compressed.length) { photoStatus.textContent = ''; return; }
+    if (place) {
+      try { await uploadPhotos(place.id, compressed); toast(`사진 ${compressed.length}장을 올렸어요`); }
+      catch (err) { console.error(err); photoStatus.textContent = ''; toast('사진을 올리지 못했어요', { kind: 'error' }); }
+    } else {
+      pendingPhotos = [...pendingPhotos, ...compressed];
+      drawPhotos();
+    }
+  });
+
+  if (place) {
+    unsubPhotos = watchPhotos(tripId, place.id, (photos) => { savedPhotos = photos; drawPhotos(); },
+      (err) => { console.error(err); toast('사진을 불러오지 못했어요', { kind: 'error' }); });
   }
 
   // Google 지도 링크나 "위도, 경도"를 붙여넣으면 검색 대신 좌표를 바로 채운다.
@@ -80,18 +148,15 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
     onClick: (e) => { e.currentTarget.href = googleMapsSearchUrl(search.value.trim() || name.value.trim()); },
   }, icon('pin'), 'Google 지도에서 찾기');
   const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도에서 찾은 장소의 공유 링크나 "위도, 경도"를 검색창에 붙여넣으면 핀이 찍혀요.' });
-  photoInput.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const file = photoInput.value.trim();
-    if (file && !draft.photos.includes(file)) { draft.photos.push(file); drawPhotos(); }
-    photoInput.value = '';
-  });
-
   const overlay = el('div', { class: 'sheet-overlay' });
   const form = el('form', { class: 'sheet' });
   const onKey = (e) => { if (e.key === 'Escape') close(); };
-  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function close() {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+    if (unsubPhotos) unsubPhotos();
+    revokeAll();
+  }
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.addEventListener('keydown', onKey);
 
@@ -105,8 +170,12 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
     };
     if (!data.name) { toast('장소 이름을 입력해 주세요', { kind: 'error' }); name.focus(); return; }
     try {
-      if (place) await updatePlace(tripId, place.id, data);
-      else await addPlace(tripId, { dayId, ...data });
+      if (place) {
+        await updatePlace(tripId, place.id, data);
+      } else {
+        const newId = await addPlace(tripId, { dayId, ...data });
+        if (pendingPhotos.length) await uploadPhotos(newId, pendingPhotos);
+      }
       toast(place ? '저장했어요' : '일정에 추가했어요');
       close();
     } catch (err) {
@@ -129,7 +198,10 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
         el('div', { class: 'field' }, el('label', { for: 'ps-stay', text: '머무는 시간(분)' }), stay)),
       el('div', { class: 'field' }, el('label', { text: '분류' }), categoryRow),
       el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '메모' }), memo),
-      el('div', { class: 'field' }, el('label', { for: 'ps-photo', text: '사진 · GitHub photos 폴더에 올린 파일명' }), photoList, photoInput)),
+      el('div', { class: 'field' },
+        el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-photo', text: '사진' }), uploadBtn),
+        photoList, fileInput, photoStatus,
+        el('p', { class: 'muted ps-hint', text: '긴 변 1280px로 줄여서 저장돼요. 원본은 폰에 남겨 두세요.' }))),
     el('div', { class: 'sheet-foot' },
       place ? el('button', {
         type: 'button', class: 'btn btn-danger',
