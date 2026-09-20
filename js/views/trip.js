@@ -11,7 +11,7 @@ const TAB_VIEWS = { planner, checklist, reservations };
 const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약' };
 
 export function render(container, route) {
-  const { tripId, tab } = route;
+  const { tripId, tab, placeId = null } = route;
   const header = el('div', { class: 'trip-header' });
   const content = el('div', { class: 'trip-content' });
   container.append(topbar({ backHref: '#/' }), header, content);
@@ -24,7 +24,7 @@ export function render(container, route) {
     if (!mounted) {
       mounted = true;
       const view = TAB_VIEWS[tab];
-      if (view) cleanupTab = view.mount(content, { tripId, trip }) || null;
+      if (view) cleanupTab = view.mount(content, { tripId, trip, placeId }) || null;
       else content.append(el('p', { class: 'muted container', text: `${TAB_LABELS[tab]} 탭은 다음 단계에서 붙어요` }));
     }
   }, (err) => { console.error(err); toast('여행을 불러오지 못했어요', { kind: 'error' }); });

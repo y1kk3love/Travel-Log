@@ -66,6 +66,16 @@ export function toast(message, { kind = 'info', ms = 2800 } = {}) {
   setTimeout(() => node.remove(), ms);
 }
 
+// 모달 <dialog>를 열고, 닫히면 DOM에서 제거한다. 라우트가 바뀌면(뒤로가기 등) 자동으로 닫힌다.
+// 모달은 top layer에 있어서 해시가 바뀌어도 저절로 사라지지 않기 때문이다.
+export function openModal(dialog) {
+  const onRoute = () => dialog.close();
+  window.addEventListener('hashchange', onRoute);
+  dialog.addEventListener('close', () => { window.removeEventListener('hashchange', onRoute); dialog.remove(); });
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
 export function confirmDialog(message, { okText = '삭제', cancelText = '취소' } = {}) {
   return new Promise((resolve) => {
     const dialog = el('dialog', {},
@@ -73,8 +83,7 @@ export function confirmDialog(message, { okText = '삭제', cancelText = '취소
       el('div', { class: 'dialog-actions' },
         el('button', { type: 'button', class: 'btn', onClick: () => dialog.close('cancel') }, cancelText),
         el('button', { type: 'button', class: 'btn btn-primary', onClick: () => dialog.close('ok') }, okText)));
-    dialog.addEventListener('close', () => { resolve(dialog.returnValue === 'ok'); dialog.remove(); });
-    document.body.append(dialog);
-    dialog.showModal();
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'ok'));
+    openModal(dialog);
   });
 }

@@ -13,8 +13,10 @@ export function createMap(container) {
   const layer = L.layerGroup().addTo(map);
   let markers = new Map();
   let selectCb = null;
+  let openPopupId = null;
 
   function setRoutes(groups, { fit = true } = {}) {
+    const keepPopup = openPopupId; // 다시 그린 뒤에도 열려 있던 말풍선을 유지한다
     layer.clearLayers();
     markers = new Map();
     const all = [];
@@ -26,6 +28,8 @@ export function createMap(container) {
         });
         marker.bindPopup(`<strong>${escapeHtml(p.name)}</strong>${p.time ? `<br><span class="muted">${escapeHtml(p.time)}</span>` : ''}`);
         marker.on('click', () => selectCb && selectCb(p.id));
+        marker.on('popupopen', () => { openPopupId = p.id; });
+        marker.on('popupclose', () => { if (openPopupId === p.id) openPopupId = null; });
         marker.addTo(layer);
         markers.set(p.id, marker);
         all.push([p.lat, p.lng]);
@@ -35,6 +39,7 @@ export function createMap(container) {
       }
     }
     if (fit && all.length) map.fitBounds(L.latLngBounds(all), { padding: [48, 48], maxZoom: 15 });
+    if (keepPopup && markers.has(keepPopup)) markers.get(keepPopup).openPopup();
   }
 
   function focus(placeId) {

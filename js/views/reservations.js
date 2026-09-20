@@ -1,4 +1,4 @@
-import { el, clear, toast, confirmDialog, icon } from '../ui.js';
+import { el, clear, toast, confirmDialog, openModal, icon } from '../ui.js';
 import { watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays } from '../db.js';
 
 const TYPE_LABELS = { flight: '항공', stay: '숙소', food: '식당', etc: '기타' };
@@ -21,6 +21,7 @@ function placeLabel(state, placeId) {
   const place = state.places.find((p) => p.id === placeId);
   if (!place) return null;
   const dayIndex = state.days.findIndex((d) => d.id === place.dayId);
+  if (dayIndex < 0) return null; // days 스냅샷이 아직 안 온 첫 렌더에서 "Day 0"을 찍지 않는다
   const order = state.places.filter((p) => p.dayId === place.dayId).findIndex((p) => p.id === place.id);
   return `Day ${dayIndex + 1} · ${order + 1}번 ${place.name}`;
 }
@@ -63,7 +64,7 @@ function card(tripId, state, r) {
     el('div', { class: 'reservation-grid' },
       field('예약번호', r.code ? el('code', { text: r.code }) : el('span', { class: 'muted', text: '없음' })),
       field('메모', r.note || '—'),
-      field('연결된 일정', linked ? el('a', { href: `#/trip/${tripId}`, class: 'link-accent', text: linked }) : '없음')));
+      field('연결된 일정', linked ? el('a', { href: `#/trip/${tripId}/planner/${r.linkedPlaceId}`, class: 'link-accent', text: linked }) : '없음')));
 }
 
 function field(label, value) {
@@ -104,6 +105,5 @@ function openDialog(tripId, state, existing = null) {
       dialog.close();
     } catch (err) { console.error(err); toast('저장하지 못했어요', { kind: 'error' }); }
   });
-  dialog.addEventListener('close', () => dialog.remove());
-  dialog.append(form); document.body.append(dialog); dialog.showModal(); title.focus();
+  dialog.append(form); openModal(dialog); title.focus();
 }

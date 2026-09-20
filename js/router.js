@@ -3,7 +3,10 @@ const TABS = ['planner', 'checklist', 'reservations'];
 export function parseHash(hash) {
   const parts = String(hash || '').replace(/^#/, '').split('/').filter(Boolean);
   if (parts[0] === 'trip' && parts[1]) {
-    return { name: 'trip', tripId: parts[1], tab: TABS.includes(parts[2]) ? parts[2] : 'planner' };
+    const tab = TABS.includes(parts[2]) ? parts[2] : 'planner';
+    const route = { name: 'trip', tripId: parts[1], tab };
+    if (tab === 'planner' && parts[2] === 'planner' && parts[3]) route.placeId = parts[3];
+    return route;
   }
   return { name: 'trips' };
 }

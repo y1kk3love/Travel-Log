@@ -1,4 +1,4 @@
-import { el, clear, toast, confirmDialog, icon, photoPath } from '../ui.js';
+import { el, clear, toast, confirmDialog, openModal, icon, photoPath } from '../ui.js';
 import { topbar } from './topbar.js';
 import { watchTrips, createTrip, deleteTrip, tripStats } from '../db.js';
 import { tripStatus, formatStatus, formatRange, toDateStr, dayList } from '../lib/dates.js';
@@ -127,9 +127,7 @@ function openNewTripDialog() {
       toast('여행을 만들지 못했어요', { kind: 'error' });
     }
   });
-  dialog.addEventListener('close', () => dialog.remove());
   dialog.append(form);
-  document.body.append(dialog);
-  dialog.showModal();
+  openModal(dialog);
   title.focus();
 }

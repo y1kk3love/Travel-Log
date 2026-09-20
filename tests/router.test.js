@@ -14,3 +14,8 @@ test('trip 경로와 탭', () => {
   assert.deepEqual(parseHash('#/trip/abc/reservations'), { name: 'trip', tripId: 'abc', tab: 'reservations' });
   assert.deepEqual(parseHash('#/trip/abc/bogus'), { name: 'trip', tripId: 'abc', tab: 'planner' });
 });
+
+test('planner 탭 뒤의 장소 ID는 placeId로 넘어온다', () => {
+  assert.deepEqual(parseHash('#/trip/abc/planner/p1'), { name: 'trip', tripId: 'abc', tab: 'planner', placeId: 'p1' });
+  assert.deepEqual(parseHash('#/trip/abc/checklist/p1'), { name: 'trip', tripId: 'abc', tab: 'checklist' });
+});

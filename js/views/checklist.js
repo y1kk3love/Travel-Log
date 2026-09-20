@@ -1,4 +1,4 @@
-import { el, clear, toast, confirmDialog, icon } from '../ui.js';
+import { el, clear, toast, confirmDialog, openModal, icon } from '../ui.js';
 import { watchChecklist, addChecklistItem, updateChecklistItem, deleteChecklistItem, renameChecklistGroup, deleteChecklistGroup } from '../db.js';
 
 export function mount(content, ctx) {
@@ -71,6 +71,10 @@ function checkRow(tripId, item, fail) {
     box,
     el('label', { for: id, text: item.text }),
     el('button', {
+      class: 'btn btn-icon btn-sm check-edit', 'aria-label': `${item.text} 수정`,
+      onClick: () => editItemDialog(tripId, item),
+    }, icon('edit')),
+    el('button', {
       class: 'btn btn-icon btn-sm check-delete', 'aria-label': `${item.text} 삭제`,
       onClick: () => deleteChecklistItem(tripId, item.id).catch(fail('삭제하지 못했어요')),
     }, icon('close')));
@@ -86,9 +90,16 @@ function promptDialog({ title, value = '', okText = '저장' }) {
         el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '취소'),
         el('button', { type: 'submit', class: 'btn btn-primary' }, okText)));
     form.addEventListener('submit', (e) => { e.preventDefault(); dialog.close(); resolve(input.value.trim()); });
-    dialog.addEventListener('close', () => { dialog.remove(); resolve(null); });
-    dialog.append(form); document.body.append(dialog); dialog.showModal(); input.focus(); input.select();
+    dialog.addEventListener('close', () => resolve(null));
+    dialog.append(form); openModal(dialog); input.focus(); input.select();
   });
+}
+
+async function editItemDialog(tripId, item) {
+  const text = await promptDialog({ title: '항목 수정', value: item.text });
+  if (!text || text === item.text) return;
+  await updateChecklistItem(tripId, item.id, { text })
+    .catch((err) => { console.error(err); toast('저장하지 못했어요', { kind: 'error' }); });
 }
 
 async function addGroupDialog(tripId, groupOrder) {

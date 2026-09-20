@@ -1,14 +1,18 @@
 import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS } from '../ui.js';
 import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations } from '../db.js';
 import { formatShort } from '../lib/dates.js';
-import { legLabel } from '../lib/geo.js';
+import { legLabel, hasCoords } from '../lib/geo.js';
 import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
 import { openPlaceSheet } from './place-sheet.js';
 
 export function mount(content, ctx) {
   const { tripId } = ctx;
-  const state = { days: [], places: [], reservations: [], selectedDayId: null, showAll: false, dragging: false, pending: false };
+  const state = {
+    days: [], places: [], reservations: [], selectedDayId: null, showAll: false, dragging: false, pending: false,
+    focusPlaceId: ctx.placeId ?? null, lastFitKey: null, highlightId: null,
+  };
+  let closeSheet = null;
 
   const panel = el('section', { class: 'planner-panel' });
   const mapArea = el('section', { class: 'planner-map' });
@@ -28,7 +32,14 @@ export function mount(content, ctx) {
       if (!state.selectedDayId || !days.some((d) => d.id === state.selectedDayId)) state.selectedDayId = days[0]?.id ?? null;
       redraw();
     }),
-    watchPlaces(tripId, (places) => { state.places = places; redraw(); }),
+    watchPlaces(tripId, (places) => {
+      state.places = places;
+      // 예약 카드 등에서 특정 장소로 들어온 경우: 그 장소의 Day를 열고 강조한다 (한 번만)
+      const target = state.focusPlaceId && places.find((p) => p.id === state.focusPlaceId);
+      if (target) { state.selectedDayId = target.dayId; state.focusPlaceId = null; }
+      redraw();
+      if (target) { map.focus(target.id); highlight(target.id); }
+    }),
     watchReservations(tripId, (r) => { state.reservations = r; redraw(); }),
   ];
 
@@ -58,10 +69,15 @@ export function mount(content, ctx) {
     const groups = state.showAll
       ? state.days.map((d, di) => placesOf(d.id).map((p, i) => ({ ...p, label: `${di + 1}-${i + 1}` })))
       : [placesOf(state.selectedDayId).map((p, i) => ({ ...p, label: String(i + 1) }))];
-    map.setRoutes(groups, { fit: true });
+    // 핀 구성(어느 장소를 어떤 순서로)이 바뀔 때만 시야를 다시 맞춘다. 메모 수정 같은 갱신은 사용자의 확대·이동을 유지한다.
+    const fitKey = groups.map((g) => g.filter(hasCoords).map((p) => `${p.id}@${p.lat},${p.lng}`).join(',')).join('|');
+    const fit = fitKey !== state.lastFitKey;
+    state.lastFitKey = fitKey;
+    map.setRoutes(groups, { fit });
   }
 
   function highlight(placeId) {
+    state.highlightId = placeId; // 재렌더 후에도 강조가 유지되도록 상태로 둔다
     panel.querySelectorAll('.tl-item').forEach((n) => n.classList.toggle('active', n.dataset.id === placeId));
     panel.querySelector(`.tl-item[data-id="${placeId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
@@ -149,7 +165,7 @@ export function mount(content, ctx) {
   }
 
   function timelineItem(p, index) {
-    return el('div', { class: 'tl-item', dataset: { id: p.id, index: String(index) } },
+    return el('div', { class: `tl-item${p.id === state.highlightId ? ' active' : ''}`, dataset: { id: p.id, index: String(index) } },
       el('div', { class: 'tl-num', text: String(index + 1) }),
       el('button', { class: 'tl-body', onClick: () => { map.focus(p.id); highlight(p.id); openSheet({ dayId: p.dayId, place: p }); } },
         el('div', { class: 'tl-meta' },
@@ -163,8 +179,10 @@ export function mount(content, ctx) {
   }
 
   function openSheet({ dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null }) {
-    openPlaceSheet({ tripId, dayId, dayIndex, place });
+    if (closeSheet) closeSheet();
+    closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place });
   }
 
-  return () => { unsubs.forEach((u) => u()); map.destroy(); };
+  // 라우트가 바뀌면(뒤로가기 등) 열려 있던 시트도 닫는다. 안 그러면 떠난 여행에 장소가 저장될 수 있다.
+  return () => { unsubs.forEach((u) => u()); if (closeSheet) closeSheet(); map.destroy(); };
 }

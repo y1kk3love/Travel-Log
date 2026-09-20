@@ -103,7 +103,7 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .planner-panel { width: 520px; flex-shrink: 0; background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow-y: auto; padding: 0 24px 24px; }
 .planner-map { flex-grow: 1; position: relative; background: var(--map); }
 .map-box { position: absolute; inset: 0; }
-.map-controls { position: absolute; left: 12px; top: 12px; z-index: 500; display: flex; gap: 6px; }
+.map-controls { position: absolute; left: 56px; top: 12px; z-index: 1000; display: flex; gap: 6px; }
 .map-toggle { background: var(--card); color: var(--muted); }
 .map-toggle.active { color: var(--ink); border-color: var(--line); background: var(--card); font-weight: 700; }
 .day-tabs { display: flex; gap: 8px; padding: 16px 0; overflow-x: auto; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; }
@@ -174,8 +174,8 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .check-row input[type=checkbox] { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
 .check-row label { flex-grow: 1; cursor: pointer; }
 .check-row.done label { color: var(--muted); text-decoration: line-through; }
-.check-delete { width: 36px; height: 36px; color: var(--line); opacity: 0; }
-.check-row:hover .check-delete, .check-delete:focus-visible { opacity: 1; }
+.check-edit, .check-delete { width: 36px; height: 36px; color: var(--line); opacity: 0; }
+.check-row:hover .check-edit, .check-row:hover .check-delete, .check-edit:focus-visible, .check-delete:focus-visible { opacity: 1; }
 .check-add { color: var(--line); }
 .check-add svg { width: 20px; height: 20px; flex-shrink: 0; }
 .inline-input { flex-grow: 1; border: 0; background: transparent; padding: 0; font-size: 15px; }
@@ -215,7 +215,7 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
   .sheet { width: 100%; }
   .sheet-body, .sheet-head, .sheet-foot { padding-left: 16px; padding-right: 16px; }
   .checklist-groups { grid-template-columns: 1fr; }
-  .check-delete { opacity: 1; }
+  .check-edit, .check-delete { opacity: 1; }
   .reservation-grid { grid-template-columns: 1fr; }
   dialog { padding: 20px 16px; }
   .form-grid { grid-template-columns: 1fr; }
