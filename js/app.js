@@ -1,7 +1,7 @@
 import { watchAuth, signIn, signOut, isOwner } from './auth.js';
 import { el, clear, toast } from './ui.js';
 import { startRouter } from './router.js';
-import { canUseApp } from './db.js';
+import { canUseApp, ensureProfile } from './db.js';
 import * as tripsView from './views/trips.js';
 import * as tripView from './views/trip.js';
 
@@ -50,5 +50,7 @@ watchAuth(async (user) => {
   const allowed = await canUseApp(isOwner(user));
   if (seq !== authSeq) return; // 확인하는 사이 로그인 상태가 바뀜
   if (!allowed) return renderNoAccess(user);
+  await ensureProfile(user); // 첫 로그인이면 Google 이름을 기본 닉네임으로
+  if (seq !== authSeq) return;
   renderApp(user);
 });

@@ -1,6 +1,7 @@
 import { el, toast, confirmDialog, openModal, icon } from '../ui.js';
-import { addMember, removeMember } from '../db.js';
+import { addMember, removeMember, getProfiles } from '../db.js';
 import { normalizeEmail, isTripOwner } from '../lib/members.js';
+import { displayNameFor } from '../lib/profile.js';
 import { auth } from '../firebase.js';
 
 // 동행 관리 창. 소유자만 추가·삭제할 수 있고, 동행은 목록만 본다.
@@ -9,9 +10,12 @@ export function openMembersDialog(trip) {
   const list = el('div', { class: 'member-list' });
   const input = el('input', { class: 'input', id: 'mb-email', type: 'email', placeholder: '초대할 Google 이메일', autocomplete: 'off' });
 
+  let profiles = {};
   function draw(members) {
     list.replaceChildren(...members.map((email) => el('div', { class: 'member-row' },
-      el('span', { class: 'member-email', text: email }),
+      el('span', { class: 'member-email' },
+        el('span', { class: 'member-name', text: displayNameFor(profiles[email], email) }),
+        el('span', { class: 'muted member-sub', text: email })),
       email === trip.ownerEmail ? el('span', { class: 'tag', text: '주인' }) : null,
       owner && email !== trip.ownerEmail ? el('button', {
         type: 'button', class: 'btn btn-icon btn-sm', 'aria-label': `${email} 내보내기`,
@@ -25,6 +29,7 @@ export function openMembersDialog(trip) {
 
   let members = [...(trip.memberEmails ?? [])];
   draw(members);
+  getProfiles(members).then((p) => { profiles = p; draw(members); });
 
   const dialog = el('dialog', {});
   const form = el('form', { method: 'dialog' },

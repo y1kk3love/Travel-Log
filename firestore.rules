@@ -22,6 +22,12 @@ service cloud.firestore {
     function tripDataAfter(tripId) {
       return getAfter(/databases/$(database)/documents/trips/$(tripId)).data;
     }
+    // 프로필(닉네임): 로그인한 사람은 서로 읽을 수 있고, 쓰기는 본인 것만
+    match /profiles/{email} {
+      allow read: if signedIn();
+      allow write: if signedIn() && email == myEmail() && request.resource.data.uid == request.auth.uid;
+    }
+
     // 초대 목록: 본인 항목만 읽을 수 있고, 초대(쓰기)는 사이트 주인만 한다
     match /allowedUsers/{email} {
       allow read: if signedIn() && email == myEmail();

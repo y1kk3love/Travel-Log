@@ -1,5 +1,5 @@
 import {
-  collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, query, where, orderBy, limit,
+  collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, query, where, orderBy, limit,
   onSnapshot, writeBatch, serverTimestamp, getCountFromServer, increment, arrayUnion, arrayRemove, Bytes,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db, auth } from './firebase.js';
@@ -45,6 +45,38 @@ export async function canUseApp(isSiteOwner) {
     const snap = await getDocs(query(tripsCol(), where('memberEmails', 'array-contains', email), limit(1)));
     return !snap.empty;
   } catch (err) { logError(err); return false; }
+}
+
+// ---------- profiles (닉네임) ----------
+// profiles/{email}: { uid, nickname, updatedAt }. 처음 로그인하면 Google 이름을 기본 닉네임으로 넣는다.
+export async function ensureProfile(user) {
+  const email = (user.email ?? '').toLowerCase();
+  if (!email) return;
+  const ref = doc(db, 'profiles', email);
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists()) return;
+    await setDoc(ref, { uid: user.uid, nickname: (user.displayName ?? '').trim().slice(0, 20), updatedAt: serverTimestamp() });
+  } catch (err) { logError(err); }
+}
+
+export function watchMyProfile(cb, onError = logError) {
+  const { email } = me();
+  return onSnapshot(doc(db, 'profiles', email), (s) => cb(s.exists() ? s.data() : null), onError);
+}
+
+export function setNickname(nickname) {
+  const { uid, email } = me();
+  return setDoc(doc(db, 'profiles', email), { uid, nickname, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+// 여러 이메일의 프로필을 한 번에 (없는 사람은 null)
+export async function getProfiles(emails) {
+  const entries = await Promise.all(emails.map(async (email) => {
+    try { const s = await getDoc(doc(db, 'profiles', email)); return [email, s.exists() ? s.data() : null]; }
+    catch (err) { logError(err); return [email, null]; }
+  }));
+  return Object.fromEntries(entries);
 }
 
 // ---------- members (동행) ----------
