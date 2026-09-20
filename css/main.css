@@ -57,7 +57,7 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .dialog-body { display: flex; flex-direction: column; gap: 14px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
-#toast-root { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
+#toast-root { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1200; pointer-events: none; }
 .toast { background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: var(--radius); font-size: 14px; box-shadow: 0 6px 16px rgba(0, 0, 0, .2); }
 .toast-error { background: var(--danger); }
 
@@ -135,7 +135,7 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .tl-empty { padding: 16px 0; }
 
 /* ---- place sheet ---- */
-.sheet-overlay { position: fixed; inset: 0; background: rgba(30, 26, 21, 0); z-index: 900; display: flex; justify-content: flex-end; transition: background .2s; }
+.sheet-overlay { position: fixed; inset: 0; background: rgba(30, 26, 21, 0); z-index: 1100; display: flex; justify-content: flex-end; transition: background .2s; }
 .sheet-overlay.open { background: rgba(30, 26, 21, .25); }
 .sheet { width: 440px; max-width: 100%; height: 100%; background: var(--card); border-left: 1px solid var(--line); box-shadow: -12px 0 32px rgba(30, 26, 21, .12); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .2s; }
 .sheet-overlay.open .sheet { transform: none; }
@@ -190,3 +190,33 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .reservation-title { display: flex; align-items: center; gap: 10px; font-size: 16px; }
 .reservation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; font-size: 13px; }
 .link-accent { color: var(--accent); font-weight: 500; }
+
+/* ---- responsive ---- */
+@media (max-width: 900px) {
+  .container { padding: 20px 16px; }
+  .topbar { padding: 0 16px; }
+  .topbar-email { display: none; }
+  .page-head { flex-direction: column; align-items: stretch; }
+  .page-head h1 { font-size: 30px; }
+  .trips-grid { grid-template-columns: 1fr; }
+  .trip-feature { flex-direction: column; }
+  .trip-feature-cover { width: 100%; min-height: 160px; height: 160px; }
+  .trip-feature-body { padding: 18px; }
+  .trip-title { font-size: 24px; }
+  .trip-stats { flex-wrap: wrap; gap: 12px 20px; }
+  .card-delete { opacity: 1; }
+  .trip-header { padding: 10px 16px; }
+  .trip-header h1 { font-size: 20px; }
+  .tabs { width: 100%; }
+  .tab { flex-grow: 1; text-align: center; padding: 8px 0; }
+  .planner { flex-direction: column; height: auto; min-height: 0; }
+  .planner-map { height: 240px; flex-grow: 0; order: -1; }
+  .planner-panel { width: 100%; border-right: 0; overflow: visible; padding: 0 16px 96px; }
+  .sheet { width: 100%; }
+  .sheet-body, .sheet-head, .sheet-foot { padding-left: 16px; padding-right: 16px; }
+  .checklist-groups { grid-template-columns: 1fr; }
+  .check-delete { opacity: 1; }
+  .reservation-grid { grid-template-columns: 1fr; }
+  dialog { padding: 20px 16px; }
+  .form-grid { grid-template-columns: 1fr; }
+}
