@@ -19,10 +19,24 @@ export function mount(content, ctx) {
   const mapBox = el('div', { class: 'map-box' });
   const toggleDay = el('button', { class: 'btn btn-sm map-toggle active', onClick: () => setShowAll(false) }, '이 날만');
   const toggleAll = el('button', { class: 'btn btn-sm map-toggle', onClick: () => setShowAll(true) }, '전체 일정');
-  mapArea.append(mapBox, el('div', { class: 'map-controls' }, toggleDay, toggleAll));
+  const locateBtn = el('button', { class: 'btn btn-sm map-toggle map-locate', 'aria-label': '내 위치 보기', onClick: () => toggleLocate() }, icon('pin'), '내 위치');
+  mapArea.append(mapBox, el('div', { class: 'map-controls' }, toggleDay, toggleAll, locateBtn));
   content.append(el('div', { class: 'planner' }, panel, mapArea));
 
   const map = createMap(mapBox);
+
+  function toggleLocate() {
+    if (map.isLocating()) { map.locateStop(); locateBtn.classList.remove('active'); return; }
+    const ok = map.locateStart({
+      onError: (err) => {
+        locateBtn.classList.remove('active');
+        const msg = err?.code === 1 ? '위치 권한이 꺼져 있어요. 브라우저 설정에서 허용해 주세요'
+          : err?.message === 'unsupported' ? '이 브라우저는 위치를 지원하지 않아요' : '위치를 가져오지 못했어요';
+        toast(msg, { kind: 'error', ms: 4000 });
+      },
+    });
+    if (ok) locateBtn.classList.add('active');
+  }
   map.onSelect((placeId) => highlight(placeId));
   requestAnimationFrame(() => map.invalidate());
 

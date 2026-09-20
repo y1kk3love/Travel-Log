@@ -3,6 +3,7 @@ import { addPlace, updatePlace, deletePlace, watchPhotos, addPhoto, deletePhoto 
 import { searchPlaces, debounce } from '../geocode.js';
 import { parseCoordsInput, googleMapsSearchUrl } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
+import { imageFilesFrom } from '../lib/clipboard.js';
 
 export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
   const draft = {
@@ -83,9 +84,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
     photoStatus.textContent = '';
   }
 
-  fileInput.addEventListener('change', async () => {
-    const files = [...fileInput.files];
-    fileInput.value = '';
+  async function handleFiles(files) {
     if (!files.length) return;
     const compressed = [];
     for (let i = 0; i < files.length; i++) {
@@ -101,7 +100,43 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
       pendingPhotos = [...pendingPhotos, ...compressed];
       drawPhotos();
     }
+  }
+
+  fileInput.addEventListener('change', () => {
+    const files = [...fileInput.files];
+    fileInput.value = '';
+    handleFiles(files);
   });
+
+  // 클립보드 사진: 시트가 열린 동안 Ctrl+V(폰은 붙여넣기)로 들어오는 이미지 파일을 받는다.
+  const onPaste = (e) => {
+    const files = imageFilesFrom(e.clipboardData?.files);
+    if (!files.length) return;
+    e.preventDefault();
+    handleFiles(files);
+  };
+  document.addEventListener('paste', onPaste);
+
+  // 버튼으로 클립보드 읽기 (Chrome·Safari: 권한 요청이 뜰 수 있음)
+  const clipboardBtn = el('button', {
+    type: 'button', class: 'btn btn-sm',
+    onClick: async () => {
+      if (!navigator.clipboard?.read) { toast('이 브라우저는 클립보드 읽기를 지원하지 않아요. Ctrl+V로 붙여넣어 보세요', { kind: 'error', ms: 4000 }); return; }
+      try {
+        const items = await navigator.clipboard.read();
+        const files = [];
+        for (const item of items) {
+          const type = item.types.find((t) => t.startsWith('image/'));
+          if (type) files.push(new File([await item.getType(type)], `clipboard.${type.split('/')[1] || 'png'}`, { type }));
+        }
+        if (!files.length) { toast('클립보드에 사진이 없어요'); return; }
+        await handleFiles(files);
+      } catch (err) {
+        console.error(err);
+        toast(err?.name === 'NotAllowedError' ? '클립보드 접근이 거부됐어요. Ctrl+V로 붙여넣어 보세요' : '클립보드를 읽지 못했어요', { kind: 'error', ms: 4000 });
+      }
+    },
+  }, '클립보드에서 붙여넣기');
 
   if (place) {
     unsubPhotos = watchPhotos(tripId, place.id, (photos) => { savedPhotos = photos; drawPhotos(); },
@@ -154,6 +189,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
   function close() {
     overlay.remove();
     document.removeEventListener('keydown', onKey);
+    document.removeEventListener('paste', onPaste);
     if (unsubPhotos) unsubPhotos();
     revokeAll();
   }
@@ -199,9 +235,9 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
       el('div', { class: 'field' }, el('label', { text: '분류' }), categoryRow),
       el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '메모' }), memo),
       el('div', { class: 'field' },
-        el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-photo', text: '사진' }), uploadBtn),
+        el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-photo', text: '사진' }), el('div', { class: 'ps-photo-actions' }, uploadBtn, clipboardBtn)),
         photoList, fileInput, photoStatus,
-        el('p', { class: 'muted ps-hint', text: '긴 변 1280px로 줄여서 저장돼요. 원본은 폰에 남겨 두세요.' }))),
+        el('p', { class: 'muted ps-hint', text: '긴 변 1280px로 줄여서 저장돼요. 복사한 사진은 Ctrl+V로도 붙여넣을 수 있어요.' }))),
     el('div', { class: 'sheet-foot' },
       place ? el('button', {
         type: 'button', class: 'btn btn-danger',

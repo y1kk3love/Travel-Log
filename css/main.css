@@ -235,3 +235,9 @@ dialog h2 { font-size: 30px; margin-bottom: 16px; }
 .lightbox { position: fixed; inset: 0; z-index: 1300; background: rgba(30, 26, 21, .92); display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
 .lightbox img { max-width: 100vw; max-height: 100vh; object-fit: contain; }
 .lightbox-close { position: absolute; top: 12px; right: 12px; color: var(--paper); }
+
+/* ---- my location / photo actions ---- */
+.map-locate svg { width: 14px; height: 14px; }
+.map-locate.active { color: #3E5C8A; border-color: #3E5C8A; }
+.ps-photo-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ps-photo-actions .btn-sm { height: 32px; padding: 0 10px; font-size: 16px; }

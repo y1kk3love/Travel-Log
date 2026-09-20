@@ -49,11 +49,52 @@ export function createMap(container) {
     marker.openPopup();
   }
 
+  // ---- 내 위치 (GPS) ----
+  // 경로 레이어와 별도 레이어에 그려서 setRoutes가 지워도 남는다.
+  const meLayer = L.layerGroup().addTo(map);
+  let watchId = null;
+  let meDot = null;
+  let meRing = null;
+
+  function drawMe(lat, lng, accuracy, { center }) {
+    if (!meDot) {
+      meRing = L.circle([lat, lng], { radius: accuracy, color: '#3E5C8A', weight: 1, fillColor: '#3E5C8A', fillOpacity: 0.12 }).addTo(meLayer);
+      meDot = L.circleMarker([lat, lng], { radius: 8, color: '#FFFDF9', weight: 3, fillColor: '#3E5C8A', fillOpacity: 1 }).addTo(meLayer);
+      meDot.bindPopup('내 위치');
+    } else {
+      meRing.setLatLng([lat, lng]).setRadius(accuracy);
+      meDot.setLatLng([lat, lng]);
+    }
+    if (center) map.setView([lat, lng], Math.max(map.getZoom(), 15));
+  }
+
+  function locateStart({ onError } = {}) {
+    if (!('geolocation' in navigator)) { onError?.(new Error('unsupported')); return false; }
+    if (watchId != null) return true;
+    let first = true;
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => { drawMe(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, { center: first }); first = false; },
+      (err) => { locateStop(); onError?.(err); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+    );
+    return true;
+  }
+
+  function locateStop() {
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    meLayer.clearLayers();
+    meDot = null; meRing = null;
+  }
+
   return {
     setRoutes,
     focus,
+    locateStart,
+    locateStop,
+    isLocating: () => watchId != null,
     onSelect: (cb) => { selectCb = cb; },
     invalidate: () => map.invalidateSize(),
-    destroy: () => map.remove(),
+    destroy: () => { locateStop(); map.remove(); },
   };
 }
