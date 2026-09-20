@@ -5,8 +5,9 @@ import { formatRange, tripStatus, formatStatus, toDateStr } from '../lib/dates.j
 import { navigate } from '../router.js';
 import * as planner from './planner.js';
 import * as checklist from './checklist.js';
+import * as reservations from './reservations.js';
 
-const TAB_VIEWS = { planner, checklist };
+const TAB_VIEWS = { planner, checklist, reservations };
 const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약' };
 
 export function render(container, route) {

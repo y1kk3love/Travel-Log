@@ -180,3 +180,13 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .check-add svg { width: 20px; height: 20px; flex-shrink: 0; }
 .inline-input { flex-grow: 1; border: 0; background: transparent; padding: 0; font-size: 15px; }
 .inline-input:focus { outline: none; }
+
+/* ---- reservations ---- */
+.reservation-list { display: flex; flex-direction: column; gap: 16px; }
+.reservation { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; }
+.reservation-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.reservation-head > div:last-child { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+.reservation-head .btn-icon { width: 36px; height: 36px; color: var(--muted); }
+.reservation-title { display: flex; align-items: center; gap: 10px; font-size: 16px; }
+.reservation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; font-size: 13px; }
+.link-accent { color: var(--accent); font-weight: 500; }

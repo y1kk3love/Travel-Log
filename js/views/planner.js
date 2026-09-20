@@ -1,5 +1,5 @@
 import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS } from '../ui.js';
-import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces } from '../db.js';
+import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations } from '../db.js';
 import { formatShort } from '../lib/dates.js';
 import { legLabel } from '../lib/geo.js';
 import { reorderUpdates } from '../lib/order.js';
@@ -8,7 +8,7 @@ import { openPlaceSheet } from './place-sheet.js';
 
 export function mount(content, ctx) {
   const { tripId } = ctx;
-  const state = { days: [], places: [], selectedDayId: null, showAll: false, dragging: false, pending: false };
+  const state = { days: [], places: [], reservations: [], selectedDayId: null, showAll: false, dragging: false, pending: false };
 
   const panel = el('section', { class: 'planner-panel' });
   const mapArea = el('section', { class: 'planner-map' });
@@ -29,6 +29,7 @@ export function mount(content, ctx) {
       redraw();
     }),
     watchPlaces(tripId, (places) => { state.places = places; redraw(); }),
+    watchReservations(tripId, (r) => { state.reservations = r; redraw(); }),
   ];
 
   function setShowAll(value) {
@@ -154,7 +155,8 @@ export function mount(content, ctx) {
         el('div', { class: 'tl-meta' },
           p.time && el('span', { class: 'muted', text: p.time }),
           el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }),
-          p.stayMinutes ? el('span', { class: 'muted', text: `${p.stayMinutes}분` }) : null),
+          p.stayMinutes ? el('span', { class: 'muted', text: `${p.stayMinutes}분` }) : null,
+          state.reservations.some((r) => r.linkedPlaceId === p.id) ? el('span', { class: 'badge', text: '예약' }) : null),
         el('div', { class: 'tl-name', text: p.name || '(이름 없음)' }),
         p.memo && el('div', { class: 'muted tl-memo', text: p.memo.split('\n')[0] })),
       el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));
