@@ -4,8 +4,9 @@ import { watchTrip } from '../db.js';
 import { formatRange, tripStatus, formatStatus, toDateStr } from '../lib/dates.js';
 import { navigate } from '../router.js';
 import * as planner from './planner.js';
+import * as checklist from './checklist.js';
 
-const TAB_VIEWS = { planner };
+const TAB_VIEWS = { planner, checklist };
 const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약' };
 
 export function render(container, route) {
