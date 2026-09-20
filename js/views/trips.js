@@ -2,6 +2,8 @@ import { el, clear, toast, confirmDialog, openModal, icon, photoPath } from '../
 import { topbar } from './topbar.js';
 import { watchTrips, createTrip, deleteTrip, tripStats } from '../db.js';
 import { tripStatus, formatStatus, formatRange, toDateStr, dayList } from '../lib/dates.js';
+import { isTripOwner } from '../lib/members.js';
+import { auth } from '../firebase.js';
 import { navigate } from '../router.js';
 
 export function render(container) {
@@ -48,7 +50,13 @@ function cover(trip, className) {
   return el('div', { class: `${className} cover-empty`, text: '사진 없음' });
 }
 
+function membersTag(trip) {
+  const n = (trip.memberEmails ?? []).length;
+  return n > 1 ? el('span', { class: 'tag', text: `동행 ${n}명` }) : null;
+}
+
 function deleteButton(trip) {
+  if (!isTripOwner(trip, auth.currentUser)) return null; // 동행은 여행을 지울 수 없다
   return el('button', {
     class: 'btn btn-icon card-delete', 'aria-label': '여행 삭제',
     onClick: async (e) => {
@@ -78,7 +86,8 @@ function featureCard(trip) {
     el('div', { class: 'trip-feature-body' },
       el('div', { class: 'trip-meta' },
         el('span', { class: 'badge', text: formatStatus(trip.status) }),
-        el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) })),
+        el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) }),
+        membersTag(trip)),
       el('h2', { class: 'trip-title', text: trip.title }),
       stats, bar),
     deleteButton(trip));
@@ -93,7 +102,7 @@ function smallCard(trip) {
     cover(trip, 'trip-small-cover'),
     el('div', { class: 'trip-small-body' },
       el('h3', { text: trip.title }),
-      el('p', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) })),
+      el('p', { class: 'muted' }, formatRange(trip.startDate, trip.endDate), ' ', membersTag(trip))),
     deleteButton(trip));
 }
 

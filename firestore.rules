@@ -1,13 +1,47 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isOwner() {
+    // 사이트 주인. 초대 목록(allowedUsers)은 이 계정만 관리한다.
+    function isSiteOwner() {
       return request.auth != null && request.auth.uid == "cA5VgvDvMKQMVKtEDyggCGVqTvW2";
     }
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myEmail() {
+      return request.auth.token.email;
+    }
+    // 여행의 소유자이거나 동행 이메일 목록에 있으면 멤버
+    function isMemberOf(data) {
+      return signedIn() && (data.ownerUid == request.auth.uid || myEmail() in data.memberEmails);
+    }
+    function tripData(tripId) {
+      return get(/databases/$(database)/documents/trips/$(tripId)).data;
+    }
+    // 초대받은 적 있는 계정만 새 여행을 만들 수 있다 (모르는 사람이 로그인해 여행을 만드는 것을 막는다)
+    function canCreateTrips() {
+      return isSiteOwner() || exists(/databases/$(database)/documents/allowedUsers/$(myEmail()));
+    }
+
+    // 초대 목록: 본인 항목만 읽을 수 있고, 이미 초대받은 사람(또는 주인)이 다른 사람을 초대할 수 있다
+    match /allowedUsers/{email} {
+      allow read: if signedIn() && email == myEmail();
+      allow write: if canCreateTrips();
+    }
+
     match /trips/{tripId} {
-      allow read, write: if isOwner();
+      allow read: if isMemberOf(resource.data);
+      allow create: if canCreateTrips()
+        && request.resource.data.ownerUid == request.auth.uid
+        && myEmail() in request.resource.data.memberEmails;
+      // 멤버는 내용을 고칠 수 있지만 소유자는 못 바꾸고, 동행 목록은 소유자만 바꾼다
+      allow update: if isMemberOf(resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && (request.resource.data.memberEmails == resource.data.memberEmails || resource.data.ownerUid == request.auth.uid);
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+
       match /{sub=**} {
-        allow read, write: if isOwner();
+        allow read, write: if isMemberOf(tripData(tripId));
       }
     }
   }

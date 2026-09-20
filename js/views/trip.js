@@ -1,4 +1,4 @@
-import { el, clear, toast } from '../ui.js';
+import { el, clear, toast, icon } from '../ui.js';
 import { topbar } from './topbar.js';
 import { watchTrip } from '../db.js';
 import { formatRange, tripStatus, formatStatus, toDateStr } from '../lib/dates.js';
@@ -6,6 +6,7 @@ import { navigate } from '../router.js';
 import * as planner from './planner.js';
 import * as checklist from './checklist.js';
 import * as reservations from './reservations.js';
+import { openMembersDialog } from './members-dialog.js';
 
 const TAB_VIEWS = { planner, checklist, reservations };
 const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약' };
@@ -38,7 +39,9 @@ function drawHeader(header, trip, tab) {
     el('div', { class: 'trip-header-left' },
       el('h1', { text: trip.title }),
       el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) }),
-      el('span', { class: 'badge', text: formatStatus(tripStatus(trip.startDate, trip.endDate, toDateStr(new Date()))) })),
+      el('span', { class: 'badge', text: formatStatus(tripStatus(trip.startDate, trip.endDate, toDateStr(new Date()))) }),
+      el('button', { class: 'btn btn-sm btn-ghost trip-members', onClick: () => openMembersDialog(trip) },
+        icon('pin'), `동행 ${(trip.memberEmails ?? []).length}명`)),
     el('nav', { class: 'tabs' },
       ...Object.entries(TAB_LABELS).map(([key, label]) => el('a', {
         href: key === 'planner' ? `#/trip/${trip.id}` : `#/trip/${trip.id}/${key}`,

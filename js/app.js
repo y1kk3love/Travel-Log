@@ -1,6 +1,7 @@
 import { watchAuth, signIn, signOut, isOwner } from './auth.js';
 import { el, clear, toast } from './ui.js';
 import { startRouter } from './router.js';
+import { canUseApp } from './db.js';
 import * as tripsView from './views/trips.js';
 import * as tripView from './views/trip.js';
 
@@ -24,11 +25,15 @@ function renderLogin() {
 function renderNoAccess(user) {
   clear(app);
   app.append(el('div', { class: 'screen-center' },
-    el('h1', { text: '접근 권한이 없는 계정이에요' }),
-    el('p', { class: 'muted', text: `${user.email} 계정은 이 여행 로그의 주인으로 등록되어 있지 않아요.` }),
-    el('p', {}, '내 UID: ', el('code', { text: user.uid })),
-    el('p', { class: 'muted', text: '이 계정이 본인 계정이라면 위 UID를 js/firebase-config.js의 OWNER_UID와 firestore.rules에 넣으세요.' }),
+    el('h1', { text: '초대받은 계정이 아니에요' }),
+    el('p', { class: 'muted', text: `${user.email} 계정은 아직 어느 여행에도 초대되지 않았어요. 여행 주인에게 이 이메일로 초대해 달라고 해 주세요.` }),
+    el('p', { class: 'muted' }, '사이트 주인이라면 UID ', el('code', { text: user.uid }), ' 를 js/firebase-config.js의 OWNER_UID와 firestore.rules에 넣으세요.'),
     el('button', { class: 'btn', onClick: () => signOut() }, '로그아웃')));
+}
+
+function renderChecking() {
+  clear(app);
+  app.append(el('div', { class: 'screen-center' }, el('p', { class: 'muted', text: '권한 확인 중…' })));
 }
 
 function renderApp() {
@@ -36,9 +41,14 @@ function renderApp() {
   stopRouter = startRouter({ trips: tripsView, trip: tripView }, app);
 }
 
-watchAuth((user) => {
+let authSeq = 0;
+watchAuth(async (user) => {
+  const seq = ++authSeq;
   if (stopRouter) { stopRouter(); stopRouter = null; }
   if (!user) return renderLogin();
-  if (!isOwner(user)) return renderNoAccess(user);
+  renderChecking();
+  const allowed = await canUseApp(isOwner(user));
+  if (seq !== authSeq) return; // 확인하는 사이 로그인 상태가 바뀜
+  if (!allowed) return renderNoAccess(user);
   renderApp(user);
 });

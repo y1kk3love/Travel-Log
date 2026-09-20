@@ -1,10 +1,18 @@
 import {
-  collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy,
-  onSnapshot, writeBatch, serverTimestamp, getCountFromServer, increment, Bytes,
+  collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, query, where, orderBy, limit,
+  onSnapshot, writeBatch, serverTimestamp, getCountFromServer, increment, arrayUnion, arrayRemove, Bytes,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db } from './firebase.js';
+import { db, auth } from './firebase.js';
 import { dayList, addDays, toDateStr } from './lib/dates.js';
 import { nextOrder } from './lib/order.js';
+import { sortTripsByStart } from './lib/members.js';
+
+// 현재 로그인 사용자 (여행 소유자·동행 판정에 쓴다)
+function me() {
+  const u = auth.currentUser;
+  if (!u) throw new Error('not-signed-in');
+  return { uid: u.uid, email: (u.email ?? '').toLowerCase() };
+}
 
 export const DEFAULT_CHECKLIST = [
   { group: '출발 전', items: ['여권 유효기간 확인', '항공권 예약', '숙소 예약', '환전 · 트래블 카드 충전', '유심 / 이심 구매'] },
@@ -19,8 +27,36 @@ const byOrder = (a, b) => a.order - b.order;
 const logError = (err) => console.error('[db]', err);
 
 // ---------- trips ----------
+// 내가 동행으로 들어 있는 여행만. (array-contains + orderBy는 복합 색인이 필요해서 정렬은 클라이언트에서)
 export function watchTrips(cb, onError = logError) {
-  return onSnapshot(query(tripsCol(), orderBy('startDate', 'desc')), (s) => cb(docsOf(s)), onError);
+  const q = query(tripsCol(), where('memberEmails', 'array-contains', me().email));
+  return onSnapshot(q, (s) => cb(sortTripsByStart(docsOf(s))), onError);
+}
+
+// 로그인한 계정이 이 사이트를 쓸 수 있는지: 사이트 주인이거나, 초대 목록에 있거나, 어떤 여행의 동행이거나.
+export async function canUseApp(isSiteOwner) {
+  if (isSiteOwner) return true;
+  const { email } = me();
+  try {
+    const allowed = await getDoc(doc(db, 'allowedUsers', email));
+    if (allowed.exists()) return true;
+  } catch (err) { logError(err); }
+  try {
+    const snap = await getDocs(query(tripsCol(), where('memberEmails', 'array-contains', email), limit(1)));
+    return !snap.empty;
+  } catch (err) { logError(err); return false; }
+}
+
+// ---------- members (동행) ----------
+export async function addMember(tripId, email) {
+  const batch = writeBatch(db);
+  batch.update(tripDoc(tripId), { memberEmails: arrayUnion(email) });
+  batch.set(doc(db, 'allowedUsers', email), { invitedAt: serverTimestamp(), invitedBy: me().uid }, { merge: true });
+  await batch.commit();
+}
+
+export function removeMember(tripId, email) {
+  return updateDoc(tripDoc(tripId), { memberEmails: arrayRemove(email) });
 }
 
 export function watchTrip(tripId, cb, onError = logError) {
@@ -32,7 +68,11 @@ export async function createTrip({ title, startDate, endDate }) {
   if (!title.trim() || days.length === 0) throw new Error('invalid-trip');
   const ref = doc(tripsCol());
   const batch = writeBatch(db);
-  batch.set(ref, { title: title.trim(), startDate, endDate, coverPhoto: null, createdAt: serverTimestamp() });
+  const { uid, email } = me();
+  batch.set(ref, {
+    title: title.trim(), startDate, endDate, coverPhoto: null, createdAt: serverTimestamp(),
+    ownerUid: uid, ownerEmail: email, memberEmails: [email],
+  });
   for (const day of days) batch.set(doc(sub(ref.id, 'days')), day);
   DEFAULT_CHECKLIST.forEach((g, groupOrder) => g.items.forEach((text, order) => {
     batch.set(doc(sub(ref.id, 'checklist')), { group: g.group, groupOrder, order, text, done: false });

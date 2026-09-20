@@ -241,3 +241,13 @@ dialog h2 { font-size: 30px; margin-bottom: 16px; }
 .map-locate.active { color: #3E5C8A; border-color: #3E5C8A; }
 .ps-photo-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .ps-photo-actions .btn-sm { height: 32px; padding: 0 10px; font-size: 16px; }
+
+/* ---- members (동행) ---- */
+.trip-members { align-self: center; }
+.trip-members svg { width: 14px; height: 14px; }
+.member-list { display: flex; flex-direction: column; gap: 4px; }
+.member-row { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.member-email { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-row .btn-icon { width: 36px; height: 36px; color: var(--muted); }
+.member-add { display: flex; gap: 8px; }
+.member-add .input { flex-grow: 1; }
