@@ -22,22 +22,18 @@ service cloud.firestore {
     function tripDataAfter(tripId) {
       return getAfter(/databases/$(database)/documents/trips/$(tripId)).data;
     }
-    // 초대받은 적 있는 계정만 새 여행을 만들 수 있다 (모르는 사람이 로그인해 여행을 만드는 것을 막는다)
-    function canCreateTrips() {
-      return isSiteOwner() || exists(/databases/$(database)/documents/allowedUsers/$(myEmail()));
-    }
-
-    // 초대 목록: 본인 항목만 읽을 수 있고, 이미 초대받은 사람(또는 주인)이 다른 사람을 초대할 수 있다
+    // 초대 목록: 본인 항목만 읽을 수 있고, 초대(쓰기)는 사이트 주인만 한다
     match /allowedUsers/{email} {
       allow read: if signedIn() && email == myEmail();
-      allow write: if canCreateTrips();
+      allow write: if isSiteOwner();
     }
 
     match /trips/{tripId} {
       // 없는 여행(방금 삭제된 것 등)을 단건 조회하면 오류 대신 "없음"이 오도록 허용한다. 목록 조회는 멤버만.
       allow get: if signedIn() && (resource == null || isMemberOf(resource.data));
       allow list: if isMemberOf(resource.data);
-      allow create: if canCreateTrips()
+      // 새 여행은 사이트 주인만 만든다. 초대받은 동행은 기존 여행만 함께 편집한다.
+      allow create: if isSiteOwner()
         && request.resource.data.ownerUid == request.auth.uid
         && myEmail() in request.resource.data.memberEmails;
       // 멤버는 내용을 고칠 수 있지만 소유자는 못 바꾸고, 동행 목록은 소유자만 바꾼다

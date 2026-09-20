@@ -4,6 +4,7 @@ import { watchTrips, createTrip, deleteTrip, tripStats } from '../db.js';
 import { tripStatus, formatStatus, formatRange, toDateStr, dayList } from '../lib/dates.js';
 import { isTripOwner } from '../lib/members.js';
 import { auth } from '../firebase.js';
+import { isOwner } from '../auth.js';
 import { navigate } from '../router.js';
 
 export function render(container) {
@@ -26,14 +27,15 @@ function draw(main, trips) {
   const withStatus = trips.map((t) => ({ ...t, status: tripStatus(t.startDate, t.endDate, today) }));
   const upcoming = withStatus.filter((t) => t.status.kind !== 'after').sort((a, b) => a.startDate.localeCompare(b.startDate));
   const past = withStatus.filter((t) => t.status.kind === 'after');
+  const siteOwner = isOwner(auth.currentUser); // 새 여행은 사이트 주인만 만든다
 
   main.append(
     el('div', { class: 'page-head' },
       el('div', {},
         el('h1', { text: '내 여행' }),
         el('p', { class: 'muted', text: `다가오는 여행 ${upcoming.length}개 · 지난 여행 ${past.length}개` })),
-      el('button', { class: 'btn btn-primary', onClick: openNewTripDialog }, icon('plus'), '새 여행')),
-    section('다가오는 여행', upcoming.map(featureCard), '아직 계획한 여행이 없어요. 새 여행을 만들어 보세요.'),
+      siteOwner ? el('button', { class: 'btn btn-primary', onClick: openNewTripDialog }, icon('plus'), '새 여행') : null),
+    section('다가오는 여행', upcoming.map(featureCard), siteOwner ? '아직 계획한 여행이 없어요. 새 여행을 만들어 보세요.' : '초대받은 여행이 여기에 보여요.'),
     section('지난 여행', past.map(smallCard), '지난 여행이 없어요.'),
   );
 }
