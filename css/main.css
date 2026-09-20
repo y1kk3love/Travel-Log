@@ -83,3 +83,8 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .trip-small-body h3 { font-size: 20px; }
 .card-delete { position: absolute; top: 8px; right: 8px; background: var(--card); opacity: 0; transition: opacity .15s; }
 .card:hover .card-delete, .card-delete:focus-visible { opacity: 1; }
+
+/* ---- map ---- */
+.pin-wrap { background: none; border: 0; }
+.pin { width: 32px; height: 32px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); border: 3px solid var(--card); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); font-family: var(--sans); }
+.leaflet-popup-content { font-family: var(--sans); font-size: 13px; }
