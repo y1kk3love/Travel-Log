@@ -4,6 +4,7 @@ import { signOut } from '../auth.js';
 import { watchMyProfile } from '../db.js';
 import { displayNameFor } from '../lib/profile.js';
 import { openProfileDialog } from './profile-dialog.js';
+import { avatar } from './avatar.js';
 
 // 뷰가 바뀔 때마다 topbar가 새로 만들어지므로 window 리스너는 모듈에서 한 번만 단다.
 // 배지는 문서 안의 현재 것을 찾아 갱신한다 (떨어져 나간 헤더를 붙들지 않는다).
@@ -18,7 +19,9 @@ let myProfile = null;
 let profileUnsub = null;
 function syncNames() {
   const email = auth.currentUser?.email ?? '';
-  document.querySelectorAll('.topbar-me').forEach((btn) => { btn.textContent = displayNameFor(myProfile, email); });
+  document.querySelectorAll('.topbar-me').forEach((btn) => {
+    btn.replaceChildren(avatar(myProfile, email, 28), el('span', { class: 'topbar-me-name', text: displayNameFor(myProfile, email) }));
+  });
 }
 function ensureProfileWatch() {
   if (profileUnsub || !auth.currentUser) return;
@@ -37,8 +40,7 @@ export function topbar({ backHref = null } = {}) {
       offline,
       el('button', {
         class: 'btn btn-sm btn-ghost topbar-me', title: `${email} · 닉네임 바꾸기`,
-        text: displayNameFor(myProfile, email),
         onClick: () => openProfileDialog(myProfile?.nickname ?? ''),
-      }),
+      }, avatar(myProfile, email, 28), el('span', { class: 'topbar-me-name', text: displayNameFor(myProfile, email) })),
       el('button', { class: 'btn btn-sm btn-ghost', onClick: () => { if (profileUnsub) { profileUnsub(); profileUnsub = null; myProfile = null; } signOut(); } }, '로그아웃')));
 }

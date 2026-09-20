@@ -2,6 +2,7 @@ import { el, toast, confirmDialog, openModal, icon } from '../ui.js';
 import { addMember, removeMember, getProfiles } from '../db.js';
 import { normalizeEmail, isTripOwner } from '../lib/members.js';
 import { displayNameFor } from '../lib/profile.js';
+import { avatar } from './avatar.js';
 import { auth } from '../firebase.js';
 
 // 동행 관리 창. 소유자만 추가·삭제할 수 있고, 동행은 목록만 본다.
@@ -13,6 +14,7 @@ export function openMembersDialog(trip) {
   let profiles = {};
   function draw(members) {
     list.replaceChildren(...members.map((email) => el('div', { class: 'member-row' },
+      avatar(profiles[email], email, 36),
       el('span', { class: 'member-email' },
         el('span', { class: 'member-name', text: displayNameFor(profiles[email], email) }),
         el('span', { class: 'muted member-sub', text: email })),

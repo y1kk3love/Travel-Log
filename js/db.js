@@ -53,10 +53,15 @@ export async function ensureProfile(user) {
   const email = (user.email ?? '').toLowerCase();
   if (!email) return;
   const ref = doc(db, 'profiles', email);
+  const photoURL = user.photoURL ?? null;
   try {
     const snap = await getDoc(ref);
-    if (snap.exists()) return;
-    await setDoc(ref, { uid: user.uid, nickname: (user.displayName ?? '').trim().slice(0, 20), updatedAt: serverTimestamp() });
+    if (!snap.exists()) {
+      await setDoc(ref, { uid: user.uid, nickname: (user.displayName ?? '').trim().slice(0, 20), photoURL, updatedAt: serverTimestamp() });
+    } else if ((snap.data().photoURL ?? null) !== photoURL) {
+      // Google 프로필 사진이 바뀌면 따라간다 (닉네임은 건드리지 않는다)
+      await setDoc(ref, { uid: user.uid, photoURL, updatedAt: serverTimestamp() }, { merge: true });
+    }
   } catch (err) { logError(err); }
 }
 
