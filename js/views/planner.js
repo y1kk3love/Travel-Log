@@ -3,6 +3,7 @@ import { watchDays, watchPlaces, addDay, deleteDay } from '../db.js';
 import { formatShort } from '../lib/dates.js';
 import { legLabel } from '../lib/geo.js';
 import { createMap } from '../map.js';
+import { openPlaceSheet } from './place-sheet.js';
 
 export function mount(content, ctx) {
   const { tripId } = ctx;
@@ -118,8 +119,8 @@ export function mount(content, ctx) {
       el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));
   }
 
-  function openSheet() {
-    toast('장소 편집은 다음 단계에서 붙어요');
+  function openSheet({ dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null }) {
+    openPlaceSheet({ tripId, dayId, dayIndex, place });
   }
 
   return () => { unsubs.forEach((u) => u()); map.destroy(); };
