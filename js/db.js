@@ -216,7 +216,7 @@ export function watchReservations(tripId, cb, onError = logError) {
 
 export async function addReservation(tripId, data) {
   const ref = await addDoc(sub(tripId, 'reservations'), {
-    type: 'etc', title: '', datetime: null, code: '', note: '', linkedPlaceId: null, ...data,
+    type: 'etc', title: '', datetime: null, code: '', note: '', linkedPlaceId: null, flightNumber: null, ...data,
   });
   return ref.id;
 }
