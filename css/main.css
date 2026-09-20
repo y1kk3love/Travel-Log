@@ -88,3 +88,48 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .pin-wrap { background: none; border: 0; }
 .pin { width: 32px; height: 32px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); border: 3px solid var(--card); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); font-family: var(--sans); }
 .leaflet-popup-content { font-family: var(--sans); font-size: 13px; }
+
+/* ---- trip shell ---- */
+.trip-header { min-height: 76px; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); background: var(--card); flex-wrap: wrap; }
+.trip-header-left { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.trip-header h1 { font-size: 26px; }
+.tabs { display: flex; gap: 4px; padding: 4px; background: var(--line-soft); border-radius: var(--radius); }
+.tab { padding: 8px 18px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--muted); }
+.tab.active { background: var(--card); color: var(--ink); }
+.trip-content { min-height: calc(100vh - 140px); }
+
+/* ---- planner ---- */
+.planner { display: flex; height: calc(100vh - 140px); min-height: 480px; }
+.planner-panel { width: 520px; flex-shrink: 0; background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow-y: auto; padding: 0 24px 24px; }
+.planner-map { flex-grow: 1; position: relative; background: var(--map); }
+.map-box { position: absolute; inset: 0; }
+.map-controls { position: absolute; left: 12px; top: 12px; z-index: 500; display: flex; gap: 6px; }
+.map-toggle { background: var(--card); color: var(--muted); }
+.map-toggle.active { color: var(--ink); border-color: var(--line); background: var(--card); font-weight: 700; }
+.day-tabs { display: flex; gap: 8px; padding: 16px 0; overflow-x: auto; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; }
+.day-tab { height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius); background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; cursor: pointer; flex-shrink: 0; }
+.day-tab strong { font-size: 12px; }
+.day-tab span { font-size: 11px; color: var(--muted); }
+.day-tab.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.day-tab.active span { color: var(--accent-ink); }
+.day-tab-add { width: 48px; border-style: dashed; color: var(--muted); }
+.day-tab-add svg { width: 16px; height: 16px; }
+.day-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 0 10px; }
+.day-head-right { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.day-title { font-family: var(--serif); font-size: 18px; font-weight: 700; }
+.timeline { display: flex; flex-direction: column; }
+.tl-item { display: flex; gap: 14px; padding: 10px 0; align-items: flex-start; border-radius: var(--radius); }
+.tl-item.active { background: var(--paper); margin: 0 -8px; padding-left: 8px; padding-right: 8px; }
+.tl-item.dragging { opacity: .5; }
+.tl-item.drop-before { box-shadow: 0 -2px 0 var(--accent); }
+.tl-item.drop-after { box-shadow: 0 2px 0 var(--accent); }
+.tl-num { width: 28px; height: 28px; flex-shrink: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+.tl-body { flex-grow: 1; min-width: 0; text-align: left; border: 0; background: transparent; padding: 0; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
+.tl-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.tl-name { font-size: 15px; font-weight: 500; }
+.tl-memo { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drag-handle { color: var(--line); cursor: grab; touch-action: none; }
+.drag-handle:active { cursor: grabbing; }
+.tl-leg { display: flex; align-items: center; gap: 14px; padding-left: 13px; height: 26px; font-size: 12px; }
+.tl-leg-line { width: 2px; height: 26px; border-left: 2px dashed var(--line); }
+.tl-empty { padding: 16px 0; }
