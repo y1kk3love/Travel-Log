@@ -7,6 +7,9 @@ import * as planner from './planner.js';
 import * as checklist from './checklist.js';
 import * as reservations from './reservations.js';
 import { openMembersDialog } from './members-dialog.js';
+import { openCoverDialog } from './cover-dialog.js';
+import { isOwner } from '../auth.js';
+import { auth } from '../firebase.js';
 
 const TAB_VIEWS = { planner, checklist, reservations };
 const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약' };
@@ -46,7 +49,10 @@ function drawHeader(header, trip, tab) {
       el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) }),
       el('span', { class: 'badge', text: formatStatus(tripStatus(trip.startDate, trip.endDate, toDateStr(new Date()))) }),
       el('button', { class: 'btn btn-sm btn-ghost trip-members', onClick: () => openMembersDialog(trip) },
-        icon('pin'), `동행 ${(trip.memberEmails ?? []).length}명`)),
+        icon('pin'), `동행 ${(trip.memberEmails ?? []).length}명`),
+      // 대표 사진은 사이트 주인만 넣는다
+      isOwner(auth.currentUser) ? el('button', { class: 'btn btn-sm btn-ghost trip-members', onClick: () => openCoverDialog(trip) },
+        icon('edit'), '대표 사진') : null),
     el('nav', { class: 'tabs' },
       ...Object.entries(TAB_LABELS).map(([key, label]) => el('a', {
         href: key === 'planner' ? `#/trip/${trip.id}` : `#/trip/${trip.id}/${key}`,

@@ -251,3 +251,8 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .member-row .btn-icon { width: 36px; height: 36px; color: var(--muted); }
 .member-add { display: flex; gap: 8px; }
 .member-add .input { flex-grow: 1; }
+
+/* ---- trip cover ---- */
+.cover-preview { height: 180px; border-radius: var(--radius); background: var(--line-soft); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cover-preview img { width: 100%; height: 100%; object-fit: cover; }
+.cover-actions { justify-content: flex-start; }

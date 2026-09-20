@@ -1,6 +1,7 @@
 import { el, clear, toast, confirmDialog, openModal, icon, photoPath } from '../ui.js';
 import { topbar } from './topbar.js';
-import { watchTrips, createTrip, deleteTrip, tripStats } from '../db.js';
+import { watchTrips, createTrip, deleteTrip, tripStats, coverBytes } from '../db.js';
+import { bytesToObjectUrl } from '../photo.js';
 import { tripStatus, formatStatus, formatRange, toDateStr, dayList } from '../lib/dates.js';
 import { isTripOwner } from '../lib/members.js';
 import { auth } from '../firebase.js';
@@ -48,8 +49,13 @@ function section(title, cards, emptyText) {
 }
 
 function cover(trip, className) {
+  const bytes = coverBytes(trip);
+  if (bytes) {
+    const url = bytesToObjectUrl(bytes);
+    return el('img', { class: className, src: url, alt: '', onLoad: () => URL.revokeObjectURL(url) });
+  }
   if (trip.coverPhoto) return el('img', { class: className, src: photoPath(trip.id, trip.coverPhoto), alt: '' });
-  return el('div', { class: `${className} cover-empty`, text: '사진 없음' });
+  return el('div', { class: `${className} cover-empty`, text: isOwner(auth.currentUser) ? '대표 사진 없음 · 여행 화면에서 추가' : '대표 사진 없음' });
 }
 
 function membersTag(trip) {

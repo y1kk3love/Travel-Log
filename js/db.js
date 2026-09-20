@@ -85,6 +85,15 @@ export function updateTrip(tripId, data) {
   return updateDoc(tripDoc(tripId), data);
 }
 
+// 대표 사진: 작게 줄인 JPEG 바이트를 여행 문서에 직접 둔다 (홈 목록에서 추가 읽기 없이 보이도록). null이면 제거.
+export function setTripCover(tripId, bytes) {
+  return updateDoc(tripDoc(tripId), { cover: bytes ? Bytes.fromUint8Array(bytes) : null });
+}
+
+export function coverBytes(trip) {
+  return trip?.cover instanceof Bytes ? trip.cover.toUint8Array() : null;
+}
+
 export async function deleteTrip(tripId) {
   const batch = writeBatch(db);
   for (const name of ['days', 'places', 'photos', 'checklist', 'reservations']) {
