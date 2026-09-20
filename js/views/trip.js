@@ -28,7 +28,12 @@ export function render(container, route) {
       if (view) cleanupTab = view.mount(content, { tripId, trip, placeId }) || null;
       else content.append(el('p', { class: 'muted container', text: `${TAB_LABELS[tab]} 탭은 다음 단계에서 붙어요` }));
     }
-  }, (err) => { console.error(err); toast('여행을 불러오지 못했어요', { kind: 'error' }); });
+  }, (err) => {
+    console.error(err);
+    // 동행이 아니거나 이미 삭제된 여행: 권한 오류로 오므로 "없음"과 같게 다룬다
+    if (err.code === 'permission-denied') { toast('볼 수 없는 여행이에요', { kind: 'error' }); navigate('/'); return; }
+    toast('여행을 불러오지 못했어요', { kind: 'error' });
+  });
 
   return () => { unsub(); if (cleanupTab) cleanupTab(); };
 }

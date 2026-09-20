@@ -18,6 +18,10 @@ service cloud.firestore {
     function tripData(tripId) {
       return get(/databases/$(database)/documents/trips/$(tripId)).data;
     }
+    // 배치 쓰기로 여행과 하위 문서를 함께 만들 때는 쓰기 후 상태를 봐야 여행 문서가 보인다
+    function tripDataAfter(tripId) {
+      return getAfter(/databases/$(database)/documents/trips/$(tripId)).data;
+    }
     // 초대받은 적 있는 계정만 새 여행을 만들 수 있다 (모르는 사람이 로그인해 여행을 만드는 것을 막는다)
     function canCreateTrips() {
       return isSiteOwner() || exists(/databases/$(database)/documents/allowedUsers/$(myEmail()));
@@ -30,7 +34,9 @@ service cloud.firestore {
     }
 
     match /trips/{tripId} {
-      allow read: if isMemberOf(resource.data);
+      // 없는 여행(방금 삭제된 것 등)을 단건 조회하면 오류 대신 "없음"이 오도록 허용한다. 목록 조회는 멤버만.
+      allow get: if signedIn() && (resource == null || isMemberOf(resource.data));
+      allow list: if isMemberOf(resource.data);
       allow create: if canCreateTrips()
         && request.resource.data.ownerUid == request.auth.uid
         && myEmail() in request.resource.data.memberEmails;
@@ -41,7 +47,8 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
 
       match /{sub=**} {
-        allow read, write: if isMemberOf(tripData(tripId));
+        allow read, delete: if isMemberOf(tripData(tripId));
+        allow create, update: if isMemberOf(tripDataAfter(tripId));
       }
     }
   }
