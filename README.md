@@ -25,4 +25,6 @@ npm test
 - `js/db.js` Firestore 접근 전부
 - `js/lib/*` 순수 계산 (테스트 대상)
 - `firestore.rules` 보안 규칙 원본 (콘솔에 붙여 넣어 배포)
+- `manifest.webmanifest`, `sw.js`, `icons/` 홈 화면 앱(PWA). 아이콘은 `node scripts/make-icons.js`로 `favicon.svg`에서 다시 만든다
+- 날씨는 Open-Meteo(키 없음, 오늘부터 15일 안의 날짜만), 도착 예상 시간은 `js/lib/timeline.js`
 - 설계: `docs/superpowers/specs/2026-09-20-travel-planner-design.md`

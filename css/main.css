@@ -268,3 +268,13 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .avatar { border-radius: 999px; object-fit: cover; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--line-soft); }
 .avatar-initial { color: var(--muted); font-weight: 700; line-height: 1; }
 .topbar-me { gap: 8px; padding-left: 6px; }
+
+/* ---- notes, estimated times, weather ---- */
+.tl-actions { display: flex; gap: 8px; margin-top: 16px; }
+.tl-actions .btn-dashed { width: auto; flex-grow: 1; }
+.tl-note .tl-num-note { background: var(--line-soft); color: var(--muted); }
+.tl-num-note svg { width: 14px; height: 14px; }
+.tl-note .tl-body { padding: 6px 10px; border-radius: 8px; background: var(--paper); }
+.tl-note-text { font-weight: 400; }
+.tl-est { font-style: italic; }
+.day-weather { font-family: var(--sans); font-size: 13px; font-weight: 400; }

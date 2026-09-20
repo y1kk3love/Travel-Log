@@ -1,0 +1,17 @@
+{
+  "name": "여행 로그",
+  "short_name": "여행 로그",
+  "description": "날짜별 일정, 지도 동선, 체크리스트와 예약을 한 곳에서 관리하는 개인 여행 플래너",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F0E6",
+  "theme_color": "#B4502B",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

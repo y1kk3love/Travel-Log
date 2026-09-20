@@ -13,7 +13,7 @@ const ICONS = {
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
 };
 
-export const CATEGORY_LABELS = { sight: '관광', food: '식사', cafe: '카페', shop: '쇼핑', stay: '숙소', move: '이동', etc: '기타' };
+export const CATEGORY_LABELS = { sight: '관광', food: '식사', cafe: '카페', shop: '쇼핑', stay: '숙소', move: '이동', etc: '기타', note: '메모' };
 export const CATEGORY_ORDER = ['sight', 'food', 'cafe', 'shop', 'stay', 'move', 'etc'];
 
 export function el(tag, attrs = {}, ...children) {

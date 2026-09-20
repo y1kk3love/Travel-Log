@@ -41,6 +41,13 @@ function renderApp() {
   stopRouter = startRouter({ trips: tripsView, trip: tripView }, app);
 }
 
+// 홈 화면 앱(PWA): 서비스 워커는 파일 캐시만 담당한다. 실패해도 앱은 그대로 동작.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { scope: './' }).catch((err) => console.warn('service worker 등록 실패', err));
+  });
+}
+
 let authSeq = 0;
 watchAuth(async (user) => {
   const seq = ++authSeq;

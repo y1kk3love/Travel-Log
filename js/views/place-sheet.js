@@ -1,21 +1,27 @@
 import { el, toast, confirmDialog, icon, photoPath, CATEGORY_LABELS, CATEGORY_ORDER } from '../ui.js';
-import { addPlace, updatePlace, deletePlace, watchPhotos, addPhoto, deletePhoto } from '../db.js';
+import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
 import { parseCoordsInput, googleMapsSearchUrl } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
+import { formatShort } from '../lib/dates.js';
 
-export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
+// kind: 'place'(기본) 또는 'note'(장소 없는 메모 항목). days를 주면 기존 항목을 다른 Day로 옮길 수 있다.
+export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = 'place', days = [] }) {
+  const noteMode = kind === 'note' || place?.category === 'note';
   const draft = {
     name: place?.name ?? '', time: place?.time ?? '', stayMinutes: place?.stayMinutes ?? '',
-    category: place?.category ?? 'sight', memo: place?.memo ?? '',
+    category: place?.category ?? (noteMode ? 'note' : 'sight'), memo: place?.memo ?? '',
     lat: place?.lat ?? null, lng: place?.lng ?? null, address: place?.address ?? null,
     photos: [...(place?.photos ?? [])],
   };
 
   const search = el('input', { class: 'input', id: 'ps-search', type: 'search', placeholder: '장소 이름이나 주소로 검색', autocomplete: 'off' });
   const results = el('div', { class: 'search-results', hidden: true });
-  const name = el('input', { class: 'input', id: 'ps-name', value: draft.name, required: true, placeholder: '장소 이름' });
+  const name = el('input', { class: 'input', id: 'ps-name', value: draft.name, required: true, placeholder: noteMode ? '예: 점심 먹기, 12시까지 공항으로' : '장소 이름' });
+  // 기존 항목만 다른 Day로 옮길 수 있다
+  const daySelect = place && days.length > 1 ? el('select', { class: 'input', id: 'ps-day' },
+    ...days.map((d, i) => el('option', { value: d.id, selected: d.id === place.dayId, text: `Day ${i + 1} · ${formatShort(d.date)}` }))) : null;
   const time = el('input', { class: 'input', id: 'ps-time', type: 'time', value: draft.time });
   const stay = el('input', { class: 'input', id: 'ps-stay', type: 'number', min: '0', step: '5', value: draft.stayMinutes, placeholder: '분' });
   const memo = el('textarea', { class: 'input', id: 'ps-memo', rows: '3', placeholder: '메모' });
@@ -156,11 +162,14 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
     return true;
   }
 
+  let searchSeq = 0; // 늦게 도착한 이전 검색 응답이 최신 결과를 덮지 않도록
   const runSearch = debounce(async (q) => {
+    const seq = ++searchSeq;
     if (q.trim().length < 2) { results.hidden = true; return; }
     if (applyPastedCoords(q)) return;
     try {
       const found = await searchPlaces(q.trim());
+      if (seq !== searchSeq) return;
       results.replaceChildren(...(found.length ? found.map((r) => el('button', {
         type: 'button', class: 'search-result',
         onClick: () => {
@@ -198,21 +207,24 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const data = {
-      name: name.value.trim(), time: time.value || null,
-      stayMinutes: stay.value === '' ? null : Number(stay.value),
-      category: draft.category, memo: memo.value,
-      lat: draft.lat, lng: draft.lng, address: draft.address, photos: draft.photos,
-    };
-    if (!data.name) { toast('장소 이름을 입력해 주세요', { kind: 'error' }); name.focus(); return; }
+    const data = noteMode
+      ? { name: name.value.trim(), time: time.value || null, stayMinutes: null, category: 'note', memo: memo.value, lat: null, lng: null, address: null, photos: [] }
+      : {
+        name: name.value.trim(), time: time.value || null,
+        stayMinutes: stay.value === '' ? null : Number(stay.value),
+        category: draft.category, memo: memo.value,
+        lat: draft.lat, lng: draft.lng, address: draft.address, photos: draft.photos,
+      };
+    if (!data.name) { toast(noteMode ? '메모 내용을 입력해 주세요' : '장소 이름을 입력해 주세요', { kind: 'error' }); name.focus(); return; }
     try {
       if (place) {
         await updatePlace(tripId, place.id, data);
+        if (daySelect && daySelect.value !== place.dayId) await movePlaceToDay(tripId, place.id, daySelect.value);
       } else {
         const newId = await addPlace(tripId, { dayId, ...data });
         if (pendingPhotos.length) await uploadPhotos(newId, pendingPhotos);
       }
-      toast(place ? '저장했어요' : '일정에 추가했어요');
+      toast(place ? (daySelect && daySelect.value !== place.dayId ? '다른 날로 옮겼어요' : '저장했어요') : (noteMode ? '메모를 추가했어요' : '일정에 추가했어요'));
       close();
     } catch (err) {
       console.error(err);
@@ -220,11 +232,15 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
     }
   });
 
-  form.append(
-    el('div', { class: 'sheet-head' },
-      el('h2', { text: place ? '장소 편집' : `장소 추가 · Day ${dayIndex + 1}` }),
-      el('button', { type: 'button', class: 'btn btn-icon', 'aria-label': '닫기', onClick: close }, icon('close'))),
-    el('div', { class: 'sheet-body' },
+  const dayField = daySelect ? el('div', { class: 'field' }, el('label', { for: 'ps-day', text: '날짜 (다른 Day로 옮기기)' }), daySelect) : null;
+  const title = place ? (noteMode ? '메모 편집' : '장소 편집') : `${noteMode ? '메모' : '장소'} 추가 · Day ${dayIndex + 1}`;
+  const body = noteMode
+    ? el('div', { class: 'sheet-body' },
+      el('div', { class: 'field' }, el('label', { for: 'ps-name', text: '메모 내용' }), name),
+      el('div', { class: 'field' }, el('label', { for: 'ps-time', text: '시간 (선택)' }), time),
+      dayField,
+      el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '자세한 내용 (선택)' }), memo))
+    : el('div', { class: 'sheet-body' },
       el('div', { class: 'field' },
         el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-search', text: '장소 검색' }), googleBtn),
         search, results, location, hint),
@@ -232,12 +248,18 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
       el('div', { class: 'form-grid' },
         el('div', { class: 'field' }, el('label', { for: 'ps-time', text: '시간' }), time),
         el('div', { class: 'field' }, el('label', { for: 'ps-stay', text: '머무는 시간(분)' }), stay)),
+      dayField,
       el('div', { class: 'field' }, el('label', { text: '분류' }), categoryRow),
       el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '메모' }), memo),
       el('div', { class: 'field' },
         el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-photo', text: '사진' }), el('div', { class: 'ps-photo-actions' }, uploadBtn, clipboardBtn)),
         photoList, fileInput, photoStatus,
-        el('p', { class: 'muted ps-hint', text: '긴 변 1280px로 줄여서 저장돼요. 복사한 사진은 Ctrl+V로도 붙여넣을 수 있어요.' }))),
+        el('p', { class: 'muted ps-hint', text: '긴 변 1280px로 줄여서 저장돼요. 복사한 사진은 Ctrl+V로도 붙여넣을 수 있어요.' })));
+  form.append(
+    el('div', { class: 'sheet-head' },
+      el('h2', { text: title }),
+      el('button', { type: 'button', class: 'btn btn-icon', 'aria-label': '닫기', onClick: close }, icon('close'))),
+    body,
     el('div', { class: 'sheet-foot' },
       place ? el('button', {
         type: 'button', class: 'btn btn-danger',
@@ -249,12 +271,12 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
       }, '삭제') : el('span'),
       el('div', { class: 'sheet-foot-right' },
         el('button', { type: 'button', class: 'btn', onClick: close }, '취소'),
-        el('button', { type: 'submit', class: 'btn btn-primary' }, place ? '저장' : '일정에 추가'))));
+        el('button', { type: 'submit', class: 'btn btn-primary' }, place ? '저장' : (noteMode ? '메모 추가' : '일정에 추가')))));
 
   drawLocation(); drawCategories(); drawPhotos();
   overlay.append(form);
   document.body.append(overlay);
   requestAnimationFrame(() => overlay.classList.add('open'));
-  (place ? name : search).focus();
+  (place || noteMode ? name : search).focus();
   return close;
 }

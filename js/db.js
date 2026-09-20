@@ -139,6 +139,7 @@ export async function updateTripSchedule(tripId, { title, startDate, endDate }) 
       photosSnap.docs.forEach((ph) => batch.delete(ph.ref));
       batch.delete(p.ref);
     }
+    if (placesSnap.size) await unlinkReservations(batch, tripId, placesSnap.docs.map((d) => d.id));
     batch.delete(doc(sub(tripId, 'days'), dayId));
   }
   await batch.commit();
@@ -171,6 +172,17 @@ export async function deleteTrip(tripId) {
   await batch.commit();
 }
 
+// 오프라인이면 서버 카운트가 실패하므로 캐시된 문서를 세어 대신 채운다
+async function tripStatsFromCache(tripId) {
+  const [days, places, checklist, reservations] = await Promise.all(
+    ['days', 'places', 'checklist', 'reservations'].map((name) => getDocs(sub(tripId, name))));
+  return {
+    days: days.size, places: places.size,
+    checklistTotal: checklist.size, checklistDone: checklist.docs.filter((d) => d.data().done).length,
+    reservations: reservations.size,
+  };
+}
+
 export async function tripStats(tripId) {
   try {
     const [days, places, total, done, reservations] = await Promise.all([
@@ -187,7 +199,16 @@ export async function tripStats(tripId) {
     };
   } catch (err) {
     logError(err);
-    return null;
+    try { return await tripStatsFromCache(tripId); } catch (err2) { logError(err2); return null; }
+  }
+}
+
+// 장소가 지워질 때 그 장소에 연결된 예약의 연결을 푼다 (배치에 추가)
+async function unlinkReservations(batch, tripId, placeIds) {
+  for (let i = 0; i < placeIds.length; i += 30) {
+    const chunk = placeIds.slice(i, i + 30);
+    const snap = await getDocs(query(sub(tripId, 'reservations'), where('linkedPlaceId', 'in', chunk)));
+    snap.docs.forEach((d) => batch.update(d.ref, { linkedPlaceId: null }));
   }
 }
 
@@ -220,6 +241,7 @@ export async function deleteDay(tripId, dayId) {
     photosSnap.docs.forEach((p) => batch.delete(p.ref));
     batch.delete(d.ref);
   }
+  if (placesSnap.size) await unlinkReservations(batch, tripId, placesSnap.docs.map((d) => d.id));
   batch.delete(doc(sub(tripId, 'days'), dayId));
   const first = remaining[0].date;
   remaining.forEach((d, i) => {
@@ -253,8 +275,15 @@ export async function deletePlace(tripId, placeId) {
   const photosSnap = await getDocs(query(sub(tripId, 'photos'), where('placeId', '==', placeId)));
   const batch = writeBatch(db);
   photosSnap.docs.forEach((p) => batch.delete(p.ref));
+  await unlinkReservations(batch, tripId, [placeId]);
   batch.delete(doc(sub(tripId, 'places'), placeId));
   await batch.commit();
+}
+
+// 장소를 다른 Day로 옮긴다 (옮긴 Day의 맨 뒤로)
+export async function movePlaceToDay(tripId, placeId, dayId) {
+  const sameDay = docsOf(await getDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId))));
+  await updateDoc(doc(sub(tripId, 'places'), placeId), { dayId, order: nextOrder(sameDay) });
 }
 
 // ---------- photos ----------

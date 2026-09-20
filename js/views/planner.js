@@ -5,6 +5,17 @@ import { legLabel, hasCoords } from '../lib/geo.js';
 import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
 import { openPlaceSheet } from './place-sheet.js';
+import { estimateTimes } from '../lib/timeline.js';
+import { weatherLabel, pickDayLocation, forecastWindow } from '../lib/weather.js';
+import { fetchDailyForecast } from '../weather.js';
+import { toDateStr } from '../lib/dates.js';
+
+const isNote = (p) => p.category === 'note';
+// 메모 항목은 번호를 차지하지 않는다: 장소에만 1, 2, 3… 을 붙인다
+function numbered(places) {
+  let n = 0;
+  return places.map((p) => ({ ...p, label: isNote(p) ? null : String(++n) }));
+}
 
 export function mount(content, ctx) {
   const { tripId } = ctx;
@@ -81,8 +92,8 @@ export function mount(content, ctx) {
 
   function drawMap() {
     const groups = state.showAll
-      ? state.days.map((d, di) => placesOf(d.id).map((p, i) => ({ ...p, label: `${di + 1}-${i + 1}` })))
-      : [placesOf(state.selectedDayId).map((p, i) => ({ ...p, label: String(i + 1) }))];
+      ? state.days.map((d, di) => numbered(placesOf(d.id)).filter((p) => !isNote(p)).map((p) => ({ ...p, label: `${di + 1}-${p.label}` })))
+      : [numbered(placesOf(state.selectedDayId)).filter((p) => !isNote(p))];
     // 핀 구성(어느 장소를 어떤 순서로)이 바뀔 때만 시야를 다시 맞춘다. 메모 수정 같은 갱신은 사용자의 확대·이동을 유지한다.
     const fitKey = groups.map((g) => g.filter(hasCoords).map((p) => `${p.id}@${p.lat},${p.lng}`).join(',')).join('|');
     const fit = fitKey !== state.lastFitKey;
@@ -112,10 +123,13 @@ export function mount(content, ctx) {
     if (!day) { panel.append(el('p', { class: 'muted', text: '날짜가 없어요' })); return; }
     const places = placesOf(day.id);
 
+    const weatherEl = el('span', { class: 'muted day-weather' });
+    loadWeather(day, weatherEl);
+    const placeCount = places.filter((p) => !isNote(p)).length;
     panel.append(el('div', { class: 'day-head' },
-      el('span', { class: 'day-title', text: `Day ${dayIndex + 1} · ${formatShort(day.date)}` }),
+      el('span', { class: 'day-title' }, `Day ${dayIndex + 1} · ${formatShort(day.date)}`, weatherEl),
       el('div', { class: 'day-head-right' },
-        el('span', { class: 'muted', text: `장소 ${places.length}곳` }),
+        el('span', { class: 'muted', text: `장소 ${placeCount}곳` }),
         el('button', {
           class: 'btn btn-sm btn-danger', disabled: state.days.length <= 1,
           onClick: async () => {
@@ -126,17 +140,38 @@ export function mount(content, ctx) {
         }, '이 날 삭제'))));
 
     const list = el('div', { class: 'timeline' });
-    places.forEach((p, i) => {
-      if (i > 0) {
-        const label = legLabel(places[i - 1], p);
-        list.append(el('div', { class: 'tl-leg' }, el('span', { class: 'tl-leg-line' }), el('span', { class: 'muted', text: label ?? '' })));
+    const labeled = numbered(places);
+    const times = estimateTimes(places);
+    let prevPlace = null; // 이동 구간은 장소끼리만 (메모는 건너뜀)
+    labeled.forEach((p, i) => {
+      if (!isNote(p)) {
+        if (prevPlace) {
+          const label = legLabel(prevPlace, p);
+          list.append(el('div', { class: 'tl-leg' }, el('span', { class: 'tl-leg-line' }), el('span', { class: 'muted', text: label ?? '' })));
+        }
+        prevPlace = p;
       }
-      list.append(timelineItem(p, i));
+      list.append(timelineItem(p, i, times[i]));
     });
     if (!places.length) list.append(el('p', { class: 'muted tl-empty', text: '아직 장소가 없어요. 아래에서 추가해 보세요.' }));
     panel.append(list);
     enableDrag(list, places);
-    panel.append(el('button', { class: 'btn btn-dashed', onClick: () => openSheet({ dayId: day.id, dayIndex }) }, icon('plus'), '장소 추가'));
+    panel.append(el('div', { class: 'tl-actions' },
+      el('button', { class: 'btn btn-dashed', onClick: () => openSheet({ dayId: day.id, dayIndex }) }, icon('plus'), '장소 추가'),
+      el('button', { class: 'btn btn-dashed', onClick: () => openSheet({ dayId: day.id, dayIndex, kind: 'note' }) }, icon('edit'), '메모 추가')));
+  }
+
+  // 오늘부터 15일 안의 날짜만, 그 날 첫 장소 위치로 예보를 받는다 (없으면 표시 안 함)
+  async function loadWeather(day, target) {
+    const today = toDateStr(new Date());
+    if (!forecastWindow([day.date], today).length) return;
+    const loc = pickDayLocation(state.places, day.id);
+    if (!loc) return;
+    try {
+      const daily = await fetchDailyForecast(loc.lat, loc.lng, day.date, day.date);
+      const w = daily[day.date];
+      if (w && target.isConnected) target.textContent = ` · ${weatherLabel(w.code)} ${w.tmax}°/${w.tmin}°`;
+    } catch (err) { console.warn('weather', err); }
   }
 
   function enableDrag(list, places) {
@@ -178,12 +213,23 @@ export function mount(content, ctx) {
     });
   }
 
-  function timelineItem(p, index) {
+  function timelineItem(p, index, est) {
+    if (isNote(p)) {
+      return el('div', { class: `tl-item tl-note${p.id === state.highlightId ? ' active' : ''}`, dataset: { id: p.id, index: String(index) } },
+        el('div', { class: 'tl-num tl-num-note' }, icon('edit')),
+        el('button', { class: 'tl-body', onClick: () => { highlight(p.id); openSheet({ dayId: p.dayId, place: p, kind: 'note' }); } },
+          el('div', { class: 'tl-meta' }, p.time && el('span', { class: 'muted', text: p.time }), el('span', { class: 'tag', text: '메모' })),
+          el('div', { class: 'tl-name tl-note-text', text: p.name || '(내용 없음)' }),
+          p.memo && el('div', { class: 'muted tl-memo', text: p.memo.split('\n')[0] })),
+        el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));
+    }
+    const timeEl = p.time ? el('span', { class: 'muted', text: p.time })
+      : est?.estimated ? el('span', { class: 'muted tl-est', title: '앞 장소의 시간·머무는 시간·도보 시간으로 추정', text: `도착 ~${est.time}` }) : null;
     return el('div', { class: `tl-item${p.id === state.highlightId ? ' active' : ''}`, dataset: { id: p.id, index: String(index) } },
-      el('div', { class: 'tl-num', text: String(index + 1) }),
+      el('div', { class: 'tl-num', text: p.label }),
       el('button', { class: 'tl-body', onClick: () => { map.focus(p.id); highlight(p.id); openSheet({ dayId: p.dayId, place: p }); } },
         el('div', { class: 'tl-meta' },
-          p.time && el('span', { class: 'muted', text: p.time }),
+          timeEl,
           el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }),
           p.stayMinutes ? el('span', { class: 'muted', text: `${p.stayMinutes}분` }) : null,
           p.photoCount > 0 ? el('span', { class: 'tag', text: `사진 ${p.photoCount}` }) : null,
@@ -193,9 +239,9 @@ export function mount(content, ctx) {
       el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));
   }
 
-  function openSheet({ dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null }) {
+  function openSheet({ dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null, kind = 'place' }) {
     if (closeSheet) closeSheet();
-    closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place });
+    closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place, kind, days: state.days });
   }
 
   // 라우트가 바뀌면(뒤로가기 등) 열려 있던 시트도 닫는다. 안 그러면 떠난 여행에 장소가 저장될 수 있다.
