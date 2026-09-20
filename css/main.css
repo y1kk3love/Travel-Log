@@ -220,3 +220,8 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
   dialog { padding: 20px 16px; }
   .form-grid { grid-template-columns: 1fr; }
 }
+
+/* ---- place sheet: Google 지도 보조 ---- */
+.ps-search-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ps-search-head .btn-sm { height: 32px; padding: 0 10px; font-size: 12px; color: var(--muted); }
+.ps-hint { font-size: 12px; line-height: 1.5; }

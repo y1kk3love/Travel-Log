@@ -1,6 +1,7 @@
 import { el, toast, confirmDialog, icon, photoPath, CATEGORY_LABELS, CATEGORY_ORDER } from '../ui.js';
 import { addPlace, updatePlace, deletePlace } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
+import { parseCoordsInput, googleMapsSearchUrl } from '../lib/coords.js';
 
 export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
   const draft = {
@@ -39,8 +40,22 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
       el('button', { type: 'button', class: 'photo-remove', 'aria-label': `${file} 제거`, onClick: () => { draft.photos = draft.photos.filter((f) => f !== file); drawPhotos(); } }, icon('close')))));
   }
 
+  // Google 지도 링크나 "위도, 경도"를 붙여넣으면 검색 대신 좌표를 바로 채운다.
+  function applyPastedCoords(text) {
+    const coords = parseCoordsInput(text);
+    if (!coords) return false;
+    draft.lat = coords.lat; draft.lng = coords.lng;
+    draft.address = `붙여넣은 좌표 ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
+    results.hidden = true; search.value = '';
+    drawLocation();
+    toast('좌표를 가져왔어요. 이름을 적어 주세요');
+    if (!name.value.trim()) name.focus();
+    return true;
+  }
+
   const runSearch = debounce(async (q) => {
     if (q.trim().length < 2) { results.hidden = true; return; }
+    if (applyPastedCoords(q)) return;
     try {
       const found = await searchPlaces(q.trim());
       results.replaceChildren(...(found.length ? found.map((r) => el('button', {
@@ -59,6 +74,12 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
     }
   }, 600);
   search.addEventListener('input', () => runSearch(search.value));
+  search.addEventListener('paste', () => setTimeout(() => applyPastedCoords(search.value), 0));
+  const googleBtn = el('a', {
+    class: 'btn btn-sm', target: '_blank', rel: 'noopener', href: googleMapsSearchUrl(''),
+    onClick: (e) => { e.currentTarget.href = googleMapsSearchUrl(search.value.trim() || name.value.trim()); },
+  }, icon('pin'), 'Google 지도에서 찾기');
+  const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도에서 찾은 장소의 공유 링크나 "위도, 경도"를 검색창에 붙여넣으면 핀이 찍혀요.' });
   photoInput.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -99,7 +120,9 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null }) {
       el('h2', { text: place ? '장소 편집' : `장소 추가 · Day ${dayIndex + 1}` }),
       el('button', { type: 'button', class: 'btn btn-icon', 'aria-label': '닫기', onClick: close }, icon('close'))),
     el('div', { class: 'sheet-body' },
-      el('div', { class: 'field' }, el('label', { for: 'ps-search', text: '장소 검색' }), search, results, location),
+      el('div', { class: 'field' },
+        el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-search', text: '장소 검색' }), googleBtn),
+        search, results, location, hint),
       el('div', { class: 'field' }, el('label', { for: 'ps-name', text: '이름' }), name),
       el('div', { class: 'form-grid' },
         el('div', { class: 'field' }, el('label', { for: 'ps-time', text: '시간' }), time),
