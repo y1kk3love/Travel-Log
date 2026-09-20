@@ -1,7 +1,8 @@
 import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS } from '../ui.js';
-import { watchDays, watchPlaces, addDay, deleteDay } from '../db.js';
+import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces } from '../db.js';
 import { formatShort } from '../lib/dates.js';
 import { legLabel } from '../lib/geo.js';
+import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
 import { openPlaceSheet } from './place-sheet.js';
 
@@ -103,7 +104,47 @@ export function mount(content, ctx) {
     });
     if (!places.length) list.append(el('p', { class: 'muted tl-empty', text: '아직 장소가 없어요. 아래에서 추가해 보세요.' }));
     panel.append(list);
+    enableDrag(list, places);
     panel.append(el('button', { class: 'btn btn-dashed', onClick: () => openSheet({ dayId: day.id, dayIndex }) }, icon('plus'), '장소 추가'));
+  }
+
+  function enableDrag(list, places) {
+    list.querySelectorAll('.drag-handle').forEach((handle) => {
+      handle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        const item = handle.closest('.tl-item');
+        const rows = [...list.querySelectorAll('.tl-item')];
+        const from = Number(item.dataset.index);
+        let to = from;
+        state.dragging = true;
+        item.classList.add('dragging');
+        try { handle.setPointerCapture(e.pointerId); } catch { /* 합성 이벤트 등 포인터가 없으면 무시 */ }
+
+        const onMove = (ev) => {
+          const y = ev.clientY;
+          let idx = rows.findIndex((r) => { const b = r.getBoundingClientRect(); return y < b.top + b.height / 2; });
+          if (idx === -1) idx = rows.length;
+          to = idx > from ? idx - 1 : idx;
+          rows.forEach((r, i) => {
+            r.classList.toggle('drop-before', i === idx && i !== from && i !== from + 1);
+            r.classList.toggle('drop-after', idx === rows.length && i === rows.length - 1 && from !== rows.length - 1);
+          });
+        };
+        const onUp = async () => {
+          handle.removeEventListener('pointermove', onMove);
+          rows.forEach((r) => r.classList.remove('drop-before', 'drop-after', 'dragging'));
+          state.dragging = false;
+          if (to !== from) {
+            try { await reorderPlaces(tripId, reorderUpdates(places, from, to)); }
+            catch (err) { console.error(err); toast('순서를 바꾸지 못했어요', { kind: 'error' }); }
+          }
+          if (state.pending) { state.pending = false; redraw(); }
+        };
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp, { once: true });
+        handle.addEventListener('pointercancel', onUp, { once: true });
+      });
+    });
   }
 
   function timelineItem(p, index) {
