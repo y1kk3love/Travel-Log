@@ -7,20 +7,24 @@ import { escapeHtml } from './ui.js';
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const ROUTE_COLOR = '#B4502B';
 const DEFAULT_VIEW = { center: [127.8, 36.5], zoom: 5.5 };
-const LABEL_EXPR = ['coalesce', ['get', 'name:ko'], ['get', 'name:en'], ['get', 'name']];
+// 한국어 → 영어 → 로마자 표기 → 현지어. 한국어 이름이 없는 상점·도로도 한자·가나 대신 읽을 수 있는 글자로 나온다.
+const LABEL_EXPR = ['coalesce', ['get', 'name:ko'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']];
 
 export function createMap(container) {
   const map = new maplibregl.Map({
     container, style: STYLE_URL, center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom,
     attributionControl: { compact: true },
+    pitch: 0, maxPitch: 0, dragRotate: false, pitchWithRotate: false, touchPitch: false, // 항상 평면(2D)
   });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+  map.touchZoomRotate.disableRotation();
 
-  // 스타일이 (다시) 로드될 때마다 라벨 언어를 한국어 우선으로 바꾸고 경로 레이어를 준비한다
+  // 스타일이 (다시) 로드될 때마다 라벨 언어를 바꾸고, 3D 건물 레이어를 빼고, 경로 레이어를 준비한다
   let ready = false;
   const pendingRoutes = [];
   map.on('style.load', () => {
     for (const layer of map.getStyle().layers) {
+      if (layer.type === 'fill-extrusion') { map.removeLayer(layer.id); continue; }
       if (layer.layout && layer.layout['text-field']) map.setLayoutProperty(layer.id, 'text-field', LABEL_EXPR);
     }
     if (!map.getSource('routes')) {
