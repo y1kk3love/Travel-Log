@@ -1,7 +1,11 @@
 import { watchAuth, signIn, signOut, isOwner } from './auth.js';
 import { el, clear, toast } from './ui.js';
+import { startRouter } from './router.js';
+import * as tripsView from './views/trips.js';
+import * as tripView from './views/trip.js';
 
 const app = document.getElementById('app');
+let stopRouter = null;
 
 function renderLogin() {
   clear(app);
@@ -27,15 +31,13 @@ function renderNoAccess(user) {
     el('button', { class: 'btn', onClick: () => signOut() }, '로그아웃')));
 }
 
-function renderApp(user) {
+function renderApp() {
   clear(app);
-  app.append(el('div', { class: 'screen-center' },
-    el('h1', { text: '로그인 완료' }),
-    el('p', { class: 'muted', text: `${user.email} · 여행 목록은 다음 단계에서 붙어요` }),
-    el('button', { class: 'btn', onClick: () => signOut() }, '로그아웃')));
+  stopRouter = startRouter({ trips: tripsView, trip: tripView }, app);
 }
 
 watchAuth((user) => {
+  if (stopRouter) { stopRouter(); stopRouter = null; }
   if (!user) return renderLogin();
   if (!isOwner(user)) return renderNoAccess(user);
   renderApp(user);

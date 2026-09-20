@@ -60,3 +60,26 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 #toast-root { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
 .toast { background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: var(--radius); font-size: 14px; box-shadow: 0 6px 16px rgba(0, 0, 0, .2); }
 .toast-error { background: var(--danger); }
+
+/* ---- trips (home) ---- */
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+.page-head h1 { font-size: 36px; letter-spacing: -.5px; }
+.trips-section { display: flex; flex-direction: column; gap: 14px; margin-bottom: 32px; }
+.section-title { font-family: var(--sans); font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: .5px; }
+.trips-list { display: flex; flex-direction: column; gap: 16px; }
+.trips-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.trip-feature { position: relative; display: flex; overflow: hidden; }
+.trip-feature-cover { width: 320px; flex-shrink: 0; object-fit: cover; min-height: 220px; }
+.cover-empty { background: var(--line-soft); color: var(--muted); font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.trip-feature-body { flex-grow: 1; padding: 28px 32px; display: flex; flex-direction: column; gap: 12px; }
+.trip-meta { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.trip-title { font-size: 30px; }
+.trip-stats { display: flex; gap: 28px; font-size: 14px; min-height: 40px; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat .muted { font-size: 12px; }
+.trip-small { position: relative; display: flex; flex-direction: column; overflow: hidden; }
+.trip-small-cover { height: 150px; width: 100%; object-fit: cover; }
+.trip-small-body { padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 6px; }
+.trip-small-body h3 { font-size: 20px; }
+.card-delete { position: absolute; top: 8px; right: 8px; background: var(--card); opacity: 0; transition: opacity .15s; }
+.card:hover .card-delete, .card-delete:focus-visible { opacity: 1; }
