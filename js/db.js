@@ -6,6 +6,7 @@ import { db, auth } from './firebase.js';
 import { dayList, addDays, toDateStr } from './lib/dates.js';
 import { nextOrder } from './lib/order.js';
 import { sortTripsByStart } from './lib/members.js';
+import { planScheduleChange } from './lib/schedule.js';
 
 // 현재 로그인 사용자 (여행 소유자·동행 판정에 쓴다)
 function me() {
@@ -120,6 +121,35 @@ export async function createTrip({ title, startDate, endDate }) {
 
 export function updateTrip(tripId, data) {
   return updateDoc(tripDoc(tripId), data);
+}
+
+// 여행 제목·기간 수정. 기존 Day는 순서대로 새 날짜를 받고, 늘어난 날은 추가, 줄어든 뒤쪽 Day는 장소·사진과 함께 지운다.
+export async function updateTripSchedule(tripId, { title, startDate, endDate }) {
+  const days = docsOf(await getDocs(query(sub(tripId, 'days'), orderBy('order'))));
+  const plan = planScheduleChange(days, startDate, endDate);
+  if (!plan) throw new Error('invalid-range');
+  const batch = writeBatch(db);
+  batch.update(tripDoc(tripId), { title: title.trim(), startDate, endDate });
+  plan.redate.forEach((d) => batch.update(doc(sub(tripId, 'days'), d.id), { date: d.date, order: d.order }));
+  plan.add.forEach((d) => batch.set(doc(sub(tripId, 'days')), d));
+  for (const dayId of plan.remove) {
+    const placesSnap = await getDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId)));
+    for (const p of placesSnap.docs) {
+      const photosSnap = await getDocs(query(sub(tripId, 'photos'), where('placeId', '==', p.id)));
+      photosSnap.docs.forEach((ph) => batch.delete(ph.ref));
+      batch.delete(p.ref);
+    }
+    batch.delete(doc(sub(tripId, 'days'), dayId));
+  }
+  await batch.commit();
+  return plan;
+}
+
+// 기간을 줄일 때 사라질 Day의 장소 수 (확인 대화상자용)
+export async function countPlacesInDays(tripId, dayIds) {
+  let n = 0;
+  for (const dayId of dayIds) n += (await getDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId)))).size;
+  return n;
 }
 
 // 대표 사진: 작게 줄인 JPEG 바이트를 여행 문서에 직접 둔다 (홈 목록에서 추가 읽기 없이 보이도록). null이면 제거.
