@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "660409033949",
+    "project_id": "travel-log-d6cc9",
+    "storage_bucket": "travel-log-d6cc9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:660409033949:android:20502421e75c1f45256734",
+        "android_client_info": {
+          "package_name": "io.github.y1kk3love.travellog"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "660409033949-qa1db53td2smu38rfqobuhajvcv0560t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "io.github.y1kk3love.travellog",
+            "certificate_hash": "0c4e7c72d998aa2d02e8f6cf55558017ecf4e8eb"
+          }
+        },
+        {
+          "client_id": "660409033949-0a56t2vboglaaia24pb4511c59bq43dv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2JJTmgQEW8wUnMRJVkgiDaP-GgiOr6rQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "660409033949-0a56t2vboglaaia24pb4511c59bq43dv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
