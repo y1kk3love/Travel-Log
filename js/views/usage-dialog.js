@@ -6,10 +6,10 @@ const PROJECT = 'travel-log-maps';
 const CONSOLE = `https://console.cloud.google.com/google/maps-apis/quotas?project=${PROJECT}&hl=ko`;
 const BILLING = `https://console.cloud.google.com/billing?project=${PROJECT}&hl=ko`;
 const LIMITS = [
-  ['지도 로드 (Maps JavaScript)', '300 / 일', '10,000 / 월'],
-  ['장소 자동완성 (Places)', '300 / 일', '10,000 / 월'],
-  ['장소 상세 (위치·주소만)', '100 / 일', '10,000 / 월'],
-  ['도보 경로 (Routes)', '300 / 일', '10,000 / 월'],
+  ['지도 로드 (Maps JavaScript)', '320 / 일', '10,000 / 월'],
+  ['장소 자동완성 (Places)', '320 / 일', '10,000 / 월'],
+  ['장소 상세 (위치·주소만)', '320 / 일', '10,000 / 월'],
+  ['도보 경로 (Routes)', '320 / 일', '10,000 / 월'],
 ];
 
 export function openUsageDialog() {
