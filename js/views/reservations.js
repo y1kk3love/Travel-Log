@@ -3,7 +3,7 @@ import {
   watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays,
   addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, addPlace, updatePlace,
 } from '../db.js';
-import { parseFlightNumber, airlineName, flightradarUrl } from '../lib/flight.js';
+import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration } from '../lib/flight.js';
 import { placesFromReservation } from '../lib/reservation-place.js';
 import { orderForTime } from '../lib/order.js';
 import { compressImage } from '../photo.js';
@@ -68,6 +68,17 @@ function card(tripId, state, r) {
   const linkedEls = linkedIds.map((id) => ({ id, label: placeLabel(state, id) })).filter((x) => x.label)
     .map((x, i) => [i ? ' · ' : null, el('a', { href: `#/trip/${tripId}/planner/${x.id}`, class: 'link-accent', text: x.label })]);
   const linked = linkedEls.length ? el('span', {}, ...linkedEls.flat()) : null;
+  const actions = () => [
+    el('button', { class: 'btn btn-icon btn-sm', 'aria-label': '편집', onClick: () => openDialog(tripId, state, r) }, icon('edit')),
+    el('button', {
+      class: 'btn btn-icon btn-sm', 'aria-label': '삭제',
+      onClick: async () => {
+        if (!(await confirmDialog(`'${r.title}' 예약을 삭제할까요?`))) return;
+        await deleteReservation(tripId, r.id).catch((err) => { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); });
+      },
+    }, icon('trash')),
+  ];
+  if (r.type === 'flight') return ticketCard(tripId, r, linked, actions);
   return el('section', { class: 'card reservation', dataset: { id: r.id } },
     el('div', { class: 'reservation-head' },
       el('div', { class: 'reservation-title' },
@@ -75,14 +86,7 @@ function card(tripId, state, r) {
         el('strong', { text: r.title || '(제목 없음)' })),
       el('div', {},
         el('span', { class: 'muted', text: r.checkout ? `${formatDatetime(r.datetime)} → ${formatDatetime(r.checkout)}` : formatDatetime(r.datetime) }),
-        el('button', { class: 'btn btn-icon btn-sm', 'aria-label': '편집', onClick: () => openDialog(tripId, state, r) }, icon('edit')),
-        el('button', {
-          class: 'btn btn-icon btn-sm', 'aria-label': '삭제',
-          onClick: async () => {
-            if (!(await confirmDialog(`'${r.title}' 예약을 삭제할까요?`))) return;
-            await deleteReservation(tripId, r.id).catch((err) => { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); });
-          },
-        }, icon('trash')))),
+        ...actions())),
     el('div', { class: 'reservation-grid' },
       ...(r.flightNumber ? [field('편명', el('span', {},
         `${airlineName(parseFlightNumber(r.flightNumber)?.airline) ?? ''} ${r.flightNumber} · `.replace(/^ /, ''),
@@ -91,6 +95,41 @@ function card(tripId, state, r) {
       field('메모', r.note ? el('span', { class: 'pre-wrap' }, linkedText(r.note)) : '—'),
       field('연결된 일정', linked ?? '없음'),
       field('서류', filesField(tripId, r))));
+}
+
+// 항공 예약은 탑승권 모양: 공항 코드(제목의 "인천 → 후쿠오카"에서), 출발·도착 시각, 절취선 아래 스텁에 예약번호·연결 일정·메모
+function ticketCard(tripId, r, linked, actions) {
+  const flight = parseFlightNumber(r.flightNumber);
+  const route = parseRoute(r.title);
+  const airline = airlineName(flight?.airline);
+  const timeOf = (dt) => (dt ? String(dt).slice(11, 16) : null);
+  const dateOf = (dt) => (dt ? formatDatetime(dt).split(' ')[0] : '');
+  const endpoint = (city, time, label, align) => el('div', { class: `ticket-end ${align}` },
+    el('div', { class: `ticket-code${airportCode(city) ? '' : ' ticket-code-text'}`, text: airportCode(city) ?? (city || '—') }),
+    el('div', { class: 'ticket-city', text: airportCode(city) && city ? city : label }),
+    time ? el('div', { class: 'ticket-time', text: time }) : el('div', { class: 'ticket-time muted', text: `${label} —` }));
+  const duration = flightDuration(r.datetime, r.arrival);
+  const dates = r.arrival && dateOf(r.arrival) !== dateOf(r.datetime) ? `${dateOf(r.datetime)} → ${dateOf(r.arrival)}` : dateOf(r.datetime);
+  return el('section', { class: 'card reservation ticket', dataset: { id: r.id } },
+    el('div', { class: 'ticket-main' },
+      el('div', { class: 'ticket-top' },
+        el('span', { class: 'ticket-airline' },
+          flight ? el('i', { text: flight.airline }) : el('span', { class: 'badge badge-muted', text: '항공' }),
+          el('span', { text: flight ? `${airline ?? ''} ${flight.iata}`.trim() : (r.title || '(제목 없음)') })),
+        el('span', { class: 'ticket-top-right' }, el('span', { class: 'ticket-date muted', text: dates || '일시 미정' }), ...actions())),
+      el('div', { class: 'ticket-route' },
+        endpoint(route?.from, timeOf(r.datetime), '출발', 'from'),
+        el('div', { class: 'ticket-plane' }, el('span', { class: 'ticket-line' }), el('span', { class: 'muted', text: duration ?? '' })),
+        endpoint(route?.to, timeOf(r.arrival), '도착', 'to')),
+      !route && flight ? el('p', { class: 'muted ps-hint', text: '제목을 "인천 → 후쿠오카" 처럼 적으면 공항이 표시돼요' }) : null),
+    el('div', { class: 'ticket-cut' }),
+    el('div', { class: 'ticket-stub' },
+      el('div', {}, el('div', { class: 'ticket-k', text: '예약번호' }), r.code ? el('div', { class: 'ticket-v ticket-mono', text: r.code }) : el('div', { class: 'ticket-v muted', text: '없음' })),
+      el('div', {}, el('div', { class: 'ticket-k', text: '연결된 일정' }), el('div', { class: 'ticket-v' }, linked ?? el('span', { class: 'muted', text: '없음' }))),
+      el('div', {}, el('div', { class: 'ticket-k', text: '메모' }), el('div', { class: 'ticket-v ticket-memo' }, r.note ? el('span', { class: 'pre-wrap' }, linkedText(r.note)) : el('span', { class: 'muted', text: '—' }))),
+      el('div', { class: 'ticket-foot' },
+        flight ? el('a', { href: flightradarUrl(flight.iata), target: '_blank', rel: 'noopener', class: 'link-accent', text: 'Flightradar24에서 보기' }) : null,
+        filesField(tripId, r))));
 }
 
 // 예약 서류: 항공권 PDF·바우처·여권 사본을 붙여 두고 여행 중에 바로 연다 (한 번 연 서류는 오프라인에서도 열린다)
@@ -174,8 +213,11 @@ function openDialog(tripId, state, existing = null) {
   const title = el('input', { class: 'input', id: 'rs-title', value: existing?.title ?? '', required: true, placeholder: '예: 인천 → 간사이 KE723' });
   const flight = el('input', { class: 'input', id: 'rs-flight', value: existing?.flightNumber ?? '', placeholder: '예: LJ213', autocomplete: 'off', autocapitalize: 'characters' });
   const flightHint = el('p', { class: 'muted ps-hint rs-flight-hint' });
+  const arrival = el('input', { class: 'input', id: 'rs-arrival', type: 'datetime-local', value: existing?.arrival ?? '' });
   const flightField = el('div', { class: 'field', hidden: (existing?.type ?? 'etc') !== 'flight' },
-    el('label', { for: 'rs-flight', text: '편명' }), flight, flightHint);
+    el('label', { for: 'rs-flight', text: '편명' }), flight, flightHint,
+    el('label', { for: 'rs-arrival', text: '도착 일시' }), arrival,
+    el('p', { class: 'muted ps-hint', text: '제목을 "인천 → 후쿠오카" 로 시작하면 탑승권에 공항 코드가 표시돼요. 일시는 출발 시각.' }));
   function drawFlightHint() {
     const parsed = parseFlightNumber(flight.value);
     flightHint.replaceChildren();
@@ -226,6 +268,7 @@ function openDialog(tripId, state, existing = null) {
     const data = {
       type: type.value, title: title.value.trim(), datetime: datetime.value || null, code: code.value.trim(), note: note.value,
       checkout: type.value === 'stay' && checkout.value ? checkout.value : null,
+      arrival: type.value === 'flight' && arrival.value ? arrival.value : null,
       linkedPlaceId: linked.value || null, linkedPlaceIds: existing?.linkedPlaceIds ?? [], flightNumber: parsedFlight ? parsedFlight.iata : null,
     };
     if (!data.title) { toast('제목을 입력해 주세요', { kind: 'error' }); return; }

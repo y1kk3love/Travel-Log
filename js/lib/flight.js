@@ -30,3 +30,42 @@ export function airlineName(code) {
 export function flightradarUrl(iata) {
   return `https://www.flightradar24.com/data/flights/${String(iata).toLowerCase()}`;
 }
+
+// 자주 가는 공항: 도시·공항 이름(한국어) → IATA 코드. 코드를 직접 쓰면 그대로.
+const AIRPORTS = {
+  인천: 'ICN', 김포: 'GMP', 제주: 'CJU', 부산: 'PUS', 김해: 'PUS', 대구: 'TAE', 청주: 'CJJ', 무안: 'MWX',
+  도쿄: 'NRT', 나리타: 'NRT', 하네다: 'HND', 오사카: 'KIX', 간사이: 'KIX', 이타미: 'ITM', 후쿠오카: 'FUK', 나고야: 'NGO', 주부: 'NGO',
+  삿포로: 'CTS', 신치토세: 'CTS', 오키나와: 'OKA', 나하: 'OKA', 센다이: 'SDJ', 히로시마: 'HIJ', 구마모토: 'KMJ', 가고시마: 'KOJ', 오이타: 'OIT', 다카마쓰: 'TAK', 마쓰야마: 'MYJ', 기타큐슈: 'KKJ',
+  타이베이: 'TPE', 타오위안: 'TPE', 쑹산: 'TSA', 가오슝: 'KHH', 홍콩: 'HKG', 마카오: 'MFM',
+  상하이: 'PVG', 푸동: 'PVG', 베이징: 'PEK', 다낭: 'DAD', 하노이: 'HAN', 호치민: 'SGN', 나트랑: 'CXR', 방콕: 'BKK', 수완나품: 'BKK', 돈므앙: 'DMK', 푸켓: 'HKT', 치앙마이: 'CNX',
+  싱가포르: 'SIN', 창이: 'SIN', 쿠알라룸푸르: 'KUL', 세부: 'CEB', 마닐라: 'MNL', 발리: 'DPS', 덴파사르: 'DPS', 괌: 'GUM', 사이판: 'SPN', 하와이: 'HNL', 호놀룰루: 'HNL',
+  파리: 'CDG', 런던: 'LHR', 프랑크푸르트: 'FRA', 로마: 'FCO', 시드니: 'SYD', 로스앤젤레스: 'LAX', 뉴욕: 'JFK', 밴쿠버: 'YVR',
+};
+
+export function airportCode(text) {
+  const s = String(text ?? '').trim();
+  if (!s) return null;
+  if (/^[A-Za-z]{3}$/.test(s)) return s.toUpperCase();
+  const key = s.replace(/\s*(국제)?공항$/, '');
+  return AIRPORTS[key] ?? null;
+}
+
+// 제목 "인천 → 후쿠오카 · 제주항공 7C1403" → { from: '인천', to: '후쿠오카' }. 화살표(→, ->, ➜)나 " - " 로 나눈다.
+export function parseRoute(title) {
+  const s = String(title ?? '').split(/\s[·|]\s/)[0].trim();
+  const m = s.match(/^(.+?)\s*(?:→|->|➜|⇒|~|\s-\s)\s*(.+)$/);
+  if (!m) return null;
+  const clean = (t) => t.trim().split(/\s+/)[0].replace(/[,·]+$/, '');
+  const from = clean(m[1]);
+  const to = clean(m[2]);
+  return from && to ? { from, to } : null;
+}
+
+// 출발·도착 일시(YYYY-MM-DDTHH:MM)로 "1시간 30분". 둘 중 하나가 없거나 도착이 더 이르면 null.
+export function flightDuration(departure, arrival) {
+  const a = Date.parse(departure ?? ''), b = Date.parse(arrival ?? '');
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
+  const min = Math.round((b - a) / 60000);
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? (m ? `${h}시간 ${m}분` : `${h}시간`) : `${m}분`;
+}
