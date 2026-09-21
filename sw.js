@@ -2,7 +2,7 @@
 // - 같은 출처(앱 파일): 네트워크 우선, 실패하면 캐시 (배포 직후에도 최신 코드를 받도록)
 // - CDN(지도 라이브러리, Firebase SDK): 캐시 우선 (버전이 URL에 박혀 있어 안전)
 // - 데이터(Firestore, 타일, 검색, 날씨 API)는 건드리지 않는다. Firestore 는 자체 오프라인 캐시가 있다.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 const APP_SHELL = ['./', 'index.html', 'manifest.webmanifest', 'favicon.svg', 'css/main.css'];

@@ -1,13 +1,16 @@
 import { el, toast, confirmDialog, icon, photoPath, CATEGORY_LABELS, CATEGORY_ORDER } from '../ui.js';
 import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
+import { createPlaceSearch } from '../places.js';
 import { parseCoordsInput, googleMapsSearchUrl } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
 import { formatShort } from '../lib/dates.js';
 
 // kind: 'place'(기본) 또는 'note'(장소 없는 메모 항목). days를 주면 기존 항목을 다른 Day로 옮길 수 있다.
-export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = 'place', days = [] }) {
+// near: 검색 결과를 우선 보여줄 기준 좌표 (보통 그 날의 마지막 장소)
+export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = 'place', days = [], near = null }) {
+  const placeSearch = createPlaceSearch();
   const noteMode = kind === 'note' || place?.category === 'note';
   const draft = {
     name: place?.name ?? '', time: place?.time ?? '', stayMinutes: place?.stayMinutes ?? '',
@@ -162,28 +165,55 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     return true;
   }
 
+  function pickResult(r) {
+    draft.lat = r.lat; draft.lng = r.lng; draft.address = r.address;
+    if (!name.value.trim()) name.value = r.name;
+    results.hidden = true; search.value = '';
+    drawLocation();
+  }
+
+  // Google 자동완성 결과: 누르면 그때 위치·주소를 받아온다 (상세 조회 1건)
+  function googleResult(r) {
+    const btn = el('button', {
+      type: 'button', class: 'search-result',
+      onClick: async () => {
+        btn.disabled = true;
+        location.textContent = '위치 확인 중…';
+        try { pickResult(await placeSearch.resolve(r)); }
+        catch (err) {
+          console.error(err);
+          btn.disabled = false; drawLocation();
+          toast('위치를 가져오지 못했어요. 다시 골라 주세요', { kind: 'error' });
+        }
+      },
+    }, el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address }));
+    return btn;
+  }
+
   let searchSeq = 0; // 늦게 도착한 이전 검색 응답이 최신 결과를 덮지 않도록
   const runSearch = debounce(async (q) => {
     const seq = ++searchSeq;
-    if (q.trim().length < 2) { results.hidden = true; return; }
+    const query = q.trim();
+    if (query.length < 2) { results.hidden = true; return; }
     if (applyPastedCoords(q)) return;
+    let items = null;
     try {
-      const found = await searchPlaces(q.trim());
-      if (seq !== searchSeq) return;
-      results.replaceChildren(...(found.length ? found.map((r) => el('button', {
-        type: 'button', class: 'search-result',
-        onClick: () => {
-          draft.lat = r.lat; draft.lng = r.lng; draft.address = r.address;
-          if (!name.value.trim()) name.value = r.name;
-          results.hidden = true; search.value = '';
-          drawLocation();
-        },
-      }, el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address }))) : [el('p', { class: 'muted', text: '검색 결과가 없어요' })]));
-      results.hidden = false;
+      items = (await placeSearch.suggest(query, { near })).map(googleResult);
     } catch (err) {
-      console.error(err);
-      toast('검색에 실패했어요. 잠시 후 다시 시도해 주세요', { kind: 'error' });
+      // Google 검색이 안 되면(하루 한도 초과, 네트워크) OpenStreetMap 으로 대신 찾는다
+      console.warn('places autocomplete', err);
+      try {
+        items = (await searchPlaces(query)).map((r) => el('button', { type: 'button', class: 'search-result', onClick: () => pickResult(r) },
+          el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address })));
+      } catch (err2) {
+        console.error(err2);
+        if (seq === searchSeq) toast('검색에 실패했어요. 잠시 후 다시 시도해 주세요', { kind: 'error' });
+        return;
+      }
     }
+    if (seq !== searchSeq) return;
+    results.replaceChildren(...(items.length ? items : [el('p', { class: 'muted', text: '검색 결과가 없어요' })]));
+    results.hidden = false;
   }, 600);
   search.addEventListener('input', () => runSearch(search.value));
   search.addEventListener('paste', () => setTimeout(() => applyPastedCoords(search.value), 0));

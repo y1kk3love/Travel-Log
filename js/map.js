@@ -1,88 +1,131 @@
-// 지도: MapLibre GL + OpenFreeMap 벡터 타일 (키·카드 불필요).
-// 벡터 타일이라 지명을 글자로 받으므로 "한국어 → 영어 → 현지어" 순으로 표기한다.
-import * as maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@6.10.0/dist/maplibre-gl.mjs';
-import { hasCoords } from './lib/geo.js';
+// 지도: Google Maps JavaScript API (Dynamic Maps, 하루 로드 한도 300건).
+// 한국어 지명은 로더의 language=ko 로 받는다. 구간은 Routes API 도보 경로(3km 이하)로 그리고, 못 받으면 직선.
+import { importLibrary } from './gmaps.js';
+import { hasCoords, distanceKm } from './lib/geo.js';
+import { splitLegs } from './lib/polyline.js';
+import { walkingRoute } from './routes.js';
 import { escapeHtml } from './ui.js';
 
-const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const ROUTE_COLOR = '#B4502B';
-const DEFAULT_VIEW = { center: [127.8, 36.5], zoom: 5.5 };
-// 한국어 → 영어 → 로마자 표기 → 현지어. 한국어 이름이 없는 상점·도로도 한자·가나 대신 읽을 수 있는 글자로 나온다.
-const LABEL_EXPR = ['coalesce', ['get', 'name:ko'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']];
+const ME_COLOR = '#3E5C8A';
+const DEFAULT_VIEW = { center: { lat: 36.5, lng: 127.8 }, zoom: 6 };
+const MAX_FIT_ZOOM = 15;
+const WALK_ROUTE_KM = 3; // 이보다 먼 구간은 (대중교통일 테니) 경로를 묻지 않고 직선으로
 
 export function createMap(container) {
-  const map = new maplibregl.Map({
-    container, style: STYLE_URL, center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom,
-    attributionControl: { compact: true },
-    pitch: 0, maxPitch: 0, dragRotate: false, pitchWithRotate: false, touchPitch: false, // 항상 평면(2D)
-  });
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-  map.touchZoomRotate.disableRotation();
-
-  // 스타일이 (다시) 로드될 때마다 라벨 언어를 바꾸고, 3D 건물 레이어를 빼고, 경로 레이어를 준비한다
-  let ready = false;
-  const pendingRoutes = [];
-  map.on('style.load', () => {
-    for (const layer of map.getStyle().layers) {
-      if (layer.type === 'fill-extrusion') { map.removeLayer(layer.id); continue; }
-      if (layer.layout && layer.layout['text-field']) map.setLayoutProperty(layer.id, 'text-field', LABEL_EXPR);
-    }
-    if (!map.getSource('routes')) {
-      map.addSource('routes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer({ id: 'routes-line', type: 'line', source: 'routes',
-        paint: { 'line-color': ROUTE_COLOR, 'line-width': 3, 'line-opacity': 0.9, 'line-dasharray': [2, 1.6] },
-        layout: { 'line-join': 'round', 'line-cap': 'round' } });
-    }
-    ready = true;
-    while (pendingRoutes.length) pendingRoutes.shift()();
-  });
-
+  let map = null;
+  let g = null; // google.maps 네임스페이스 (로드 후)
+  let destroyed = false;
+  const pending = [];
   let markers = new Map();
+  let lines = [];
   let selectCb = null;
   let openPopupId = null;
+  let infoWindow = null;
+  let routeGen = 0;
 
-  function makePin(label) {
-    const el = document.createElement('div');
-    el.className = 'pin';
-    el.textContent = label;
-    return el;
+  const ready = (async () => {
+    const [{ Map, InfoWindow }, { Marker }] = await Promise.all([importLibrary('maps'), importLibrary('marker')]);
+    if (destroyed) return;
+    g = globalThis.google.maps;
+    map = new Map(container, {
+      center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom,
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false,
+      gestureHandling: 'greedy', zoomControlOptions: { position: g.ControlPosition.RIGHT_TOP },
+    });
+    g.__Marker = Marker;
+    infoWindow = new InfoWindow({ headerDisabled: true });
+    infoWindow.addListener('closeclick', () => { openPopupId = null; });
+  })().catch((err) => { console.error('Google Maps 로드 실패', err); container.classList.add('map-failed'); throw err; })
+    .then(() => { while (pending.length) pending.shift()(); }, () => {});
+
+  const whenReady = (fn) => { if (map) fn(); else pending.push(fn); };
+
+  function pinIcon(label) {
+    const wide = label.length > 2;
+    return {
+      path: g.SymbolPath.CIRCLE, scale: wide ? 17 : 14,
+      fillColor: ROUTE_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 3,
+    };
+  }
+
+  function popupHtml(p) {
+    return `<div class="map-popup"><strong>${escapeHtml(p.name)}</strong>${p.time ? `<br><span class="muted">${escapeHtml(p.time)}</span>` : ''}</div>`;
+  }
+
+  function openPopup(p, marker) {
+    infoWindow.setContent(popupHtml(p));
+    infoWindow.open({ map, anchor: marker });
+    openPopupId = p.id;
+  }
+
+  function clearLines() {
+    lines.forEach((l) => l.setMap(null));
+    lines = [];
+  }
+
+  function drawLine(path, { dashed }) {
+    const line = new g.Polyline({
+      map, path, strokeColor: ROUTE_COLOR, strokeOpacity: dashed ? 0 : 0.9, strokeWeight: 4,
+      icons: dashed ? [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeWeight: 3, scale: 3 }, offset: '0', repeat: '14px' }] : [],
+    });
+    lines.push(line);
+    return line;
+  }
+
+  // 구간마다 먼저 직선(점선)을 긋고, 도보 경로가 오면 실선으로 바꾼다
+  function drawLegs(groups, gen) {
+    for (const group of groups) {
+      for (const leg of splitLegs(group)) {
+        const straight = [{ lat: leg.from.lat, lng: leg.from.lng }, { lat: leg.to.lat, lng: leg.to.lng }];
+        const line = drawLine(straight, { dashed: true });
+        if (distanceKm(leg.from, leg.to) > WALK_ROUTE_KM) continue;
+        walkingRoute(leg.key, leg.from, leg.to).then((route) => {
+          if (gen !== routeGen || !route?.points?.length || !lines.includes(line)) return;
+          line.setOptions({ path: route.points.map(([lat, lng]) => ({ lat, lng })), strokeOpacity: 0.9, icons: [] });
+        });
+      }
+    }
   }
 
   function setRoutes(groups, { fit = true } = {}) {
-    if (!ready) { pendingRoutes.push(() => setRoutes(groups, { fit })); return; }
-    const keepPopup = openPopupId;
-    markers.forEach((m) => m.remove());
-    markers = new Map();
-    const all = [];
-    const features = [];
-    for (const group of groups) {
-      const pts = group.filter(hasCoords);
-      pts.forEach((p) => {
-        const popup = new maplibregl.Popup({ offset: 18, closeButton: false })
-          .setHTML(`<strong>${escapeHtml(p.name)}</strong>${p.time ? `<br><span class="muted">${escapeHtml(p.time)}</span>` : ''}`);
-        popup.on('open', () => { openPopupId = p.id; });
-        popup.on('close', () => { if (openPopupId === p.id) openPopupId = null; });
-        const el = makePin(p.label);
-        el.addEventListener('click', () => selectCb && selectCb(p.id));
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([p.lng, p.lat]).setPopup(popup).addTo(map);
-        markers.set(p.id, marker);
-        all.push([p.lng, p.lat]);
-      });
-      if (pts.length > 1) features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: pts.map((p) => [p.lng, p.lat]) } });
-    }
-    map.getSource('routes').setData({ type: 'FeatureCollection', features });
-    if (fit && all.length) {
-      const bounds = all.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(all[0], all[0]));
-      map.fitBounds(bounds, { padding: 48, maxZoom: 15, duration: 500 });
-    }
-    if (keepPopup && markers.has(keepPopup)) markers.get(keepPopup).togglePopup();
+    whenReady(() => {
+      const gen = ++routeGen;
+      const keepPopup = openPopupId;
+      markers.forEach((m) => m.marker.setMap(null));
+      markers = new Map();
+      clearLines();
+      const bounds = new g.LatLngBounds();
+      let count = 0;
+      for (const group of groups) {
+        for (const p of group.filter(hasCoords)) {
+          const marker = new g.__Marker({
+            map, position: { lat: p.lat, lng: p.lng }, icon: pinIcon(p.label ?? ''), title: p.name,
+            label: { text: p.label ?? '', color: '#FFFDF9', fontSize: '12px', fontWeight: '700', fontFamily: 'inherit' },
+          });
+          marker.addListener('click', () => { openPopup(p, marker); selectCb && selectCb(p.id); });
+          markers.set(p.id, { marker, place: p });
+          bounds.extend(marker.getPosition());
+          count++;
+        }
+      }
+      drawLegs(groups, gen);
+      if (fit && count) {
+        map.fitBounds(bounds, 48);
+        g.event.addListenerOnce(map, 'idle', () => { if (map.getZoom() > MAX_FIT_ZOOM) map.setZoom(MAX_FIT_ZOOM); });
+      }
+      if (keepPopup && markers.has(keepPopup)) { const { marker, place } = markers.get(keepPopup); openPopup(place, marker); }
+      else openPopupId = null;
+    });
   }
 
   function focus(placeId) {
-    const marker = markers.get(placeId);
-    if (!marker) return;
-    map.easeTo({ center: marker.getLngLat(), duration: 400 });
-    if (!marker.getPopup().isOpen()) marker.togglePopup();
+    whenReady(() => {
+      const entry = markers.get(placeId);
+      if (!entry) return;
+      map.panTo(entry.marker.getPosition());
+      openPopup(entry.place, entry.marker);
+    });
   }
 
   // ---- 내 위치 (GPS) ----
@@ -90,14 +133,17 @@ export function createMap(container) {
   let meMarker = null;
 
   function drawMe(lat, lng, { center }) {
-    if (!meMarker) {
-      const el = document.createElement('div');
-      el.className = 'me-dot';
-      meMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map);
-    } else {
-      meMarker.setLngLat([lng, lat]);
-    }
-    if (center) map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
+    whenReady(() => {
+      if (!meMarker) {
+        meMarker = new g.__Marker({
+          map, position: { lat, lng }, clickable: false, zIndex: 1000,
+          icon: { path: g.SymbolPath.CIRCLE, scale: 8, fillColor: ME_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 3 },
+        });
+      } else {
+        meMarker.setPosition({ lat, lng });
+      }
+      if (center) { map.panTo({ lat, lng }); if (map.getZoom() < 15) map.setZoom(15); }
+    });
   }
 
   function locateStart({ onError } = {}) {
@@ -115,7 +161,7 @@ export function createMap(container) {
   function locateStop() {
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
-    if (meMarker) { meMarker.remove(); meMarker = null; }
+    if (meMarker) { meMarker.setMap(null); meMarker = null; }
   }
 
   return {
@@ -125,7 +171,14 @@ export function createMap(container) {
     locateStop,
     isLocating: () => watchId != null,
     onSelect: (cb) => { selectCb = cb; },
-    invalidate: () => map.resize(),
-    destroy: () => { locateStop(); map.remove(); },
+    invalidate: () => { if (map) g.event.trigger(map, 'resize'); },
+    destroy: () => {
+      destroyed = true;
+      locateStop();
+      if (map) { markers.forEach((m) => m.marker.setMap(null)); clearLines(); infoWindow.close(); }
+      map = null;
+      container.replaceChildren();
+    },
+    ready,
   };
 }

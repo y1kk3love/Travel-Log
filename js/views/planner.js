@@ -239,9 +239,17 @@ export function mount(content, ctx) {
       el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));
   }
 
+  // 검색 결과를 그 날 마지막 장소(없으면 여행의 아무 장소) 근처로 우선 보여준다
+  function nearFor(dayId) {
+    const own = placesOf(dayId).filter(hasCoords);
+    const any = own.length ? own : state.places.filter(hasCoords);
+    const p = any[any.length - 1];
+    return p ? { lat: p.lat, lng: p.lng } : null;
+  }
+
   function openSheet({ dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null, kind = 'place' }) {
     if (closeSheet) closeSheet();
-    closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place, kind, days: state.days });
+    closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place, kind, days: state.days, near: nearFor(dayId) });
   }
 
   // 라우트가 바뀌면(뒤로가기 등) 열려 있던 시트도 닫는다. 안 그러면 떠난 여행에 장소가 저장될 수 있다.
