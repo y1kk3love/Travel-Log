@@ -97,39 +97,47 @@ function card(tripId, state, r) {
       field('서류', filesField(tripId, r))));
 }
 
-// 항공 예약은 탑승권 모양: 공항 코드(제목의 "인천 → 후쿠오카"에서), 출발·도착 시각, 절취선 아래 스텁에 예약번호·연결 일정·메모
+// 항공 예약은 탑승권 모양: 위에 색 띠(탑승권·항공사·편명), 본문에 공항 코드와 시각, 아래 줄에 편명·예약번호·비행 시간·연결 일정.
+// 스텁(폰은 아래, 넓은 화면은 오른쪽)에 항공사 띠와 메모·Flightradar·서류. 공항 코드는 제목의 "인천 → 후쿠오카" 에서.
 function ticketCard(tripId, r, linked, actions) {
   const flight = parseFlightNumber(r.flightNumber);
   const route = parseRoute(r.title);
   const airline = airlineName(flight?.airline);
   const timeOf = (dt) => (dt ? String(dt).slice(11, 16) : null);
   const dateOf = (dt) => (dt ? formatDatetime(dt).split(' ')[0] : '');
-  const endpoint = (city, time, label, align) => el('div', { class: `ticket-end ${align}` },
+  const endpoint = (city, dt, label, align) => el('div', { class: `ticket-end ${align}` },
+    el('div', { class: 'ticket-k', text: label }),
     el('div', { class: `ticket-code${airportCode(city) ? '' : ' ticket-code-text'}`, text: airportCode(city) ?? (city || '—') }),
-    el('div', { class: 'ticket-city', text: airportCode(city) && city ? city : label }),
-    time ? el('div', { class: 'ticket-time', text: time }) : el('div', { class: 'ticket-time muted', text: `${label} —` }));
+    el('div', { class: 'ticket-city', text: airportCode(city) && city ? city : '' }),
+    el('div', { class: `ticket-time${dt ? '' : ' muted'}`, text: dt ? `${dateOf(dt)} ${timeOf(dt)}` : '시각 미정' }));
   const duration = flightDuration(r.datetime, r.arrival);
-  const dates = r.arrival && dateOf(r.arrival) !== dateOf(r.datetime) ? `${dateOf(r.datetime)} → ${dateOf(r.arrival)}` : dateOf(r.datetime);
+  const cell = (k, v) => el('div', { class: 'ticket-cell' }, el('div', { class: 'ticket-k', text: k }), el('div', { class: 'ticket-v' }, v));
   return el('section', { class: 'card reservation ticket', dataset: { id: r.id } },
     el('div', { class: 'ticket-main' },
-      el('div', { class: 'ticket-top' },
-        el('span', { class: 'ticket-airline' },
-          flight ? el('i', { text: flight.airline }) : el('span', { class: 'badge badge-muted', text: '항공' }),
-          el('span', { text: flight ? `${airline ?? ''} ${flight.iata}`.trim() : (r.title || '(제목 없음)') })),
-        el('span', { class: 'ticket-top-right' }, el('span', { class: 'ticket-date muted', text: dates || '일시 미정' }), ...actions())),
-      el('div', { class: 'ticket-route' },
-        endpoint(route?.from, timeOf(r.datetime), '출발', 'from'),
-        el('div', { class: 'ticket-plane' }, el('span', { class: 'ticket-line' }), el('span', { class: 'muted', text: duration ?? '' })),
-        endpoint(route?.to, timeOf(r.arrival), '도착', 'to')),
-      !route && flight ? el('p', { class: 'muted ps-hint', text: '제목을 "인천 → 후쿠오카" 처럼 적으면 공항이 표시돼요' }) : null),
+      el('div', { class: 'ticket-band' },
+        el('span', { class: 'ticket-band-title' }, icon('pin'), '탑승권'),
+        el('span', { class: 'ticket-band-right' },
+          el('span', { text: flight ? `${airline ?? ''} ${flight.iata}`.trim() : (r.title || '(제목 없음)') }),
+          ...actions())),
+      el('div', { class: 'ticket-body' },
+        el('div', { class: 'ticket-route' },
+          endpoint(route?.from, r.datetime, '출발', 'from'),
+          el('div', { class: 'ticket-plane' }, el('span', { class: 'ticket-line' }), el('span', { class: 'muted', text: duration ?? '' })),
+          endpoint(route?.to, r.arrival, '도착', 'to')),
+        !route && flight ? el('p', { class: 'muted ps-hint', text: '제목을 "인천 → 후쿠오카" 처럼 적으면 공항이 표시돼요' }) : null,
+        el('div', { class: 'ticket-cells' },
+          cell('편명', flight ? el('span', { class: 'ticket-mono', text: flight.iata }) : el('span', { class: 'muted', text: '—' })),
+          cell('예약번호', r.code ? el('span', { class: 'ticket-mono', text: r.code }) : el('span', { class: 'muted', text: '없음' })),
+          cell('비행 시간', duration ? el('span', { text: duration }) : el('span', { class: 'muted', text: r.arrival ? '—' : '도착 일시 없음' })),
+          cell('연결된 일정', linked ?? el('span', { class: 'muted', text: '없음' }))))),
     el('div', { class: 'ticket-cut' }),
     el('div', { class: 'ticket-stub' },
-      el('div', {}, el('div', { class: 'ticket-k', text: '예약번호' }), r.code ? el('div', { class: 'ticket-v ticket-mono', text: r.code }) : el('div', { class: 'ticket-v muted', text: '없음' })),
-      el('div', {}, el('div', { class: 'ticket-k', text: '연결된 일정' }), el('div', { class: 'ticket-v' }, linked ?? el('span', { class: 'muted', text: '없음' }))),
-      el('div', {}, el('div', { class: 'ticket-k', text: '메모' }), el('div', { class: 'ticket-v ticket-memo' }, r.note ? el('span', { class: 'pre-wrap' }, linkedText(r.note)) : el('span', { class: 'muted', text: '—' }))),
-      el('div', { class: 'ticket-foot' },
-        flight ? el('a', { href: flightradarUrl(flight.iata), target: '_blank', rel: 'noopener', class: 'link-accent', text: 'Flightradar24에서 보기' }) : null,
-        filesField(tripId, r))));
+      el('div', { class: 'ticket-band ticket-band-stub' }, el('span', { text: airline ?? '항공' }), el('span', { class: 'ticket-band-date', text: dateOf(r.datetime) || '일시 미정' })),
+      el('div', { class: 'ticket-stub-body' },
+        el('div', { class: 'ticket-cell' }, el('div', { class: 'ticket-k', text: '메모' }), el('div', { class: 'ticket-v ticket-memo' }, r.note ? el('span', { class: 'pre-wrap' }, linkedText(r.note)) : el('span', { class: 'muted', text: '—' }))),
+        el('div', { class: 'ticket-foot' },
+          flight ? el('a', { href: flightradarUrl(flight.iata), target: '_blank', rel: 'noopener', class: 'link-accent', text: 'Flightradar24에서 보기' }) : null,
+          filesField(tripId, r)))));
 }
 
 // 예약 서류: 항공권 PDF·바우처·여권 사본을 붙여 두고 여행 중에 바로 연다 (한 번 연 서류는 오프라인에서도 열린다)

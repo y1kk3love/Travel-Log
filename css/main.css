@@ -434,40 +434,48 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .invite-create { margin-top: 0; white-space: nowrap; }
 @media (max-width: 640px) { .topbar-invites { display: none; } }
 
-/* ---- 항공 예약: 탑승권 카드. 폰은 가로 절취선, 넓은 화면은 오른쪽 스텁(세로 절취선) ---- */
-.ticket { padding: 0; overflow: hidden; display: grid; grid-template-columns: 1fr; }
-.ticket-main { padding: 14px 18px 12px; }
-.ticket-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
-.ticket-airline { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.ticket-airline i { width: 24px; height: 24px; border-radius: 7px; background: var(--accent); display: inline-grid; place-items: center; color: #fff; font-size: 11px; font-weight: 800; font-style: normal; flex-shrink: 0; }
-.ticket-top-right { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-.ticket-date { font-size: 12px; margin-right: 6px; }
-.ticket-route { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin: 12px 0 4px; }
+/* ---- 항공 예약: 탑승권 카드. 위 색 띠 · 본문(공항·시각·세부 줄) · 절취선 · 스텁. 폰은 세로 쌓기, 넓은 화면은 오른쪽 스텁 ---- */
+.ticket { padding: 0; overflow: hidden; display: grid; grid-template-columns: 1fr; background: var(--sf); }
+.ticket-main { display: flex; flex-direction: column; }
+.ticket-band { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 10px 6px 18px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; min-height: 44px; }
+.ticket-band-title { display: inline-flex; align-items: center; gap: 6px; letter-spacing: .3px; }
+.ticket-band-title svg { width: 15px; height: 15px; }
+.ticket-band-right { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.ticket-band-right > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 6px; }
+.ticket-band .btn-icon { color: #fff; width: 32px; height: 32px; }
+.ticket-band .btn-icon:hover { background: rgba(255, 255, 255, .18); }
+.ticket-body { padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 14px; flex-grow: 1; justify-content: space-between; }
+.ticket-route { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 12px; }
 .ticket-end.to { text-align: right; }
-.ticket-code { font-size: 32px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+.ticket-code { font-size: 34px; font-weight: 800; letter-spacing: -1px; line-height: 1.05; margin-top: 2px; }
 .ticket-code-text { font-size: 22px; letter-spacing: -.5px; }
-.ticket-city { font-size: 13px; color: var(--muted); margin-top: 4px; min-height: 1.3em; }
-.ticket-time { font-size: 16px; font-weight: 700; margin-top: 6px; }
-.ticket-plane { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; }
-.ticket-line { width: 84px; height: 2px; background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 10px); position: relative; }
+.ticket-city { font-size: 13px; color: var(--muted); min-height: 1.3em; }
+.ticket-time { font-size: 15px; font-weight: 700; margin-top: 4px; }
+.ticket-plane { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; padding-bottom: 26px; }
+.ticket-line { width: 90px; height: 2px; background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 10px); position: relative; }
 .ticket-line:after { content: '✈'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -55%); background: var(--sf); padding: 0 4px; color: var(--accent); font-size: 16px; }
-.ticket-cut { position: relative; border-top: 2px dashed var(--line); margin: 4px 14px 0; }
-.ticket-cut:before, .ticket-cut:after { content: ''; position: absolute; top: -13px; width: 24px; height: 24px; border-radius: 50%; background: var(--bg); }
-.ticket-cut:before { left: -26px; } .ticket-cut:after { right: -26px; }
-.ticket-stub { padding: 12px 18px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; font-size: 13px; }
+.ticket-cells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 13px; }
 .ticket-k { font-size: 11px; color: var(--muted); font-weight: 600; }
 .ticket-v { font-weight: 700; margin-top: 2px; word-break: break-word; }
 .ticket-mono { font-family: ui-monospace, Consolas, monospace; letter-spacing: .5px; }
 .ticket-memo { font-weight: 500; }
-.ticket-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 4px; }
+.ticket-cut { position: relative; border-top: 2px dashed var(--line); margin: 0 14px; }
+.ticket-cut:before, .ticket-cut:after { content: ''; position: absolute; top: -13px; width: 24px; height: 24px; border-radius: 50%; background: var(--bg); }
+.ticket-cut:before { left: -26px; } .ticket-cut:after { right: -26px; }
+.ticket-stub { display: flex; flex-direction: column; }
+.ticket-band-stub { padding-right: 18px; }
+.ticket-band-date { font-weight: 600; opacity: .9; }
+.ticket-stub-body { padding: 12px 18px 16px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; flex-grow: 1; }
+.ticket-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: auto; }
 .ticket .file-field { display: inline-flex; }
+@media (max-width: 480px) { .ticket-code { font-size: 28px; } .ticket-cells { grid-template-columns: 1fr 1fr; } }
 @media (min-width: 640px) {
   /* 본문 · 절취선(0폭, 왼쪽 테두리) · 스텁 세 칸 */
-  .ticket { grid-template-columns: 1fr 0 220px; align-items: stretch; }
-  .ticket-main { padding: 16px 22px 16px; }
-  .ticket-cut { border-top: 0; border-left: 2px dashed var(--line); margin: 14px 0; }
+  .ticket { grid-template-columns: 1fr 0 230px; align-items: stretch; }
+  .ticket-body { padding: 16px 22px 18px; }
+  .ticket-cut { border-top: 0; border-left: 2px dashed var(--line); margin: 0; }
   .ticket-cut:before, .ticket-cut:after { left: -13px; right: auto; top: auto; }
-  .ticket-cut:before { top: -26px; } .ticket-cut:after { bottom: -26px; }
-  .ticket-stub { grid-template-columns: 1fr; align-content: start; padding: 16px 18px; }
-  .ticket-foot { flex-direction: column; align-items: flex-start; }
+  .ticket-cut:before { top: -12px; } .ticket-cut:after { bottom: -12px; }
+  .ticket-stub-body { padding: 14px 18px 16px; }
+  .ticket-foot { flex-direction: column; align-items: flex-start; gap: 8px; }
 }
