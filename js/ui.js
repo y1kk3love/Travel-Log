@@ -60,6 +60,15 @@ export function linkedText(text, { firstLineOnly = false } = {}) {
     : document.createTextNode(p.value)));
 }
 
+// 사진을 화면 가득 보여주는 라이트박스 (배경을 누르면 닫힘)
+export function openLightbox(src) {
+  const box = el('div', { class: 'lightbox', onClick: () => box.remove() },
+    el('img', { src, alt: '' }),
+    el('button', { type: 'button', class: 'btn btn-icon lightbox-close', 'aria-label': '닫기' }, icon('close')));
+  document.body.append(box);
+  return box;
+}
+
 export function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

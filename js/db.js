@@ -370,6 +370,41 @@ export function updateReservation(tripId, id, data) {
   return updateDoc(doc(sub(tripId, 'reservations'), id), data);
 }
 
-export function deleteReservation(tripId, id) {
-  return deleteDoc(doc(sub(tripId, 'reservations'), id));
+export async function deleteReservation(tripId, id) {
+  const files = await getDocs(query(sub(tripId, 'files'), where('reservationId', '==', id)));
+  const batch = writeBatch(db);
+  files.docs.forEach((f) => batch.delete(f.ref));
+  batch.delete(doc(sub(tripId, 'reservations'), id));
+  await batch.commit();
+}
+
+// ---------- files (예약 서류: 항공권 PDF, 바우처, 여권 사본) ----------
+// trips/{tripId}/files/{fileId}: { reservationId, name, type, size, data: Bytes, createdAt }
+// 목록은 예약 문서의 files 배열(메타데이터)로 보고, 바이트는 열 때만 받는다 (한 번 받으면 오프라인 캐시에 남는다).
+export const FILE_MAX_BYTES = 950 * 1024; // Firestore 문서 1MiB 한도 아래
+
+export async function addReservationFile(tripId, reservationId, { name, type, bytes }) {
+  if (bytes.length > FILE_MAX_BYTES) throw new Error('too-large');
+  const batch = writeBatch(db);
+  const ref = doc(sub(tripId, 'files'));
+  const meta = { id: ref.id, name, type, size: bytes.length };
+  batch.set(ref, { reservationId, name, type, size: bytes.length, data: Bytes.fromUint8Array(bytes), createdAt: serverTimestamp() });
+  batch.update(doc(sub(tripId, 'reservations'), reservationId), { files: arrayUnion(meta) });
+  await batch.commit();
+  return ref.id;
+}
+
+export async function getReservationFile(tripId, fileId) {
+  const s = await getDoc(doc(sub(tripId, 'files'), fileId));
+  if (!s.exists()) return null;
+  const d = s.data();
+  return { name: d.name, type: d.type, bytes: d.data.toUint8Array() };
+}
+
+// meta 는 예약 문서 files 배열의 항목 그대로 (arrayRemove 는 내용이 같아야 지워진다)
+export async function deleteReservationFile(tripId, reservationId, meta) {
+  const batch = writeBatch(db);
+  batch.delete(doc(sub(tripId, 'files'), meta.id));
+  batch.update(doc(sub(tripId, 'reservations'), reservationId), { files: arrayRemove(meta) });
+  await batch.commit();
 }

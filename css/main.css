@@ -321,3 +321,12 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .pool-item .tl-body { flex-grow: 1; min-width: 0; text-align: left; background: transparent; border: 0; padding: 6px 0; cursor: pointer; }
 .pool-move { width: auto; max-width: 150px; height: 34px; font-size: 12px; flex-shrink: 0; }
 .pool-add { margin-top: 10px; width: 100%; }
+
+/* ---- 예약 서류 ---- */
+.file-field { display: flex; flex-direction: column; gap: 6px; }
+.file-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.file-chip { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 10px; background: var(--card); max-width: 100%; }
+.file-open { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; cursor: pointer; font-size: 13px; min-width: 0; padding: 4px 0; }
+.file-open svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; }
+.file-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-chip .btn-icon { width: 26px; height: 26px; }

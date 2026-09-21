@@ -1,6 +1,13 @@
-import { el, clear, toast, confirmDialog, openModal, icon, linkedText } from '../ui.js';
-import { watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays } from '../db.js';
+import { el, clear, toast, confirmDialog, openModal, icon, linkedText, openLightbox } from '../ui.js';
+import {
+  watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays,
+  addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES,
+} from '../db.js';
 import { parseFlightNumber, airlineName, flightradarUrl } from '../lib/flight.js';
+import { compressImage } from '../photo.js';
+
+const FILE_ACCEPT = 'image/*,application/pdf';
+const formatSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
 
 const TYPE_LABELS = { flight: '항공', stay: '숙소', food: '식당', etc: '기타' };
 
@@ -69,7 +76,79 @@ function card(tripId, state, r) {
         el('a', { href: flightradarUrl(r.flightNumber), target: '_blank', rel: 'noopener', class: 'link-accent', text: 'Flightradar24에서 보기' })))] : []),
       field('예약번호', r.code ? el('code', { text: r.code }) : el('span', { class: 'muted', text: '없음' })),
       field('메모', r.note ? el('span', { class: 'pre-wrap' }, linkedText(r.note)) : '—'),
-      field('연결된 일정', linked ? el('a', { href: `#/trip/${tripId}/planner/${r.linkedPlaceId}`, class: 'link-accent', text: linked }) : '없음')));
+      field('연결된 일정', linked ? el('a', { href: `#/trip/${tripId}/planner/${r.linkedPlaceId}`, class: 'link-accent', text: linked }) : '없음'),
+      field('서류', filesField(tripId, r))));
+}
+
+// 예약 서류: 항공권 PDF·바우처·여권 사본을 붙여 두고 여행 중에 바로 연다 (한 번 연 서류는 오프라인에서도 열린다)
+function filesField(tripId, r) {
+  const files = r.files ?? [];
+  const input = el('input', { type: 'file', accept: FILE_ACCEPT, multiple: true, class: 'visually-hidden' });
+  const status = el('span', { class: 'muted' });
+  input.addEventListener('change', async () => {
+    const list = [...input.files];
+    input.value = '';
+    for (let i = 0; i < list.length; i++) {
+      const file = list[i];
+      status.textContent = `올리는 중 ${i + 1} / ${list.length}`;
+      try {
+        const payload = await prepareFile(file);
+        await addReservationFile(tripId, r.id, payload);
+      } catch (err) {
+        console.error(err);
+        toast(err?.message === 'too-large' ? `'${file.name}'은(는) 너무 커요. PDF는 ${formatSize(FILE_MAX_BYTES)}까지, 사진은 자동으로 줄여요`
+          : err?.message === 'unsupported' ? `'${file.name}'은(는) 사진이나 PDF가 아니에요` : `'${file.name}'을(를) 올리지 못했어요`, { kind: 'error', ms: 5000 });
+      }
+    }
+    status.textContent = '';
+  });
+  return el('div', { class: 'file-field' },
+    el('div', { class: 'file-chips' },
+      ...files.map((f) => el('span', { class: 'file-chip' },
+        el('button', { type: 'button', class: 'file-open', title: `${f.name} 열기`, onClick: () => openFile(tripId, f) },
+          icon(f.type === 'application/pdf' ? 'calendar' : 'expand'), el('span', { class: 'file-name', text: f.name }), el('span', { class: 'muted', text: formatSize(f.size) })),
+        el('button', {
+          type: 'button', class: 'btn btn-icon btn-sm', 'aria-label': `${f.name} 삭제`,
+          onClick: async () => {
+            if (!(await confirmDialog(`'${f.name}' 서류를 삭제할까요?`))) return;
+            await deleteReservationFile(tripId, r.id, f).catch((err) => { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); });
+          },
+        }, icon('close')))),
+      el('button', { type: 'button', class: 'btn btn-sm', onClick: () => input.click() }, icon('plus'), '서류 추가'),
+      status),
+    input);
+}
+
+// 사진은 긴 변 1280px JPEG 로 줄이고, PDF 는 그대로 (문서 한도 안일 때만)
+async function prepareFile(file) {
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+    if (file.size > FILE_MAX_BYTES) throw new Error('too-large');
+    return { name: file.name, type: 'application/pdf', bytes: new Uint8Array(await file.arrayBuffer()) };
+  }
+  if (file.type.startsWith('image/')) {
+    const { bytes } = await compressImage(file);
+    return { name: file.name.replace(/\.[^.]+$/, '') + '.jpg', type: 'image/jpeg', bytes };
+  }
+  throw new Error('unsupported');
+}
+
+const objectUrls = new Map(); // fileId -> object URL (같은 세션에서 다시 열면 재사용)
+async function openFile(tripId, meta) {
+  try {
+    let url = objectUrls.get(meta.id);
+    if (!url) {
+      const f = await getReservationFile(tripId, meta.id);
+      if (!f) { toast('서류를 찾을 수 없어요', { kind: 'error' }); return; }
+      url = URL.createObjectURL(new Blob([f.bytes], { type: f.type }));
+      objectUrls.set(meta.id, url);
+    }
+    if (meta.type === 'application/pdf') {
+      const win = window.open(url, '_blank', 'noopener');
+      if (!win) { const a = el('a', { href: url, download: meta.name }); document.body.append(a); a.click(); a.remove(); }
+    } else {
+      openLightbox(url);
+    }
+  } catch (err) { console.error(err); toast('서류를 열지 못했어요', { kind: 'error' }); }
 }
 
 function field(label, value) {
