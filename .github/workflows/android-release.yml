@@ -19,8 +19,26 @@ jobs:
       - run: node scripts/build-web.js
       - run: npx cap sync android
       - run: node scripts/android-version.js "${GITHUB_REF_NAME}"
+      - name: Check signing secrets
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KSP: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KP: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -z "$KS" ] && missing="$missing ANDROID_KEYSTORE_BASE64"
+          [ -z "$KSP" ] && missing="$missing ANDROID_KEYSTORE_PASSWORD"
+          [ -z "$KA" ] && missing="$missing ANDROID_KEY_ALIAS"
+          [ -z "$KP" ] && missing="$missing ANDROID_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::GitHub Secrets 가 비어 있어요:$missing — 저장소 Settings → Secrets and variables → Actions 에 등록하세요 (docs/android-signing.md)"
+            exit 1
+          fi
       - name: Decode keystore
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/release.keystore"
+          [ -s "$RUNNER_TEMP/release.keystore" ] || { echo "::error::키 저장소 복호화 결과가 비어 있어요 (ANDROID_KEYSTORE_BASE64 값 확인)"; exit 1; }
       - name: Build signed APK
         working-directory: android
         env:
