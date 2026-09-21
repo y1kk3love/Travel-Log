@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl } from '../js/lib/coords.js';
+import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl, parseMapsLink } from '../js/lib/coords.js';
 
 test('"위도, 경도" 텍스트', () => {
   assert.deepEqual(parseCoordsInput('34.9671, 135.7727'), { lat: 34.9671, lng: 135.7727 });
@@ -63,4 +63,13 @@ test('googleMapsDirectionsUrl: 출발·도착 좌표와 장소 ID, 이동 수단
 test('googleMapsDirectionsUrl: 출발지를 비우면 현재 위치 출발 (origin 없음), 기본은 대중교통', () => {
   const url = googleMapsDirectionsUrl({ to: { lat: 35.72, lng: 139.8 } });
   assert.equal(url, 'https://www.google.com/maps/dir/?api=1&destination=35.72%2C139.8&travelmode=transit');
+});
+
+test('parseMapsLink: 긴 구글 지도 링크에서 이름·좌표·장소 ID 를 뽑는다', () => {
+  const long = 'https://www.google.com/maps/place/%EC%84%BC%EC%86%8C%EC%A7%80/@35.7147651,139.7966553,17z/data=!3m1!4b1!4m6!3m5!1s0x60188ed0d12f9adf:0x7411cb2b21c1c25b!8m2!3d35.7147651!4d139.7966553!16zL20vMDF6dHI5';
+  assert.deepEqual(parseMapsLink(long), { name: '센소지', lat: 35.7147651, lng: 139.7966553, placeId: null });
+  const api = 'https://www.google.com/maps/search/?api=1&query=Senso-ji&query_place_id=ChIJ8T1GpMGOGGARDYGSgpooDWw';
+  assert.deepEqual(parseMapsLink(api), { name: 'Senso-ji', lat: null, lng: null, placeId: 'ChIJ8T1GpMGOGGARDYGSgpooDWw' });
+  assert.equal(parseMapsLink('https://maps.app.goo.gl/abc'), null); // 짧은 링크는 정보 없음
+  assert.equal(parseMapsLink('그냥 검색어'), null);
 });

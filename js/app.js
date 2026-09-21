@@ -4,6 +4,7 @@ import { startRouter } from './router.js';
 import { canUseApp, ensureProfile } from './db.js';
 import { isNative, takeSharedText, onResume, onNotificationTap, onBackButton, exitApp } from './native.js';
 import { isHomeHash } from './lib/nav.js';
+import { shareFromQuery } from './lib/share.js';
 import { refreshAlarms } from './alarms.js';
 import { checkForUpdate } from './update-check.js';
 import * as shareView from './views/share.js';
@@ -49,9 +50,13 @@ function renderChecking() {
 function renderApp() {
   clear(app);
   const disposers = [startRouter({ trips: tripsView, trip: tripView, share: shareView }, app)];
-  // 공유 시트로 열렸으면 여행 선택 화면으로 (앱 전용, 웹에서는 아무것도 안 함)
+  // 공유 시트로 열렸으면 여행 선택 화면으로. 앱은 네이티브 인텐트, 홈 화면 웹앱(PWA)은 주소의 ?title=&text=&url= (manifest share_target)
   const goShare = async () => {
-    const text = await takeSharedText();
+    let text = await takeSharedText();
+    if (!text) {
+      text = shareFromQuery(location.search);
+      if (text) history.replaceState(null, '', location.pathname + location.hash); // 새로고침해도 다시 공유되지 않게
+    }
     if (text) { setPendingShare(text); navigate('/share'); }
   };
   goShare();

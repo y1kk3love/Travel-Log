@@ -67,3 +67,26 @@ export function googleMapsSearchUrl(query) {
   if (!q) return 'https://www.google.com/maps';
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
+
+// 긴 구글 지도 링크(브라우저 주소창의 것)에서 이름·좌표·장소 ID 를 뽑는다.
+//   /maps/place/<이름>/@위도,경도,...  → 이름 + 좌표 (핀 좌표 !3d/!4d 우선)
+//   /maps/search/?api=1&query=<이름>&query_place_id=<ID>  → 이름 + 장소 ID
+// 짧은 링크(maps.app.goo.gl)나 링크가 아닌 글은 null.
+export function parseMapsLink(text) {
+  const s = String(text ?? '').trim();
+  const m = s.match(/https?:\/\/(?:www\.)?google\.[a-z.]+\/maps[^\s]*/i);
+  if (!m) return null;
+  const url = m[0];
+  const decode = (v) => { try { return decodeURIComponent(v.replace(/\+/g, ' ')).trim(); } catch { return v; } };
+  const coords = parseCoordsInput(url);
+  let name = null;
+  let placeId = null;
+  const place = url.match(/\/maps\/place\/([^/@?]+)/);
+  if (place) name = decode(place[1]);
+  const query = url.match(/[?&]query=([^&]+)/);
+  if (query && !name) name = decode(query[1]);
+  const pid = url.match(/[?&]query_place_id=([^&]+)/);
+  if (pid) placeId = decode(pid[1]);
+  if (!name && !coords && !placeId) return null;
+  return { name, lat: coords?.lat ?? null, lng: coords?.lng ?? null, placeId };
+}

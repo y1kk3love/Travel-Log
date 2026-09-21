@@ -9,3 +9,10 @@ export function sharedTextFrom(result) {
   }
   return parts.length ? parts.join('\n') : null;
 }
+
+// 웹앱(PWA) 공유 대상: 안드로이드 공유 시트가 ?title=&text=&url= 로 열어 준다 (manifest share_target). 공유가 아니면 null.
+export function shareFromQuery(search) {
+  const params = new URLSearchParams(String(search ?? ''));
+  if (!params.has('title') && !params.has('text') && !params.has('url')) return null;
+  return sharedTextFrom({ title: params.get('title'), description: params.get('text'), url: params.get('url'), type: 'text/plain' });
+}

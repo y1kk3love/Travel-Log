@@ -4,7 +4,7 @@ import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
 import { notifyQuota } from '../quota.js';
 import { extractLinks, shortLabel } from '../lib/text.js';
-import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl } from '../lib/coords.js';
+import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl, parseMapsLink } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
 import { formatShort } from '../lib/dates.js';
@@ -174,6 +174,23 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   // Google 지도 링크나 "위도, 경도"를 붙여넣으면 검색 대신 좌표를 바로 채운다.
   // 앱 '공유'의 짧은 링크에는 좌표가 없으므로, 같이 복사된 이름으로 검색을 돌린다.
   function applyPastedCoords(text) {
+    // 긴 구글 지도 링크: 이름·좌표·장소 ID 를 한 번에. 좌표가 없고 장소 ID 만 있으면 이름으로 검색해 고르게 한다
+    const link = parseMapsLink(text);
+    if (link && (link.lat != null || link.placeId)) {
+      if (link.name && !name.value.trim()) name.value = link.name;
+      if (link.lat != null) {
+        draft.lat = link.lat; draft.lng = link.lng; draft.placeId = link.placeId;
+        draft.address = link.name ? `구글 지도 링크 · ${link.name}` : `붙여넣은 좌표 ${link.lat.toFixed(5)}, ${link.lng.toFixed(5)}`;
+        results.hidden = true; search.value = '';
+        drawLocation();
+        toast(link.name ? `'${link.name}' 위치를 가져왔어요` : '좌표를 가져왔어요. 이름을 적어 주세요');
+      } else {
+        search.value = link.name;
+        toast(`'${link.name}'(으)로 검색했어요. 결과에서 골라 주세요`, { ms: 4000 });
+        runSearch(link.name);
+      }
+      return true;
+    }
     const coords = parseCoordsInput(text);
     if (coords) {
       draft.lat = coords.lat; draft.lng = coords.lng; draft.placeId = null;
