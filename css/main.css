@@ -296,3 +296,15 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .map-popup-row { padding: 2px 0; }
 .map-popup-row.active { font-weight: 700; }
 .map-popup-num { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 11px; text-align: center; padding: 0 4px; margin-right: 2px; }
+
+/* ---- 오늘 모드 ---- */
+.today-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 10px; padding: 12px 14px; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); }
+.today-banner .muted { color: rgba(255, 253, 249, .8); font-size: 12px; }
+.today-banner-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.today-banner strong { font-size: 16px; }
+.today-banner .btn-primary { background: var(--card); color: var(--accent); border-color: var(--card); flex-shrink: 0; }
+.today-banner.done { background: var(--line-soft); color: var(--ink); }
+.today-banner.done .muted { color: var(--muted); }
+.tl-item.tl-next { background: #FBF1EC; border-radius: var(--radius); }
+.tl-item.tl-now .tl-num { background: var(--ink); }
+.badge-next { background: var(--accent); color: var(--accent-ink); }

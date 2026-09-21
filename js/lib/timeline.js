@@ -33,3 +33,21 @@ export function estimateTimes(places, now = Date.now()) {
     return { id: p.id, time, estimated: true };
   });
 }
+
+// 오늘 모드: 지금 시각 기준으로 "지금 있는 곳"과 "다음 갈 곳"을 고른다.
+// times 는 estimateTimes() 결과(같은 순서). 시각이 있는(입력 또는 추정) 장소만 후보. 메모는 제외.
+// 반환: { currentIndex, nextIndex, done } (done: 오늘 일정이 모두 지남)
+export function pickNext(places, times, nowHHMM) {
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const now = toMin(nowHHMM);
+  let currentIndex = null;
+  let nextIndex = null;
+  places.forEach((p, i) => {
+    if (p.category === 'note' || !times[i]?.time) return;
+    const t = toMin(times[i].time);
+    if (t <= now) currentIndex = i;
+    else if (nextIndex == null) nextIndex = i;
+  });
+  const anyTimed = places.some((p, i) => p.category !== 'note' && times[i]?.time);
+  return { currentIndex, nextIndex, done: anyTimed && nextIndex == null };
+}

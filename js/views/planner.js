@@ -6,7 +6,7 @@ import { googleMapsDirectionsUrl } from '../lib/coords.js';
 import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
 import { openPlaceSheet } from './place-sheet.js';
-import { estimateTimes, routeBetween } from '../lib/timeline.js';
+import { estimateTimes, routeBetween, pickNext } from '../lib/timeline.js';
 import { weatherLabel, pickDayLocation, forecastWindow } from '../lib/weather.js';
 import { fetchDailyForecast } from '../weather.js';
 import { toDateStr } from '../lib/dates.js';
@@ -60,7 +60,11 @@ export function mount(content, ctx) {
   const unsubs = [
     watchDays(tripId, (days) => {
       state.days = days;
-      if (!state.selectedDayId || !days.some((d) => d.id === state.selectedDayId)) state.selectedDayId = days[0]?.id ?? null;
+      if (!state.selectedDayId || !days.some((d) => d.id === state.selectedDayId)) {
+        // 오늘 모드: 여행 중이면 오늘 Day 를 먼저 연다
+        const today = days.find((d) => d.date === toDateStr(new Date()));
+        state.selectedDayId = today?.id ?? days[0]?.id ?? null;
+      }
       redraw();
     }),
     watchPlaces(tripId, (places) => {
@@ -148,6 +152,10 @@ export function mount(content, ctx) {
     const list = el('div', { class: 'timeline' });
     const labeled = numbered(places);
     const times = estimateTimes(places);
+    // 오늘 모드: 오늘 Day 면 지금 시각 기준으로 다음 목적지를 위에 띄우고 항목에 표시한다
+    const isToday = day.date === toDateStr(new Date());
+    const next = isToday ? pickNext(places, times, nowHHMM()) : { currentIndex: null, nextIndex: null, done: false };
+    if (isToday) panel.append(todayBanner(places, times, next));
     let prevPlace = null; // 이동 구간은 장소끼리만 (메모는 건너뜀)
     labeled.forEach((p, i) => {
       if (!isNote(p)) {
@@ -162,7 +170,10 @@ export function mount(content, ctx) {
         }
         prevPlace = p;
       }
-      list.append(timelineItem(p, i, times[i]));
+      const item = timelineItem(p, i, times[i]);
+      if (i === next.nextIndex) { item.classList.add('tl-next'); item.querySelector('.tl-meta')?.prepend(el('span', { class: 'badge badge-next', text: '다음' })); }
+      else if (i === next.currentIndex) item.classList.add('tl-now');
+      list.append(item);
     });
     if (!places.length) list.append(el('p', { class: 'muted tl-empty', text: '아직 장소가 없어요. 아래에서 추가해 보세요.' }));
     panel.append(list);
@@ -171,6 +182,35 @@ export function mount(content, ctx) {
       el('button', { class: 'btn btn-dashed', onClick: () => openSheet({ dayId: day.id, dayIndex }) }, icon('plus'), '장소 추가'),
       el('button', { class: 'btn btn-dashed', onClick: () => openSheet({ dayId: day.id, dayIndex, kind: 'note' }) }, icon('edit'), '메모 추가')));
   }
+
+  // 오늘 모드 배너: 다음 목적지, 남은 시간, 현재 위치에서 길찾기
+  function todayBanner(places, times, next) {
+    if (next.nextIndex == null) {
+      return el('div', { class: `today-banner${next.done ? ' done' : ''}` },
+        el('strong', { text: next.done ? '오늘 일정을 모두 마쳤어요' : '오늘 일정이에요' }),
+        el('span', { class: 'muted', text: next.done ? '수고했어요!' : '장소에 시간을 적으면 다음 목적지를 알려드려요' }));
+    }
+    const p = places[next.nextIndex];
+    const t = times[next.nextIndex].time;
+    const [h, m] = t.split(':').map(Number);
+    const now = new Date();
+    const left = h * 60 + m - (now.getHours() * 60 + now.getMinutes());
+    const leftText = left >= 60 ? `${Math.floor(left / 60)}시간 ${left % 60}분 남음` : `${left}분 남음`;
+    return el('div', { class: 'today-banner' },
+      el('div', { class: 'today-banner-text' },
+        el('span', { class: 'muted', text: `다음 목적지 · ${t}${times[next.nextIndex].estimated ? ' 예상' : ''} · ${leftText}` }),
+        el('strong', { text: p.name })),
+      hasCoords(p) ? el('a', {
+        class: 'btn btn-sm btn-primary', target: '_blank', rel: 'noopener',
+        href: googleMapsDirectionsUrl({ to: { lat: p.lat, lng: p.lng, placeId: p.placeId } }),
+      }, icon('pin'), '여기서 길찾기') : null);
+  }
+
+  // 오늘 Day 를 보고 있으면 1분마다 배너·다음 표시를 갱신한다
+  const minuteTimer = setInterval(() => {
+    const day = state.days.find((d) => d.id === state.selectedDayId);
+    if (day && day.date === toDateStr(new Date()) && !state.dragging) drawPanel();
+  }, 60000);
 
   // 오늘부터 15일 안의 날짜만, 그 날 첫 장소 위치로 예보를 받는다 (없으면 표시 안 함)
   async function loadWeather(day, target) {
@@ -264,5 +304,10 @@ export function mount(content, ctx) {
   }
 
   // 라우트가 바뀌면(뒤로가기 등) 열려 있던 시트도 닫는다. 안 그러면 떠난 여행에 장소가 저장될 수 있다.
-  return () => { unsubs.forEach((u) => u()); if (closeSheet) closeSheet(); map.destroy(); };
+  return () => { unsubs.forEach((u) => u()); clearInterval(minuteTimer); if (closeSheet) closeSheet(); map.destroy(); };
+}
+
+function nowHHMM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }

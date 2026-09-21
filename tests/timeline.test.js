@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateTimes, addMinutes } from '../js/lib/timeline.js';
+import { estimateTimes, addMinutes, pickNext } from '../js/lib/timeline.js';
 import { legKey } from '../js/lib/polyline.js';
 
 test('addMinutes: HH:MM에 분을 더한다 (자정 넘김 유지)', () => {
@@ -65,4 +65,23 @@ test('estimateTimes: 저장된 구글 도보 시간(routeToNext)이 있으면 �
   // 구간이 바뀌었으면(키 불일치) 직선 추정으로 돌아간다
   a.routeToNext = { ...a.routeToNext, key: 'x>y' };
   assert.equal(estimateTimes([a, b], now)[1].time, '10:14');
+});
+
+test('pickNext: 지금 시각을 기준으로 현재 장소와 다음 장소를 고른다', () => {
+  const places = [
+    { id: 'a', time: '09:00', stayMinutes: 60, lat: 35, lng: 135 }, // b 는 10:00 으로 추정됨
+    { id: 'n', category: 'note', time: '10:00' },
+    { id: 'b', time: null, stayMinutes: 30, lat: 35, lng: 135 },
+    { id: 'c', time: '13:00', lat: 35, lng: 135 },
+  ];
+  const times = estimateTimes(places);
+  assert.deepEqual(pickNext(places, times, '08:00'), { currentIndex: null, nextIndex: 0, done: false });
+  assert.deepEqual(pickNext(places, times, '09:10'), { currentIndex: 0, nextIndex: 2, done: false }); // 메모(10:00)는 건너뜀
+  assert.deepEqual(pickNext(places, times, '12:00'), { currentIndex: 2, nextIndex: 3, done: false });
+  assert.deepEqual(pickNext(places, times, '14:00'), { currentIndex: 3, nextIndex: null, done: true });
+});
+
+test('pickNext: 시각이 하나도 없으면 done 이 아니고 다음도 없다', () => {
+  const places = [{ id: 'a', time: null, lat: 35, lng: 135 }];
+  assert.deepEqual(pickNext(places, estimateTimes(places), '12:00'), { currentIndex: null, nextIndex: null, done: false });
 });
