@@ -17,3 +17,13 @@ export function nextOrder(items) {
   if (!items.length) return 0;
   return Math.max(...items.map((item) => item.order)) + 1;
 }
+
+// 시각(HH:MM)에 맞는 자리의 order. 시각이 없는 항목은 바로 앞의 시각 있는 항목에 딸린 것으로 본다.
+// 같은 시각이면 그 뒤, 모두 이르면 맨 앞(첫 order − 1), 모두 늦으면 끝+1, 빈 날이면 0.
+export function orderForTime(items, time) {
+  const sorted = [...items].sort((a, b) => a.order - b.order);
+  const first = sorted.findIndex((p) => p.time && p.time > time);
+  if (first < 0) return nextOrder(sorted);
+  if (first === 0) return sorted[0].order - 1;
+  return (sorted[first - 1].order + sorted[first].order) / 2;
+}

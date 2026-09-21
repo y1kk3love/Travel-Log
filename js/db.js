@@ -258,7 +258,7 @@ export async function addPlace(tripId, data) {
   const ref = await addDoc(sub(tripId, 'places'), {
     name: '', time: null, stayMinutes: null, category: 'sight', memo: '',
     lat: null, lng: null, address: null, photos: [],
-    ...data, order: nextOrder(sameDay),
+    ...data, order: data.order ?? nextOrder(sameDay), // 자리를 정해 주면(예약→일정) 그대로, 아니면 그 날의 끝
   });
   return ref.id;
 }

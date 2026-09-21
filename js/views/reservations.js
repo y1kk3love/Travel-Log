@@ -1,9 +1,11 @@
 import { el, clear, toast, confirmDialog, openModal, icon, linkedText, openLightbox } from '../ui.js';
 import {
   watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays,
-  addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES,
+  addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, addPlace, updatePlace,
 } from '../db.js';
 import { parseFlightNumber, airlineName, flightradarUrl } from '../lib/flight.js';
+import { placeFromReservation } from '../lib/reservation-place.js';
+import { orderForTime } from '../lib/order.js';
 import { compressImage } from '../photo.js';
 
 const FILE_ACCEPT = 'image/*,application/pdf';
@@ -182,6 +184,11 @@ function openDialog(tripId, state, existing = null) {
   const linked = el('select', { class: 'input', id: 'rs-linked' },
     el('option', { value: '', text: '연결 안 함' }),
     ...state.places.map((p) => el('option', { value: p.id, selected: existing?.linkedPlaceId === p.id, text: placeLabel(state, p.id) })));
+  // 일시가 있고 연결한 일정이 없으면, 저장할 때 그 날 일정에 장소를 만들어 연결한다 (기본 켜짐)
+  const autoAdd = el('input', { type: 'checkbox', id: 'rs-auto', checked: !existing?.linkedPlaceId });
+  const autoField = el('label', { class: 'check-inline', for: 'rs-auto' }, autoAdd, '일정에 자동 추가 (일시의 날짜 Day 에 시각 순서로)');
+  const syncAuto = () => { autoField.hidden = !datetime.value || !!linked.value; };
+  datetime.addEventListener('input', syncAuto); linked.addEventListener('change', syncAuto); syncAuto();
   const dialog = el('dialog', {});
   const form = el('form', { method: 'dialog' },
     el('h2', { text: existing ? '예약 편집' : '예약 추가' }),
@@ -193,7 +200,7 @@ function openDialog(tripId, state, existing = null) {
       el('div', { class: 'field' }, el('label', { for: 'rs-title', text: '제목' }), title),
       el('div', { class: 'field' }, el('label', { for: 'rs-code', text: '예약번호' }), code),
       el('div', { class: 'field' }, el('label', { for: 'rs-note', text: '메모' }), note),
-      el('div', { class: 'field' }, el('label', { for: 'rs-linked', text: '연결된 일정' }), linked)),
+      el('div', { class: 'field' }, el('label', { for: 'rs-linked', text: '연결된 일정' }), linked, autoField)),
     el('div', { class: 'dialog-actions' },
       el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '취소'),
       el('button', { type: 'submit', class: 'btn btn-primary' }, existing ? '저장' : '추가')));
@@ -206,6 +213,19 @@ function openDialog(tripId, state, existing = null) {
     };
     if (!data.title) { toast('제목을 입력해 주세요', { kind: 'error' }); return; }
     try {
+      const spec = placeFromReservation(data, state.days);
+      if (!data.linkedPlaceId && data.datetime && autoAdd.checked) {
+        // 새로 연결: 그 날 일정에 시각 순서로 장소를 만들고 연결
+        if (!spec) toast('그 날짜의 Day 가 없어 일정에는 넣지 않았어요', { ms: 4000 });
+        else {
+          const sameDay = state.places.filter((p) => p.dayId === spec.dayId);
+          data.linkedPlaceId = await addPlace(tripId, { ...spec, order: orderForTime(sameDay, spec.time) });
+          toast(`Day ${state.days.findIndex((d) => d.id === spec.dayId) + 1} 일정에 넣었어요`);
+        }
+      } else if (existing?.linkedPlaceId && data.linkedPlaceId === existing.linkedPlaceId && data.datetime !== existing.datetime && spec) {
+        // 일시를 고쳤으면 연결된 일정의 시각(날짜가 바뀌면 Day 도)을 따라 옮긴다
+        await updatePlace(tripId, data.linkedPlaceId, { time: spec.time, dayId: spec.dayId });
+      }
       if (existing) await updateReservation(tripId, existing.id, data); else await addReservation(tripId, data);
       dialog.close();
     } catch (err) { console.error(err); toast('저장하지 못했어요', { kind: 'error' }); }

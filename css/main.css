@@ -425,3 +425,5 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .usage-storage { display: flex; flex-direction: column; gap: 10px; }
 .usage-storage .progress { height: 8px; }
 .share-empty { padding: 18px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.check-inline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-top: 6px; cursor: pointer; }
+.check-inline input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
