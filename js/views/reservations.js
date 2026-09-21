@@ -4,7 +4,7 @@ import {
   addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, addPlace, updatePlace,
 } from '../db.js';
 import { parseFlightNumber, airlineName, flightradarUrl } from '../lib/flight.js';
-import { placeFromReservation } from '../lib/reservation-place.js';
+import { placesFromReservation } from '../lib/reservation-place.js';
 import { orderForTime } from '../lib/order.js';
 import { compressImage } from '../photo.js';
 
@@ -63,14 +63,18 @@ function draw(main, tripId, state) {
 }
 
 function card(tripId, state, r) {
-  const linked = r.linkedPlaceId ? placeLabel(state, r.linkedPlaceId) : null;
+  // 연결된 일정: 여러 개(숙소 기간)면 전부, 하나면 그것
+  const linkedIds = [...new Set([...(r.linkedPlaceIds ?? []), ...(r.linkedPlaceId ? [r.linkedPlaceId] : [])])];
+  const linkedEls = linkedIds.map((id) => ({ id, label: placeLabel(state, id) })).filter((x) => x.label)
+    .map((x, i) => [i ? ' · ' : null, el('a', { href: `#/trip/${tripId}/planner/${x.id}`, class: 'link-accent', text: x.label })]);
+  const linked = linkedEls.length ? el('span', {}, ...linkedEls.flat()) : null;
   return el('section', { class: 'card reservation', dataset: { id: r.id } },
     el('div', { class: 'reservation-head' },
       el('div', { class: 'reservation-title' },
         el('span', { class: 'badge badge-muted', text: TYPE_LABELS[r.type] ?? '기타' }),
         el('strong', { text: r.title || '(제목 없음)' })),
       el('div', {},
-        el('span', { class: 'muted', text: formatDatetime(r.datetime) }),
+        el('span', { class: 'muted', text: r.checkout ? `${formatDatetime(r.datetime)} → ${formatDatetime(r.checkout)}` : formatDatetime(r.datetime) }),
         el('button', { class: 'btn btn-icon btn-sm', 'aria-label': '편집', onClick: () => openDialog(tripId, state, r) }, icon('edit')),
         el('button', {
           class: 'btn btn-icon btn-sm', 'aria-label': '삭제',
@@ -85,7 +89,7 @@ function card(tripId, state, r) {
         el('a', { href: flightradarUrl(r.flightNumber), target: '_blank', rel: 'noopener', class: 'link-accent', text: 'Flightradar24에서 보기' })))] : []),
       field('예약번호', r.code ? el('code', { text: r.code }) : el('span', { class: 'muted', text: '없음' })),
       field('메모', r.note ? el('span', { class: 'pre-wrap' }, linkedText(r.note)) : '—'),
-      field('연결된 일정', linked ? el('a', { href: `#/trip/${tripId}/planner/${r.linkedPlaceId}`, class: 'link-accent', text: linked }) : '없음'),
+      field('연결된 일정', linked ?? '없음'),
       field('서류', filesField(tripId, r))));
 }
 
@@ -182,9 +186,14 @@ function openDialog(tripId, state, existing = null) {
     if (!title.value.trim() && name) title.value = `${name} ${parsed.iata}`;
   }
   flight.addEventListener('input', drawFlightHint);
-  type.addEventListener('change', () => { flightField.hidden = type.value !== 'flight'; });
+  type.addEventListener('change', () => { flightField.hidden = type.value !== 'flight'; checkoutField.hidden = type.value !== 'stay'; });
   drawFlightHint();
   const datetime = el('input', { class: 'input', id: 'rs-datetime', type: 'datetime-local', value: existing?.datetime ?? '' });
+  // 숙소만: 체크아웃. 있으면 체크인~체크아웃 기간의 Day 마다 일정을 만든다
+  const checkout = el('input', { class: 'input', id: 'rs-checkout', type: 'datetime-local', value: existing?.checkout ?? '' });
+  const checkoutField = el('div', { class: 'field', hidden: (existing?.type ?? 'etc') !== 'stay' },
+    el('label', { for: 'rs-checkout', text: '체크아웃' }), checkout,
+    el('p', { class: 'muted ps-hint', text: '넣으면 체크인 날부터 체크아웃 날까지 날마다 일정(체크인·숙박·체크아웃)이 생겨요' }));
   const code = el('input', { class: 'input', id: 'rs-code', value: existing?.code ?? '', placeholder: '예약번호' });
   const note = el('textarea', { class: 'input', id: 'rs-note', rows: '3', placeholder: '좌석, 체크인 시간, 주소 등' });
   note.value = existing?.note ?? '';
@@ -203,7 +212,7 @@ function openDialog(tripId, state, existing = null) {
       el('div', { class: 'form-grid' },
         el('div', { class: 'field' }, el('label', { for: 'rs-type', text: '종류' }), type),
         el('div', { class: 'field' }, el('label', { for: 'rs-datetime', text: '일시' }), datetime)),
-      flightField,
+      flightField, checkoutField,
       el('div', { class: 'field' }, el('label', { for: 'rs-title', text: '제목' }), title),
       el('div', { class: 'field' }, el('label', { for: 'rs-code', text: '예약번호' }), code),
       el('div', { class: 'field' }, el('label', { for: 'rs-note', text: '메모' }), note),
@@ -216,22 +225,30 @@ function openDialog(tripId, state, existing = null) {
     const parsedFlight = type.value === 'flight' ? parseFlightNumber(flight.value) : null;
     const data = {
       type: type.value, title: title.value.trim(), datetime: datetime.value || null, code: code.value.trim(), note: note.value,
-      linkedPlaceId: linked.value || null, flightNumber: parsedFlight ? parsedFlight.iata : null,
+      checkout: type.value === 'stay' && checkout.value ? checkout.value : null,
+      linkedPlaceId: linked.value || null, linkedPlaceIds: existing?.linkedPlaceIds ?? [], flightNumber: parsedFlight ? parsedFlight.iata : null,
     };
     if (!data.title) { toast('제목을 입력해 주세요', { kind: 'error' }); return; }
     try {
-      const spec = placeFromReservation(data, state.days);
-      if (!data.linkedPlaceId && data.datetime && autoAdd.checked) {
-        // 새로 연결: 그 날 일정에 시각 순서로 장소를 만들고 연결
-        if (!spec) toast('그 날짜의 Day 가 없어 일정에는 넣지 않았어요', { ms: 4000 });
+      const specs = placesFromReservation(data, state.days);
+      const alreadyLinked = data.linkedPlaceId || data.linkedPlaceIds.length;
+      if (!alreadyLinked && data.datetime && autoAdd.checked) {
+        // 새로 연결: 해당 Day 마다 시각 순서로 장소를 만들고 전부 연결 (숙소는 기간만큼 여러 개)
+        if (!specs.length) toast('그 날짜의 Day 가 없어 일정에는 넣지 않았어요', { ms: 4000 });
         else {
-          const sameDay = state.places.filter((p) => p.dayId === spec.dayId);
-          data.linkedPlaceId = await addPlace(tripId, { ...spec, order: orderForTime(sameDay, spec.time) });
-          toast(`Day ${state.days.findIndex((d) => d.id === spec.dayId) + 1} 일정에 넣었어요`);
+          const ids = [];
+          for (const spec of specs) {
+            const sameDay = state.places.filter((p) => p.dayId === spec.dayId);
+            ids.push(await addPlace(tripId, { ...spec, order: orderForTime(sameDay, spec.time) }));
+          }
+          data.linkedPlaceId = ids[0];
+          data.linkedPlaceIds = ids;
+          const dayNums = specs.map((s) => state.days.findIndex((d) => d.id === s.dayId) + 1);
+          toast(ids.length === 1 ? `Day ${dayNums[0]} 일정에 넣었어요` : `Day ${dayNums[0]}~${dayNums[dayNums.length - 1]} 일정에 ${ids.length}개 넣었어요`);
         }
-      } else if (existing?.linkedPlaceId && data.linkedPlaceId === existing.linkedPlaceId && data.datetime !== existing.datetime && spec) {
-        // 일시를 고쳤으면 연결된 일정의 시각(날짜가 바뀌면 Day 도)을 따라 옮긴다
-        await updatePlace(tripId, data.linkedPlaceId, { time: spec.time, dayId: spec.dayId });
+      } else if (existing?.linkedPlaceId && data.linkedPlaceIds.length <= 1 && data.linkedPlaceId === existing.linkedPlaceId && data.datetime !== existing.datetime && specs[0]) {
+        // 하나짜리 연결에서 일시를 고쳤으면 연결된 일정의 시각(날짜가 바뀌면 Day 도)을 따라 옮긴다. 여러 개짜리는 손대지 않는다
+        await updatePlace(tripId, data.linkedPlaceId, { time: specs[0].time, dayId: specs[0].dayId });
       }
       if (existing) await updateReservation(tripId, existing.id, data); else await addReservation(tripId, data);
       dialog.close();

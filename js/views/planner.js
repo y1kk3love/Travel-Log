@@ -325,7 +325,7 @@ export function mount(content, ctx) {
           el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }),
           p.stayMinutes ? el('span', { class: 'muted', text: `${p.stayMinutes}분` }) : null,
           p.photoCount > 0 ? el('span', { class: 'tag', text: `사진 ${p.photoCount}` }) : null,
-          ...state.reservations.filter((r) => r.linkedPlaceId === p.id).map((r) => el('a', {
+          ...state.reservations.filter((r) => r.linkedPlaceId === p.id || (r.linkedPlaceIds ?? []).includes(p.id)).map((r) => el('a', {
             class: 'badge badge-link', href: `#/trip/${tripId}/reservations/${r.id}`, title: r.title, text: '예약 ›',
             onClick: (e) => e.stopPropagation(), // 장소 창 대신 그 예약 카드로
           }))),
