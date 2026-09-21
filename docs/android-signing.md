@@ -32,3 +32,12 @@ keytool -list -v -keystore "$HOME\travel-log-release.keystore" -alias travel-log
 
 저장소 → Settings → Secrets and variables → Actions → New repository secret:
 `ANDROID_KEYSTORE_BASE64`(클립보드 내용), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` = `travel-log`, `ANDROID_KEY_PASSWORD`.
+
+## 콘솔에 등록된 앱 주소 (2026-09-21)
+
+앱 안의 웹뷰는 `https://travellog.local` 로 동작한다(`capacitor.config.json`). 그래서 두 곳에 이 주소가 들어가 있다. 주소를 바꾸면 둘 다 고친다.
+
+- Firebase → Authentication → 설정 → 승인된 도메인: `travellog.local`
+- Google Cloud `travel-log-maps` → 사용자 인증 정보 → 키 `travel-log-web` → 웹사이트 제한사항: `https://travellog.local/*`
+
+`keytool` 이 안 잡히면 새 PowerShell 창을 열거나 전체 경로로 부른다: `& "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot\bin\keytool.exe" ...`
