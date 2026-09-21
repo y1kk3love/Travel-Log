@@ -8,6 +8,7 @@ import { auth } from '../firebase.js';
 import { isOwner } from '../auth.js';
 import { navigate } from '../router.js';
 import { appDownloadCard } from './app-download.js';
+import { stampLabel } from '../lib/stamp.js';
 
 export function render(container) {
   const main = el('main', { class: 'container trips-page' });
@@ -114,9 +115,17 @@ function stat(label, value) {
   return el('div', { class: 'stat' }, el('span', { class: 'muted', text: label }), el('strong', { text: value }));
 }
 
+// 지난 여행: 사진 모서리에 여권 도장 (도시 · 연월)
+function passportStamp(trip) {
+  const { city, date } = stampLabel(trip);
+  return el('div', { class: 'stamp', 'aria-hidden': 'true' },
+    el('span', { class: 'stamp-ring' }), el('span', { class: 'stamp-ink' }),
+    el('span', { class: 'stamp-city', text: city }), el('span', { class: 'stamp-date', text: date }));
+}
+
 function smallCard(trip) {
   return el('a', { href: `#/trip/${trip.id}`, class: 'card trip-small' },
-    cover(trip, 'trip-small-cover'),
+    el('div', { class: 'trip-small-cover-wrap' }, cover(trip, 'trip-small-cover'), passportStamp(trip)),
     el('div', { class: 'trip-small-body' },
       el('h3', { text: trip.title }),
       el('p', { class: 'muted' }, formatRange(trip.startDate, trip.endDate), ' ', membersTag(trip))),

@@ -132,7 +132,8 @@ export function mount(content, ctx) {
     const day = state.days[dayIndex];
     panel.append(el('div', { class: 'day-tabs' },
       ...state.days.map((d, i) => el('button', {
-        class: `day-tab${d.id === state.selectedDayId ? ' active' : ''}`, onClick: () => selectDay(d.id),
+        // 지나간 날은 여권 도장처럼 작은 체크 도장
+        class: `day-tab${d.id === state.selectedDayId ? ' active' : ''}${d.date < toDateStr(new Date()) ? ' stamped' : ''}`, onClick: () => selectDay(d.id),
       }, el('strong', { text: `Day ${i + 1}` }), el('span', { text: formatShort(d.date) }))),
       el('button', {
         class: 'day-tab day-tab-add', 'aria-label': '날짜 추가',
