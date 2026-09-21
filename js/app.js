@@ -23,7 +23,10 @@ function renderLogin() {
       class: 'btn btn-primary',
       onClick: () => signIn().catch((err) => {
         console.error(err);
-        toast(err.code === 'auth/popup-blocked' ? err.message : '로그인에 실패했어요', { kind: 'error', ms: 5000 });
+        if (err.code === 'auth/native-cancelled') { toast(`로그인이 취소됐어요 · ${err.message}`, { ms: 6000 }); return; }
+        // 앱에서는 원인을 알 수 있게 코드와 메시지를 그대로 보여 준다 (웹 팝업 차단도 메시지 그대로)
+        const detail = isNative() || err.code === 'auth/popup-blocked';
+        toast(detail ? `로그인 실패 (${err.code ?? '?'}) ${err.message ?? ''}` : '로그인에 실패했어요', { kind: 'error', ms: detail ? 10000 : 5000 });
       }),
     }, 'Google로 로그인')));
 }

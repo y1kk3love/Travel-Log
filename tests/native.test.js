@@ -30,3 +30,20 @@ test('native: 알림 예약은 정확 알람을 요구하지 않는다 (권한 �
   assert.deepEqual(n.extra, { tripId: 't1', placeId: 'p1' });
   delete globalThis.window;
 });
+
+test('native: 구글 로그인 실패는 삼키지 않는다 — 취소는 code auth/native-cancelled, 그 외는 원래 메시지 그대로', async () => {
+  const fake = (impl) => { globalThis.window = { Capacitor: { isNativePlatform: () => true, registerPlugin: () => ({ signInWithGoogle: impl }) } }; };
+  const { googleIdToken: fresh } = await import('../js/native.js?cancel=' + Date.now());
+  fake(async () => { throw new Error('activity is cancelled by the user.'); });
+  await assert.rejects(fresh(), (e) => e.code === 'auth/native-cancelled' && /cancelled by the user/.test(e.message));
+  const { googleIdToken: fresh2 } = await import('../js/native.js?dev=' + Date.now());
+  fake(async () => { throw new Error('[28444] Developer console is not set up correctly.'); });
+  await assert.rejects(fresh2(), (e) => e.code === 'auth/native-failed' && /28444/.test(e.message));
+  const { googleIdToken: fresh3 } = await import('../js/native.js?ok=' + Date.now());
+  fake(async () => ({ credential: { idToken: 'tok' } }));
+  assert.equal(await fresh3(), 'tok');
+  const { googleIdToken: fresh4 } = await import('../js/native.js?none=' + Date.now());
+  fake(async () => ({ user: {} }));
+  await assert.rejects(fresh4(), (e) => e.code === 'auth/native-no-token');
+  delete globalThis.window;
+});

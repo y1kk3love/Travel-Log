@@ -10,8 +10,8 @@ export function watchAuth(cb) {
 // 웹: 팝업 (리디렉트는 authDomain 불일치로 결과를 잃는다). 앱: 네이티브 구글 로그인 → 같은 Firebase 계정으로 signInWithCredential.
 export async function signIn() {
   if (isNative()) {
-    const idToken = await googleIdToken();
-    if (!idToken) return; // 취소
+    const idToken = await googleIdToken(); // 실패·취소는 code 가 붙은 에러로 올라온다
+    if (!idToken) { const e = new Error('앱 안에서 로그인 플러그인을 찾지 못했어요'); e.code = 'auth/native-missing'; throw e; }
     await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
     return;
   }

@@ -23,16 +23,27 @@ export async function appVersion() {
 }
 
 // 앱 안 웹뷰에서는 구글 OAuth 팝업이 막혀서(disallowed_useragent) 네이티브 로그인으로 ID 토큰만 받는다.
+// 실패는 삼키지 않고 code 를 붙여 던진다: 취소 auth/native-cancelled, 토큰 없음 auth/native-no-token, 그 외 auth/native-failed (원문 메시지 유지)
 export async function googleIdToken() {
   const fa = plugin('FirebaseAuthentication');
   if (!fa) return null;
+  let result;
   try {
-    const result = await fa.signInWithGoogle();
-    return result?.credential?.idToken ?? null;
+    result = await fa.signInWithGoogle();
   } catch (err) {
-    if (/cancel/i.test(String(err?.message ?? err))) return null;
-    throw err;
+    const message = String(err?.message ?? err);
+    const e = new Error(message);
+    e.code = /cancel/i.test(message) ? 'auth/native-cancelled' : 'auth/native-failed';
+    e.nativeCode = err?.code;
+    throw e;
   }
+  const token = result?.credential?.idToken;
+  if (!token) {
+    const e = new Error(`구글 로그인은 됐는데 ID 토큰이 없어요 (${JSON.stringify(Object.keys(result ?? {}))})`);
+    e.code = 'auth/native-no-token';
+    throw e;
+  }
+  return token;
 }
 
 export async function nativeSignOut() {
