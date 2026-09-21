@@ -125,8 +125,9 @@ function passportStamp(trip) {
 
 function smallCard(trip) {
   return el('a', { href: `#/trip/${trip.id}`, class: 'card trip-small' },
-    el('div', { class: 'trip-small-cover-wrap' }, cover(trip, 'trip-small-cover'), passportStamp(trip)),
+    el('div', { class: 'trip-small-cover-wrap' }, cover(trip, 'trip-small-cover')),
     el('div', { class: 'trip-small-body' },
+      passportStamp(trip),
       el('h3', { text: trip.title }),
       el('p', { class: 'muted' }, formatRange(trip.startDate, trip.endDate), ' ', membersTag(trip))),
     deleteButton(trip));
