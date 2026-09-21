@@ -296,7 +296,7 @@ function openDialog(tripId, state, existing = null) {
     };
     if (!data.title) { toast('제목을 입력해 주세요', { kind: 'error' }); return; }
     try {
-      const specs = placesFromReservation(data, state.days);
+      const specs = placesFromReservation(data, state.days, { places: state.places }); // 항공은 여행 장소들과 가까운 공항 좌표를 붙인다
       const alreadyLinked = data.linkedPlaceId || data.linkedPlaceIds.length;
       if (!alreadyLinked && data.datetime && autoAdd.checked) {
         // 새로 연결: 해당 Day 마다 시각 순서로 장소를 만들고 전부 연결 (숙소는 기간만큼 여러 개)

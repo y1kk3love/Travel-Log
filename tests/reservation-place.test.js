@@ -34,3 +34,19 @@ test('placesFromReservation: 숙소는 체크인~체크아웃 기간의 Day 마�
   assert.equal(placesFromReservation({ type: 'flight', title: 'x', datetime: '2026-04-17T09:00' }, days4).length, 1);
   assert.deepEqual(placesFromReservation({ type: 'flight', title: 'x', datetime: null }, days4), []);
 });
+
+test('placesFromReservation: 항공은 공항 좌표를 넣고, 여행 장소들과 가까운 공항을 고른다 (가는 편 → 도착 공항·도착 시각, 오는 편 → 출발 공항·출발 시각)', () => {
+  const days2 = [{ id: 'd1', date: '2026-04-17' }, { id: 'd4', date: '2026-04-20' }];
+  const fukuoka = [{ id: 'x', lat: 33.59, lng: 130.40 }]; // 후쿠오카 시내 장소
+  const out = placesFromReservation({ type: 'flight', title: '인천 → 후쿠오카 · 7C1403', fromAirport: '인천', toAirport: '후쿠오카', datetime: '2026-04-17T09:30', arrival: '2026-04-17T11:00', flightNumber: '7C1403' }, days2, { places: fukuoka });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].time, '11:00'); // 도착 공항이 여행지 → 도착 시각
+  assert.ok(Math.abs(out[0].lat - 33.5859) < 0.01);
+  assert.equal(out[0].address, '후쿠오카 공항 (FUK)');
+  const back = placesFromReservation({ type: 'flight', title: '후쿠오카 → 인천', fromAirport: '후쿠오카', toAirport: '인천', datetime: '2026-04-20T10:50', arrival: '2026-04-20T12:40' }, days2, { places: fukuoka });
+  assert.equal(back[0].time, '10:50'); // 출발 공항이 여행지 → 출발 시각
+  assert.equal(back[0].address, '후쿠오카 공항 (FUK)');
+  // 장소가 없으면 도착 공항, 공항을 모르면 좌표 없음
+  assert.equal(placesFromReservation({ type: 'flight', title: 'x', fromAirport: '인천', toAirport: '후쿠오카', datetime: '2026-04-17T09:30' }, days2, { places: [] })[0].address, '후쿠오카 공항 (FUK)');
+  assert.equal(placesFromReservation({ type: 'flight', title: 'x', fromAirport: '', toAirport: '', datetime: '2026-04-17T09:30' }, days2, { places: [] })[0].lat, undefined);
+});

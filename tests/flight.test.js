@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle } from '../js/lib/flight.js';
+import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle, airportInfo } from '../js/lib/flight.js';
 
 test('parseFlightNumber: 공백·소문자·붙여쓰기를 모두 받아 IATA 편명으로 정리한다', () => {
   assert.deepEqual(parseFlightNumber('LJ213'), { airline: 'LJ', number: '213', iata: 'LJ213' });
@@ -69,4 +69,13 @@ test('flightTitle: 공항·항공사·편명으로 제목을 만든다', () => {
   assert.equal(flightTitle({ from: '인천', to: '오사카', airline: null, iata: 'XX123' }), '인천 → 오사카 · XX123');
   assert.equal(flightTitle({ from: '', to: '', airline: '진에어', iata: 'LJ313' }), '진에어 LJ313');
   assert.equal(flightTitle({ from: '인천', to: '', airline: null, iata: null }), '인천 →');
+});
+
+test('airportInfo: 코드·좌표·도시. 표에 있는 공항은 전부 좌표가 있다', () => {
+  const icn = airportInfo('인천');
+  assert.equal(icn.code, 'ICN');
+  assert.ok(Math.abs(icn.lat - 37.46) < 0.05 && Math.abs(icn.lng - 126.44) < 0.05);
+  assert.equal(airportInfo('KIX').city, '오사카');
+  assert.equal(airportInfo('모르는곳'), null);
+  for (const a of airportSuggestions()) { const i = airportInfo(a.code); assert.ok(i && Number.isFinite(i.lat) && Number.isFinite(i.lng), `${a.code} 좌표 없음`); }
 });
