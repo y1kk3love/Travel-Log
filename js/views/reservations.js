@@ -1,4 +1,4 @@
-import { el, clear, toast, confirmDialog, openModal, icon } from '../ui.js';
+import { el, clear, toast, confirmDialog, openModal, icon, linkedText } from '../ui.js';
 import { watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays } from '../db.js';
 import { parseFlightNumber, airlineName, flightradarUrl } from '../lib/flight.js';
 
@@ -67,7 +67,7 @@ function card(tripId, state, r) {
         `${airlineName(parseFlightNumber(r.flightNumber)?.airline) ?? ''} ${r.flightNumber} · `.replace(/^ /, ''),
         el('a', { href: flightradarUrl(r.flightNumber), target: '_blank', rel: 'noopener', class: 'link-accent', text: 'Flightradar24에서 보기' })))] : []),
       field('예약번호', r.code ? el('code', { text: r.code }) : el('span', { class: 'muted', text: '없음' })),
-      field('메모', r.note || '—'),
+      field('메모', r.note ? el('span', { class: 'pre-wrap' }, linkedText(r.note)) : '—'),
       field('연결된 일정', linked ? el('a', { href: `#/trip/${tripId}/planner/${r.linkedPlaceId}`, class: 'link-accent', text: linked }) : '없음')));
 }
 

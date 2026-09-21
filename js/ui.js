@@ -1,3 +1,4 @@
+import { linkify } from './lib/text.js';
 const ICONS = {
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   close: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
@@ -49,6 +50,14 @@ export function icon(name) {
   svg.setAttribute('aria-hidden', 'true');
   svg.innerHTML = ICONS[name] || '';
   return svg;
+}
+
+// 메모 글을 링크가 눌리는 조각들로 (긴 메모는 firstLineOnly 로 첫 줄만)
+export function linkedText(text, { firstLineOnly = false } = {}) {
+  const source = firstLineOnly ? String(text ?? '').split('\n')[0] : String(text ?? '');
+  return linkify(source).map((p) => (p.type === 'link'
+    ? el('a', { href: p.value, target: '_blank', rel: 'noopener', class: 'memo-link', text: p.label, onClick: (e) => e.stopPropagation() })
+    : document.createTextNode(p.value)));
 }
 
 export function escapeHtml(str) {

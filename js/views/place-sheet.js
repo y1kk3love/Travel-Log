@@ -3,6 +3,7 @@ import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPho
 import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
 import { notifyQuota } from '../quota.js';
+import { extractLinks, shortLabel } from '../lib/text.js';
 import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
@@ -29,8 +30,15 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     ...days.map((d, i) => el('option', { value: d.id, selected: d.id === place.dayId, text: `Day ${i + 1} · ${formatShort(d.date)}` }))) : null;
   const time = el('input', { class: 'input', id: 'ps-time', type: 'time', value: draft.time });
   const stay = el('input', { class: 'input', id: 'ps-stay', type: 'number', min: '0', step: '5', value: draft.stayMinutes, placeholder: '분' });
-  const memo = el('textarea', { class: 'input', id: 'ps-memo', rows: '3', placeholder: '메모' });
+  const memo = el('textarea', { class: 'input', id: 'ps-memo', rows: '3', placeholder: '메모 (링크를 넣으면 바로 열 수 있어요)' });
   memo.value = draft.memo;
+  // 메모 속 링크를 버튼으로 (블로그 글, 예약 페이지 등)
+  const memoLinks = el('div', { class: 'memo-links' });
+  function drawMemoLinks() {
+    memoLinks.replaceChildren(...extractLinks(memo.value).map((href) => el('a', { class: 'btn btn-sm', href, target: '_blank', rel: 'noopener', text: shortLabel(href) })));
+  }
+  memo.addEventListener('input', drawMemoLinks);
+  drawMemoLinks();
   const location = el('p', { class: 'muted ps-location' });
   const photoList = el('div', { class: 'photo-list' });
   const fileInput = el('input', { type: 'file', id: 'ps-photo', accept: 'image/*', multiple: true, class: 'visually-hidden' });
@@ -311,7 +319,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         el('div', { class: 'field' }, el('label', { for: 'ps-stay', text: '머무는 시간(분)' }), stay)),
       dayField,
       el('div', { class: 'field' }, el('label', { text: '분류' }), categoryRow),
-      el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '메모' }), memo),
+      el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '메모' }), memo, memoLinks),
       el('div', { class: 'field' },
         el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-photo', text: '사진' }), el('div', { class: 'ps-photo-actions' }, uploadBtn, clipboardBtn)),
         photoList, fileInput, photoStatus,

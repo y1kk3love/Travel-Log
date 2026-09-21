@@ -1,4 +1,4 @@
-import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS } from '../ui.js';
+import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS, linkedText } from '../ui.js';
 import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations, updatePlace } from '../db.js';
 import { formatShort } from '../lib/dates.js';
 import { legLabel, hasCoords, distanceKm } from '../lib/geo.js';
@@ -271,7 +271,7 @@ export function mount(content, ctx) {
         el('button', { class: 'tl-body', onClick: () => { highlight(p.id); openSheet({ dayId: p.dayId, place: p, kind: 'note' }); } },
           el('div', { class: 'tl-meta' }, p.time && el('span', { class: 'muted', text: p.time }), el('span', { class: 'tag', text: '메모' })),
           el('div', { class: 'tl-name tl-note-text', text: p.name || '(내용 없음)' }),
-          p.memo && el('div', { class: 'muted tl-memo', text: p.memo.split('\n')[0] })),
+          p.memo && el('div', { class: 'muted tl-memo' }, linkedText(p.memo, { firstLineOnly: true }))),
         el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));
     }
     const timeEl = p.time ? el('span', { class: 'muted', text: p.time })
@@ -286,7 +286,7 @@ export function mount(content, ctx) {
           p.photoCount > 0 ? el('span', { class: 'tag', text: `사진 ${p.photoCount}` }) : null,
           state.reservations.some((r) => r.linkedPlaceId === p.id) ? el('span', { class: 'badge', text: '예약' }) : null),
         el('div', { class: 'tl-name', text: p.name || '(이름 없음)' }),
-        p.memo && el('div', { class: 'muted tl-memo', text: p.memo.split('\n')[0] })),
+        p.memo && el('div', { class: 'muted tl-memo' }, linkedText(p.memo, { firstLineOnly: true }))),
       el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));
   }
 

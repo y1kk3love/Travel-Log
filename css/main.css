@@ -308,3 +308,7 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .tl-item.tl-next { background: #FBF1EC; border-radius: var(--radius); }
 .tl-item.tl-now .tl-num { background: var(--ink); }
 .badge-next { background: var(--accent); color: var(--accent-ink); }
+.memo-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.memo-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.memo-links .btn-sm { height: 28px; padding: 0 10px; font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.pre-wrap { white-space: pre-wrap; }
