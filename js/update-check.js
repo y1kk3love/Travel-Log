@@ -12,9 +12,9 @@ export async function checkForUpdate() {
   try {
     const last = Number(localStorage.getItem(STAMP) || 0);
     if (Date.now() - last < 24 * 3600 * 1000) return;
-    localStorage.setItem(STAMP, String(Date.now()));
     const res = await fetch(API, { headers: { Accept: 'application/vnd.github+json' } });
-    if (!res.ok) return;
+    if (!res.ok) return; // 실패하면 도장을 찍지 않아 다음 실행 때 다시 시도한다
+    localStorage.setItem(STAMP, String(Date.now()));
     const rel = await res.json();
     const current = await appVersion();
     if (!current || !isNewer(rel.tag_name, current)) return;

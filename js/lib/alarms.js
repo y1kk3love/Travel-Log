@@ -1,6 +1,5 @@
 // 다음 목적지 알림 계산 (순수 함수). 오늘·내일 Day 의 시각 있는 장소마다 "출발 시각"을 만든다.
-import { estimateTimes, routeBetween } from './timeline.js';
-import { hasCoords, distanceKm, walkMinutes } from './geo.js';
+import { estimateTimes, walkMinutesBetween } from './timeline.js';
 import { toDateStr, addDays } from './dates.js';
 
 const LEAD_MIN = 10;
@@ -31,12 +30,8 @@ export function planAlarms({ trips, placesByTrip, daysByTrip }, now = new Date()
       places.forEach((p, i) => {
         if (p.category === 'note') return;
         const t = times[i]?.time;
-        if (!t) { prev = p; return; }
-        let walk = 0;
-        if (prev && hasCoords(prev) && hasCoords(p)) {
-          const route = routeBetween(prev, p, now.getTime());
-          walk = route && Number.isFinite(route.seconds) ? Math.ceil(route.seconds / 60) : (distanceKm(prev, p) > 0.01 ? walkMinutes(distanceKm(prev, p)) : 0);
-        }
+        if (!t) return; // 시각을 못 정한 장소는 출발지로도 치지 않는다 (estimateTimes 와 같은 규칙)
+        const walk = walkMinutesBetween(prev, p, now.getTime());
         const at = atLocal(day.date, t) - (walk + LEAD_MIN) * 60000;
         if (at > now.getTime()) {
           out.push({

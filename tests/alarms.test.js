@@ -43,3 +43,14 @@ test('alarmId: 같은 placeId 는 같은 양의 정수, 다른 id 는 다르다'
   assert.notEqual(alarmId('abc'), alarmId('abd'));
   assert.ok(Number.isInteger(alarmId('abc')) && alarmId('abc') > 0 && alarmId('abc') < 2 ** 31);
 });
+
+test('planAlarms: 시각을 못 정한 장소는 건너뛰고, 다음 장소의 도보 시간은 마지막으로 시각이 있던 장소부터 잰다 (estimateTimes 와 같은 규칙)', () => {
+  // p0 은 시각도 없고 앞 장소도 없어 시각을 못 정함 → 알림 없음. p2 의 도보는 p0 이 아니라 p1 기준.
+  const p0 = { id: 'p0', dayId: 'd2', name: '시각 없음', lat: 35.60, lng: 139.70, order: 0 };
+  const p1 = { id: 'p1', dayId: 'd2', name: '첫 시각', time: '10:00', lat: 35.7148, lng: 139.7967, order: 1 };
+  const p2 = { id: 'p2', dayId: 'd2', name: '다음', time: '10:30', lat: 35.7141, lng: 139.7774, order: 2 }; // p1 에서 도보 ~24분
+  const out = planAlarms({ trips: [trip], placesByTrip: { t1: [p0, p1, p2] }, daysByTrip: { t1: days } }, now);
+  assert.deepEqual(out.map((a) => a.placeId), ['p1', 'p2']);
+  assert.equal(out[0].body, '10:00 예정'); // p0 을 출발지로 치면 15km 도보가 붙어 버린다
+  assert.match(out[1].body, /도보 2\d분/);
+});

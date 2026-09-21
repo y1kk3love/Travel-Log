@@ -25,6 +25,7 @@ export function mount(content, ctx) {
   const state = {
     days: [], places: [], reservations: [], selectedDayId: null, showAll: false, dragging: false, pending: false,
     focusPlaceId: ctx.placeId ?? null, lastFitKey: null, highlightId: null, poolOpen: true,
+    pendingOpen: null, // Day 목록이 오기 전에 openSheet 가 불리면 여기 담아 두었다가 연다
   };
   let closeSheet = null;
 
@@ -67,6 +68,7 @@ export function mount(content, ctx) {
         const today = days.find((d) => d.date === toDateStr(new Date()));
         state.selectedDayId = today?.id ?? days[0]?.id ?? null;
       }
+      if (state.pendingOpen && days.length) { const args = state.pendingOpen; state.pendingOpen = null; openSheet(args); }
       redraw();
       refreshAlarms(); // 앱 전용: 일정이 바뀌면 알림 다시 예약 (웹에서는 no-op)
     }),
@@ -337,7 +339,9 @@ export function mount(content, ctx) {
     return p ? { lat: p.lat, lng: p.lng } : null;
   }
 
-  function openSheet({ dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null, kind = 'place', sharedText = null }) {
+  function openSheet(args) {
+    if (!state.days.length) { state.pendingOpen = args; return; } // 고정 지연 대신 watchDays 가 도착하면 연다
+    const { dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null, kind = 'place', sharedText = null } = args;
     if (closeSheet) closeSheet();
     closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place, kind, days: state.days, near: nearFor(dayId ?? state.selectedDayId), sharedText });
   }
@@ -346,7 +350,7 @@ export function mount(content, ctx) {
   const share = takeShareTarget();
   if (share && share.tripId === tripId) {
     if (share.dayId) state.selectedDayId = share.dayId;
-    setTimeout(() => openSheet({ dayId: share.dayId, sharedText: share.text }), 300);
+    openSheet({ dayId: share.dayId, sharedText: share.text });
   }
 
   // 라우트가 바뀌면(뒤로가기 등) 열려 있던 시트도 닫는다. 안 그러면 떠난 여행에 장소가 저장될 수 있다.

@@ -3,7 +3,7 @@
 // rates: { JPY: 9.1, ... } = 그 통화 1단위당 원화
 
 export const CURRENCIES = ['KRW', 'JPY', 'TWD', 'USD', 'EUR', 'CNY', 'HKD', 'THB', 'VND', 'SGD', 'GBP'];
-export const CURRENCY_SYMBOL = { KRW: '원', JPY: '¥', TWD: 'NT$', USD: '$', EUR: '€', CNY: '¥', HKD: 'HK$', THB: '฿', VND: '₫', SGD: 'S$', GBP: '£' };
+const CURRENCY_SYMBOL = { KRW: '원', JPY: '¥', TWD: 'NT$', USD: '$', EUR: '€', CNY: '¥', HKD: 'HK$', THB: '฿', VND: '₫', SGD: 'S$', GBP: '£' };
 export const EXPENSE_CATEGORIES = { food: '식비', transport: '교통', stay: '숙소', sight: '관광', shop: '쇼핑', etc: '기타' };
 
 export function toKRW(amount, currency, rates = {}) {

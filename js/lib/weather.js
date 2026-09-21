@@ -19,7 +19,7 @@ export function pickDayLocation(places, dayId) {
 }
 
 // Open-Meteo 예보는 오늘부터 16일. 오늘 이후 15일 안의 날짜만 조회한다.
-export const FORECAST_DAYS = 15;
+const FORECAST_DAYS = 15;
 export function forecastWindow(dates, today) {
   return dates.filter((d) => { const n = diffDays(today, d); return n >= 0 && n <= FORECAST_DAYS; });
 }

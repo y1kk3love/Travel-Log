@@ -7,8 +7,8 @@ import { navigate } from '../router.js';
 // 공유로 들어온 텍스트는 메모리에만 둔다 (라우트를 오가도 유지, 새로고침이면 사라짐)
 let pending = null;
 export function setPendingShare(text) { pending = text; }
-export function takePendingShare() { const t = pending; pending = null; return t; }
-export function peekPendingShare() { return pending; }
+const takePendingShare = () => { const t = pending; pending = null; return t; };
+const peekPendingShare = () => pending;
 // 장소 창을 열 때 planner 가 꺼내 쓴다: { tripId, dayId(null=보관함), text }
 let target = null;
 export function takeShareTarget() { const t = target; target = null; return t; }
@@ -33,11 +33,16 @@ export function render(container) {
         if (pa !== pb) return pa - pb;
         return pa ? b.startDate.localeCompare(a.startDate) : a.startDate.localeCompare(b.startDate);
       });
+    const body = sorted.length
+      ? el('div', { class: 'share-pick-list' }, ...sorted.map((t) => el('button', { class: 'card share-trip', onClick: () => drawDays(root, t, sharedText) },
+        el('strong', { text: t.title }), el('span', { class: 'muted', text: `${formatRange(t.startDate, t.endDate)} · ${formatStatus(t.status)}` }))))
+      : el('div', { class: 'card share-empty' },
+        el('p', { text: '아직 여행이 없어요. 먼저 여행을 만든 뒤 다시 공유해 주세요.' }),
+        el('a', { class: 'btn btn-primary btn-sm', href: '#/', text: '내 여행으로' }));
     root.append(
       el('div', { class: 'page-head' }, el('div', {}, el('h2', { class: 'checklist-title', text: '어느 여행에 넣을까요?' }),
         el('p', { class: 'muted', text: sharedText.split('\n')[0].slice(0, 60) }))),
-      el('div', { class: 'share-pick-list' }, ...sorted.map((t) => el('button', { class: 'card share-trip', onClick: () => drawDays(root, t, sharedText) },
-        el('strong', { text: t.title }), el('span', { class: 'muted', text: `${formatRange(t.startDate, t.endDate)} · ${formatStatus(t.status)}` })))));
+      body);
   }
 
   function drawDays(root, trip, sharedText) {

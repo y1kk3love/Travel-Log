@@ -15,7 +15,7 @@ function me() {
   return { uid: u.uid, email: (u.email ?? '').toLowerCase() };
 }
 
-export const DEFAULT_CHECKLIST = [
+const DEFAULT_CHECKLIST = [
   { group: '출발 전', items: ['여권 유효기간 확인', '항공권 예약', '숙소 예약', '환전 · 트래블 카드 충전', '유심 / 이심 구매'] },
   { group: '짐', items: ['보조 배터리', '돼지코 어댑터', '상비약'] },
 ];
@@ -117,10 +117,6 @@ export async function createTrip({ title, startDate, endDate }) {
   }));
   await batch.commit();
   return ref.id;
-}
-
-export function updateTrip(tripId, data) {
-  return updateDoc(tripDoc(tripId), data);
 }
 
 // 여행 제목·기간 수정. 기존 Day는 순서대로 새 날짜를 받고, 늘어난 날은 추가, 줄어든 뒤쪽 Day는 장소·사진과 함께 지운다.

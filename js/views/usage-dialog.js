@@ -2,7 +2,7 @@ import { el, openModal } from '../ui.js';
 import { quotaHits } from '../quota.js';
 import { quotaResetLabel } from '../lib/quota.js';
 import { alarmsStatus } from '../alarms.js';
-import { appVersion } from '../native.js';
+import { appVersion, isNative } from '../native.js';
 import { estimateStorage } from '../db.js';
 import { firebaseConfig } from '../firebase-config.js';
 import { formatBytes, storagePercent, STORAGE_LIMIT_BYTES } from '../lib/firestore-size.js';
@@ -55,8 +55,9 @@ function storageSection(link) {
     el('div', { class: 'usage-links' }, calcBtn, link(FIREBASE_USAGE, 'Firebase 사용량 보기')));
 }
 
-// 안드로이드 앱에서만: 앱 버전과 알림 상태 (웹에서는 빈 요소)
+// 안드로이드 앱에서만: 앱 버전과 알림 상태 (웹에서는 아무것도 붙이지 않는다)
 function appInfo() {
+  if (!isNative()) return null;
   const box = el('div', { class: 'usage-app muted' });
   const status = alarmsStatus();
   if (status === 'denied') box.append(el('p', { text: '다음 목적지 알림이 꺼져 있어요. 폰 설정 → 앱 → 여행 로그 → 알림에서 켜 주세요.' }));

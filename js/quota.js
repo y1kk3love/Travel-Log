@@ -3,7 +3,7 @@
 import { toast } from './ui.js';
 import { isQuotaError, quotaResetLabel } from './lib/quota.js';
 
-export const QUOTA_KINDS = {
+const QUOTA_KINDS = {
   routes: { label: '도보 경로', fallback: '그동안 구간은 직선으로 표시돼요' },
   places: { label: '장소 검색', fallback: '그동안 OpenStreetMap 검색으로 대신해요' },
   details: { label: '장소 상세', fallback: '검색 결과의 위치를 가져올 수 없어요. 좌표나 링크를 붙여넣어 주세요' },

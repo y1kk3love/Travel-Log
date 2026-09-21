@@ -64,7 +64,6 @@ textarea.input { height: auto; min-height: 88px; padding: 10px 12px; resize: ver
 .topbar-left, .topbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .wordmark { font-size: 17px; font-weight: 800; letter-spacing: -.4px; }
 .topbar-back { color: var(--accent); font-weight: 600; font-size: 15px; }
-.topbar-email { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .offline-badge { font-size: 12px; padding: 3px 8px; border-radius: 6px; background: var(--line); color: var(--muted); }
 .offline-badge[hidden] { display: none; }
 .topbar-me { max-width: 160px; overflow: hidden; text-overflow: ellipsis; gap: 8px; padding: 0 10px 0 4px; }
@@ -121,7 +120,6 @@ dialog > p + .dialog-actions .btn { flex: 1; }
 /* ---- 지도 ---- */
 .pin { cursor: pointer; }
 .pin { width: 32px; height: 32px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); border: 3px solid var(--sf); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); font-family: var(--sans); }
-.me-dot { width: 18px; height: 18px; border-radius: 999px; background: var(--success); border: 3px solid var(--sf); box-shadow: 0 0 0 6px rgba(52, 199, 89, .2); }
 
 /* ---- 여행 화면 상단 ---- */
 .trip-header { padding: 6px 24px 12px; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -382,7 +380,6 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 @media (max-width: 900px) {
   .container { padding: 16px 16px 40px; }
   .topbar { padding: 0 16px; }
-  .topbar-email { display: none; }
   .page-head { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 16px; }
   .page-head h1 { font-size: 32px; }
   .trips-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -427,3 +424,4 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .usage-sub { font-size: 15px; margin-top: 6px; }
 .usage-storage { display: flex; flex-direction: column; gap: 10px; }
 .usage-storage .progress { height: 8px; }
+.share-empty { padding: 18px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }

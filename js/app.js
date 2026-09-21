@@ -13,7 +13,7 @@ import * as tripsView from './views/trips.js';
 import * as tripView from './views/trip.js';
 
 const app = document.getElementById('app');
-let stopRouter = null;
+let stopApp = () => {}; // renderApp 이 시작한 것(라우터·네이티브 리스너)을 전부 끄는 함수. 로그인 상태가 바뀔 때 부른다
 
 function renderLogin() {
   clear(app);
@@ -48,7 +48,7 @@ function renderChecking() {
 
 function renderApp() {
   clear(app);
-  stopRouter = startRouter({ trips: tripsView, trip: tripView, share: shareView }, app);
+  const disposers = [startRouter({ trips: tripsView, trip: tripView, share: shareView }, app)];
   // 공유 시트로 열렸으면 여행 선택 화면으로 (앱 전용, 웹에서는 아무것도 안 함)
   const goShare = async () => {
     const text = await takeSharedText();
@@ -58,8 +58,11 @@ function renderApp() {
   // 다음 목적지 알림: 앱 시작·복귀 때 다시 예약, 알림을 누르면 그 여행으로 (앱 전용)
   refreshAlarms();
   checkForUpdate();
-  onNotificationTap(({ tripId, placeId }) => { if (tripId) navigate(placeId ? `/trip/${tripId}/planner/${placeId}` : `/trip/${tripId}`); });
-  onResume(() => { goShare(); refreshAlarms(); });
+  // 로그아웃→로그인을 반복해도 리스너가 쌓이지 않게, 라우터와 함께 정리한다
+  disposers.push(
+    onNotificationTap(({ tripId, placeId }) => { if (tripId) navigate(placeId ? `/trip/${tripId}/planner/${placeId}` : `/trip/${tripId}`); }),
+    onResume(() => { goShare(); refreshAlarms(); }));
+  stopApp = () => { disposers.forEach((d) => d?.()); stopApp = () => {}; };
 }
 
 // 안드로이드 뒤로가기: 홈이 아니면 이전 화면으로, 홈이면 종료할지 묻는다 (앱 전용, 한 번만 등록)
@@ -83,7 +86,7 @@ if ('serviceWorker' in navigator && !isNative()) {
 let authSeq = 0;
 watchAuth(async (user) => {
   const seq = ++authSeq;
-  if (stopRouter) { stopRouter(); stopRouter = null; }
+  stopApp();
   if (!user) return renderLogin();
   renderChecking();
   const allowed = await canUseApp(isOwner(user));

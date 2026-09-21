@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-21-android-app-design.md`
 
+> **구현 후 메모 (2026-09-21):** 안드로이드가 웹뷰에 주입하는 런타임에는 `registerPlugin` 이 없고 `Capacitor.Plugins.<이름>` 프록시만 있다 (registerPlugin 은 @capacitor/core 를 번들할 때만 생김). 실제 구현은 둘 다 지원한다(js/native.js). 공유 받기는 외부 send-intent 플러그인 대신 앱 자체 ShareActivity + SharePlugin 으로 바뀌었다.
+
 ## Global Constraints
 
 - 웹 버전(GitHub Pages)은 이 작업으로 동작이 바뀌면 안 된다. 앱 전용 코드는 전부 `isNative()` 분기 뒤에 둔다.

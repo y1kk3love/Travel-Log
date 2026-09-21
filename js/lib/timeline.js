@@ -8,6 +8,15 @@ export function routeBetween(from, to, now = Date.now()) {
   return isFreshRoute(r, legKey(from, to), now) ? r : null;
 }
 
+// 두 장소 사이 도보 분: 저장된 구글 경로(routeToNext)가 있으면 그것, 없으면 직선거리 추정, 같은 자리(10m 안)면 0. 좌표가 없으면 0.
+export function walkMinutesBetween(from, to, now = Date.now()) {
+  if (!from || !to || !hasCoords(from) || !hasCoords(to)) return 0;
+  const route = routeBetween(from, to, now);
+  if (route && Number.isFinite(route.seconds)) return Math.ceil(route.seconds / 60);
+  const km = distanceKm(from, to);
+  return km > 0.01 ? walkMinutes(km) : 0;
+}
+
 export function addMinutes(hhmm, minutes) {
   const [h, m] = hhmm.split(':').map(Number);
   const total = (((h * 60 + m + minutes) % 1440) + 1440) % 1440;
@@ -24,10 +33,7 @@ export function estimateTimes(places, now = Date.now()) {
     if (p.category === 'note') return { id: p.id, time: p.time ?? null, estimated: false };
     if (p.time) { prev = { time: p.time, place: p }; return { id: p.id, time: p.time, estimated: false }; }
     if (!prev) return { id: p.id, time: null, estimated: false };
-    const route = routeBetween(prev.place, p, now);
-    const km = hasCoords(prev.place) && hasCoords(p) ? distanceKm(prev.place, p) : 0;
-    const walk = route && Number.isFinite(route.seconds) ? Math.ceil(route.seconds / 60)
-      : km > 0.01 ? walkMinutes(km) : 0; // 같은 자리면 이동 시간 0
+    const walk = walkMinutesBetween(prev.place, p, now);
     const time = addMinutes(prev.time, (prev.place.stayMinutes ?? 0) + walk);
     prev = { time, place: p };
     return { id: p.id, time, estimated: true };

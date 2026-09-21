@@ -6,21 +6,29 @@ import { planAlarms } from './lib/alarms.js';
 let status = 'unavailable';
 export function alarmsStatus() { return status; }
 
-const once = (fn) => new Promise((res, rej) => { const stop = fn((v) => { stop(); res(v); }, rej); });
-let timer = null;
+// 구독을 한 번만 받고 끊는다. 캐시도 서버도 응답이 없으면(오프라인 첫 실행 등) 15초 뒤 포기한다.
+// finally 는 executor 가 끝난 뒤 실행되므로 stop 이 항상 채워져 있다.
+const once = (fn, ms = 15000) => {
+  let stop = null;
+  let giveUp = null;
+  const result = new Promise((res, rej) => { stop = fn(res, rej); });
+  const timeout = new Promise((_, rej) => { giveUp = setTimeout(() => rej(new Error('timeout')), ms); });
+  return Promise.race([result, timeout]).finally(() => { clearTimeout(giveUp); stop?.(); });
+};
+let debounce = null;
 
 export function refreshAlarms() {
   if (!isNative()) return;
-  clearTimeout(timer);
-  timer = setTimeout(async () => {
+  clearTimeout(debounce);
+  debounce = setTimeout(async () => {
     try {
       status = await notificationPermission();
       if (status !== 'granted') return;
       const trips = await once((cb, err) => watchTrips(cb, err));
       const placesByTrip = {}, daysByTrip = {};
-      for (const t of trips) {
+      await Promise.all(trips.map(async (t) => { // 여행마다 순서대로 기다리지 않고 한꺼번에 읽는다
         [placesByTrip[t.id], daysByTrip[t.id]] = await Promise.all([once((cb, err) => watchPlaces(t.id, cb, err)), once((cb, err) => watchDays(t.id, cb, err))]);
-      }
+      }));
       const plan = planAlarms({ trips, placesByTrip, daysByTrip }, new Date());
       await cancelAllNotifications();
       await scheduleNotifications(plan);
