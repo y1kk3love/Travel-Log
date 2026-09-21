@@ -330,3 +330,22 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .file-open svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; }
 .file-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-chip .btn-icon { width: 26px; height: 26px; }
+
+/* ---- 지출 ---- */
+.expenses-page { display: flex; flex-direction: column; gap: 16px; }
+.expense-summary { padding: 18px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
+.expense-summary .stat strong { font-size: 22px; }
+.expense-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.expense-rates { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 12px 20px; font-size: 13px; }
+.expense-rates input { width: 90px; height: 32px; padding: 0 8px; font-size: 13px; }
+.expense-settle { padding: 14px 20px; display: flex; flex-direction: column; gap: 8px; }
+.expense-settle-row { display: flex; align-items: center; gap: 8px; }
+.expense-day { margin-top: 6px; }
+.expense-day-head { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 4px; border-bottom: 1px solid var(--line-soft); }
+.expense-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--line-soft); }
+.expense-row .tl-body { gap: 2px; }
+.expense-amount { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; }
+.expense-amount strong { font-size: 15px; }
+.expense-empty { padding: 24px 0; }
+.share-list { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.share-list label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }

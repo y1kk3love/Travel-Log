@@ -6,14 +6,15 @@ import { navigate } from '../router.js';
 import * as planner from './planner.js';
 import * as checklist from './checklist.js';
 import * as reservations from './reservations.js';
+import * as expenses from './expenses.js';
 import { openMembersDialog } from './members-dialog.js';
 import { openCoverDialog } from './cover-dialog.js';
 import { openTripEditDialog } from './trip-edit-dialog.js';
 import { isOwner } from '../auth.js';
 import { auth } from '../firebase.js';
 
-const TAB_VIEWS = { planner, checklist, reservations };
-const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약' };
+const TAB_VIEWS = { planner, checklist, reservations, expenses };
+const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약', expenses: '지출' };
 
 export function render(container, route) {
   const { tripId, tab, placeId = null } = route;

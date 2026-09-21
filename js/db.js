@@ -164,7 +164,7 @@ export function coverBytes(trip) {
 
 export async function deleteTrip(tripId) {
   const batch = writeBatch(db);
-  for (const name of ['days', 'places', 'photos', 'checklist', 'reservations']) {
+  for (const name of ['days', 'places', 'photos', 'checklist', 'reservations', 'expenses', 'files']) {
     const snap = await getDocs(sub(tripId, name));
     snap.docs.forEach((d) => batch.delete(d.ref));
   }
@@ -376,6 +376,33 @@ export async function deleteReservation(tripId, id) {
   files.docs.forEach((f) => batch.delete(f.ref));
   batch.delete(doc(sub(tripId, 'reservations'), id));
   await batch.commit();
+}
+
+// ---------- expenses (지출) ----------
+// trips/{tripId}/expenses/{id}: { title, amount, currency, category, date, paidBy, sharedWith, note, createdAt }
+export function watchExpenses(tripId, cb, onError = logError) {
+  return onSnapshot(sub(tripId, 'expenses'), (s) => cb(docsOf(s)), onError);
+}
+
+export async function addExpense(tripId, data) {
+  const ref = await addDoc(sub(tripId, 'expenses'), {
+    title: '', amount: 0, currency: 'KRW', category: 'etc', date: null, paidBy: me().email, sharedWith: [], note: '',
+    ...data, createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export function updateExpense(tripId, id, data) {
+  return updateDoc(doc(sub(tripId, 'expenses'), id), data);
+}
+
+export function deleteExpense(tripId, id) {
+  return deleteDoc(doc(sub(tripId, 'expenses'), id));
+}
+
+// 여행별 환율 (외화 1단위당 원화). 사용자가 고칠 수 있다.
+export function setTripRates(tripId, rates) {
+  return updateDoc(tripDoc(tripId), { rates });
 }
 
 // ---------- files (예약 서류: 항공권 PDF, 바우처, 여권 사본) ----------

@@ -1,4 +1,4 @@
-const TABS = ['planner', 'checklist', 'reservations'];
+const TABS = ['planner', 'checklist', 'reservations', 'expenses'];
 
 export function parseHash(hash) {
   const parts = String(hash || '').replace(/^#/, '').split('/').filter(Boolean);
