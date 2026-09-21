@@ -1,4 +1,4 @@
-// send-intent 플러그인 결과를 붙여넣기 로직이 이해하는 한 덩어리 텍스트로 (순수 함수)
+// 공유 인텐트 결과({title, description, url, type})를 붙여넣기 로직이 이해하는 한 덩어리 텍스트로 (순수 함수)
 export function sharedTextFrom(result) {
   if (!result || typeof result !== 'object') return null;
   if (result.type && !/^text\//.test(result.type)) return null;

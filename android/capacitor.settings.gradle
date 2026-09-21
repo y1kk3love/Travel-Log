@@ -10,6 +10,3 @@ project(':capacitor-app').projectDir = new File('../node_modules/@capacitor/app/
 
 include ':capacitor-local-notifications'
 project(':capacitor-local-notifications').projectDir = new File('../node_modules/@capacitor/local-notifications/android')
-
-include ':mindlib-capacitor-send-intent'
-project(':mindlib-capacitor-send-intent').projectDir = new File('../node_modules/@mindlib-capacitor/send-intent/android')

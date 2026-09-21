@@ -1,8 +1,9 @@
 import { watchAuth, signIn, signOut, isOwner } from './auth.js';
-import { el, clear, toast } from './ui.js';
+import { el, clear, toast, confirmDialog } from './ui.js';
 import { startRouter } from './router.js';
 import { canUseApp, ensureProfile } from './db.js';
-import { isNative, takeSharedText, onShareReceived, onResume, onNotificationTap } from './native.js';
+import { isNative, takeSharedText, onResume, onNotificationTap, onBackButton, exitApp } from './native.js';
+import { isHomeHash } from './lib/nav.js';
 import { refreshAlarms } from './alarms.js';
 import { checkForUpdate } from './update-check.js';
 import * as shareView from './views/share.js';
@@ -54,13 +55,23 @@ function renderApp() {
     if (text) { setPendingShare(text); navigate('/share'); }
   };
   goShare();
-  onShareReceived(goShare);
   // 다음 목적지 알림: 앱 시작·복귀 때 다시 예약, 알림을 누르면 그 여행으로 (앱 전용)
   refreshAlarms();
   checkForUpdate();
   onNotificationTap(({ tripId, placeId }) => { if (tripId) navigate(placeId ? `/trip/${tripId}/planner/${placeId}` : `/trip/${tripId}`); });
   onResume(() => { goShare(); refreshAlarms(); });
 }
+
+// 안드로이드 뒤로가기: 홈이 아니면 이전 화면으로, 홈이면 종료할지 묻는다 (앱 전용, 한 번만 등록)
+let exitAsking = false;
+onBackButton(async () => {
+  if (!isHomeHash(location.hash)) { history.back(); return; }
+  if (exitAsking) return;
+  exitAsking = true;
+  try {
+    if (await confirmDialog('여행 로그를 종료할까요?', { okText: '예', cancelText: '아니오' })) await exitApp();
+  } finally { exitAsking = false; }
+});
 
 // 홈 화면 앱(PWA): 서비스 워커는 파일 캐시만 담당한다. 안드로이드 앱은 파일이 APK 안에 있어 등록하지 않는다.
 if ('serviceWorker' in navigator && !isNative()) {

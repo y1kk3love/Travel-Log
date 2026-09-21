@@ -60,24 +60,28 @@ export async function nativeSignOut() {
   try { await fa.signOut(); } catch (err) { console.warn('native signOut', err); }
 }
 
-// 공유 시트로 들어온 텍스트를 꺼낸다 (없으면 null). 꺼낸 뒤 인텐트 액티비티를 닫는다.
+// 공유 시트로 들어온 텍스트를 꺼낸다 (없으면 null). 앱 자체 플러그인(android/.../SharePlugin.java)이 한 번 주고 비운다.
+// 앱이 켜진 채로 공유가 오면 MainActivity 가 resume 되므로 onResume 에서 다시 부르면 된다.
 export async function takeSharedText() {
-  const si = plugin('SendIntent');
+  const si = plugin('ShareIntent');
   if (!si) return null;
   try {
-    const result = await si.checkSendIntentReceived();
-    const text = sharedTextFrom(result);
-    if (text) Promise.resolve(si.finish?.()).catch(() => {});
-    return text;
-  } catch { return null; }
+    return sharedTextFrom(await si.take());
+  } catch (err) { console.warn('share take', err); return null; }
 }
 
-// 앱이 이미 켜진 채로 공유가 들어올 때
-export function onShareReceived(cb) {
-  if (!isNative() || typeof window === 'undefined') return () => {};
-  const handler = () => cb();
-  window.addEventListener('sendIntentReceived', handler);
-  return () => window.removeEventListener('sendIntentReceived', handler);
+// 안드로이드 뒤로가기. 리스너를 달면 웹뷰 기본 동작이 꺼지므로 cb 가 직접 처리한다 ({ canGoBack })
+export function onBackButton(cb) {
+  const app = plugin('App');
+  if (!app?.addListener) return () => {};
+  const handle = app.addListener('backButton', cb);
+  return () => { Promise.resolve(handle).then((h) => h?.remove?.()); };
+}
+
+export async function exitApp() {
+  const app = plugin('App');
+  if (!app?.exitApp) return;
+  try { await app.exitApp(); } catch (err) { console.warn('exitApp', err); }
 }
 
 // ---- 로컬 알림 ----
