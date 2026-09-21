@@ -2,6 +2,7 @@ import { el, toast, confirmDialog, icon, photoPath, CATEGORY_LABELS, CATEGORY_OR
 import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
+import { notifyQuota } from '../quota.js';
 import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
@@ -202,7 +203,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         catch (err) {
           console.error(err);
           btn.disabled = false; drawLocation();
-          toast('위치를 가져오지 못했어요. 다시 골라 주세요', { kind: 'error' });
+          if (!notifyQuota('details', err)) toast('위치를 가져오지 못했어요. 다시 골라 주세요', { kind: 'error' });
         }
       },
     }, el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address }));
@@ -224,6 +225,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     } catch (err) {
       // Google 검색이 안 되면(하루 한도 초과, 네트워크) OpenStreetMap 으로 대신 찾는다
       console.warn('places autocomplete', err);
+      notifyQuota('places', err);
       try {
         items = (await searchPlaces(query)).map((r) => el('button', { type: 'button', class: 'search-result', onClick: () => pickResult(r) },
           el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address })));

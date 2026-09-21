@@ -3,6 +3,7 @@
 // 실패하면 null 을 돌려주고 호출한 쪽이 직선으로 그린다.
 import { MAPS_API_KEY } from './firebase-config.js';
 import { decodePolyline, isFreshRoute } from './lib/polyline.js';
+import { notifyQuota } from './quota.js';
 
 const ENDPOINT = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 const inflight = new Map();
@@ -29,6 +30,7 @@ export async function walkingRoute(key, from, to) {
           units: 'METRIC',
         }),
       });
+      if (res.status === 429) { notifyQuota('routes'); return null; }
       if (!res.ok) throw new Error(`routes ${res.status}`);
       const json = await res.json();
       const route = json.routes?.[0];

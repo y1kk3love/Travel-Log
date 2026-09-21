@@ -291,3 +291,5 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .tl-leg-btn svg { width: 12px; height: 12px; }
 .ps-head-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .map-canvas { position: absolute; inset: 0; }
+.usage-status { font-size: 13px; padding: 8px 12px; border-radius: 8px; background: var(--line-soft); }
+.usage-status-hit { background: #FBE9E4; color: #8C2F14; font-weight: 600; }

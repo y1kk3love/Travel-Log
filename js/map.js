@@ -8,7 +8,8 @@ import { importLibrary } from './gmaps.js';
 import { hasCoords, distanceKm } from './lib/geo.js';
 import { splitLegs } from './lib/polyline.js';
 import { walkingRoute, storedRoute } from './routes.js';
-import { escapeHtml } from './ui.js';
+import { escapeHtml, toast } from './ui.js';
+import { notifyQuota } from './quota.js';
 
 const ROUTE_COLOR = '#B4502B';
 const ME_COLOR = '#3E5C8A';
@@ -39,7 +40,23 @@ async function acquireMap(container) {
   });
   const infoWindow = new InfoWindow({ headerDisabled: true });
   shared = { div, map, g, Marker, infoWindow };
+  watchMapErrors(div);
   return shared;
+}
+
+// Google 지도는 한도 초과·키 문제일 때 지도 위에 회색 오류 상자(.gm-err-container)를 띄운다. 그걸 보고 안내한다.
+function watchMapErrors(div) {
+  const check = () => {
+    const box = div.querySelector('.gm-err-container');
+    if (!box) return false;
+    const text = box.textContent || '';
+    if (/OverQuota|한도|quota/i.test(text) || !/키|key|referer|referrer|권한/i.test(text)) notifyQuota('map');
+    else toast('지도 키 설정에 문제가 있어요. 사이트 주인에게 알려 주세요', { kind: 'error', ms: 8000 });
+    return true;
+  };
+  const observer = new MutationObserver(() => { if (check()) observer.disconnect(); });
+  observer.observe(div, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), 60000);
 }
 
 export function createMap(container) {
