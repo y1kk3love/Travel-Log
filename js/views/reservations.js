@@ -21,6 +21,7 @@ export function mount(content, ctx) {
 function placeLabel(state, placeId) {
   const place = state.places.find((p) => p.id === placeId);
   if (!place) return null;
+  if (place.dayId == null) return `보관함 · ${place.name}`;
   const dayIndex = state.days.findIndex((d) => d.id === place.dayId);
   if (dayIndex < 0) return null; // days 스냅샷이 아직 안 온 첫 렌더에서 "Day 0"을 찍지 않는다
   const order = state.places.filter((p) => p.dayId === place.dayId).findIndex((p) => p.id === place.id);

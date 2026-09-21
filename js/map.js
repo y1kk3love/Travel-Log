@@ -13,6 +13,7 @@ import { notifyQuota } from './quota.js';
 
 const ROUTE_COLOR = '#B4502B';
 const ME_COLOR = '#3E5C8A';
+const POOL_COLOR = '#8C8578'; // 보관함(날짜 미정) 핀
 const DEFAULT_VIEW = { center: { lat: 36.5, lng: 127.8 }, zoom: 6 };
 const MAX_FIT_ZOOM = 15;
 const WALK_ROUTE_KM = 3; // 이보다 먼 구간은 (대중교통일 테니) 경로를 묻지 않고 직선으로
@@ -140,7 +141,8 @@ export function createMap(container) {
     }
   }
 
-  function setRoutes(groups, { fit = true } = {}) {
+  // extras: 일정에 없는 장소(보관함) — 번호 없는 회색 핀, 경로에는 안 들어간다
+  function setRoutes(groups, { fit = true, extras = [] } = {}) {
     whenReady(() => {
       const gen = ++routeGen;
       const keepPopup = openPopupId;
@@ -148,6 +150,16 @@ export function createMap(container) {
       markers = new Map();
       clearLines();
       const bounds = new g.LatLngBounds();
+      for (const p of groupOverlapping(extras)) {
+        const marker = new Marker({
+          map, position: { lat: p.lat, lng: p.lng }, title: p.items.map((x) => x.name).join(', '), zIndex: 1,
+          icon: { path: g.SymbolPath.CIRCLE, scale: 9, fillColor: POOL_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 2 },
+        });
+        const entry = { marker, items: p.items.map((x) => ({ ...x, label: '보관' })) };
+        marker.addListener('click', () => { openPopup(entry); selectCb && selectCb(p.items[0].id); });
+        for (const x of p.items) markers.set(x.id, entry);
+        bounds.extend(marker.getPosition());
+      }
       // 같은 자리의 장소(여러 날 묵는 호텔 등)는 핀 하나에 "3·6" 처럼 번호를 모아 쓴다
       const spots = groupOverlapping(groups.flat());
       for (const spot of spots) {
@@ -162,7 +174,7 @@ export function createMap(container) {
         bounds.extend(marker.getPosition());
       }
       drawLegs(groups, gen);
-      if (fit && spots.length) {
+      if (fit && (spots.length || extras.length)) {
         map.fitBounds(bounds, 48);
         g.event.addListenerOnce(map, 'idle', () => { if (map.getZoom() > MAX_FIT_ZOOM) map.setZoom(MAX_FIT_ZOOM); });
       }

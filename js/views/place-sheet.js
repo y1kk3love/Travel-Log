@@ -25,9 +25,13 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   const search = el('input', { class: 'input', id: 'ps-search', type: 'search', placeholder: '장소 이름이나 주소로 검색', autocomplete: 'off' });
   const results = el('div', { class: 'search-results', hidden: true });
   const name = el('input', { class: 'input', id: 'ps-name', value: draft.name, required: true, placeholder: noteMode ? '예: 점심 먹기, 12시까지 공항으로' : '장소 이름' });
-  // 기존 항목만 다른 Day로 옮길 수 있다
-  const daySelect = place && days.length > 1 ? el('select', { class: 'input', id: 'ps-day' },
-    ...days.map((d, i) => el('option', { value: d.id, selected: d.id === place.dayId, text: `Day ${i + 1} · ${formatShort(d.date)}` }))) : null;
+  // 날짜 선택: 장소는 "보관함(날짜 미정)"에 둘 수도 있다. 메모 항목은 기존 것만 다른 Day 로 옮긴다.
+  const currentDayId = place ? (place.dayId ?? null) : (dayId ?? null);
+  const showDaySelect = noteMode ? (place && days.length > 1) : days.length > 0;
+  const daySelect = showDaySelect ? el('select', { class: 'input', id: 'ps-day' },
+    ...(noteMode ? [] : [el('option', { value: '', selected: currentDayId == null, text: '보관함 (날짜 미정)' })]),
+    ...days.map((d, i) => el('option', { value: d.id, selected: d.id === currentDayId, text: `Day ${i + 1} · ${formatShort(d.date)}` }))) : null;
+  const chosenDayId = () => (daySelect ? (daySelect.value || null) : currentDayId);
   const time = el('input', { class: 'input', id: 'ps-time', type: 'time', value: draft.time });
   const stay = el('input', { class: 'input', id: 'ps-stay', type: 'number', min: '0', step: '5', value: draft.stayMinutes, placeholder: '분' });
   const memo = el('textarea', { class: 'input', id: 'ps-memo', rows: '3', placeholder: '메모 (링크를 넣으면 바로 열 수 있어요)' });
@@ -286,14 +290,17 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       };
     if (!data.name) { toast(noteMode ? '메모 내용을 입력해 주세요' : '장소 이름을 입력해 주세요', { kind: 'error' }); name.focus(); return; }
     try {
+      const target = chosenDayId();
+      const moved = place && target !== (place.dayId ?? null);
       if (place) {
         await updatePlace(tripId, place.id, data);
-        if (daySelect && daySelect.value !== place.dayId) await movePlaceToDay(tripId, place.id, daySelect.value);
+        if (moved) await movePlaceToDay(tripId, place.id, target);
       } else {
-        const newId = await addPlace(tripId, { dayId, ...data });
+        const newId = await addPlace(tripId, { dayId: target, ...data });
         if (pendingPhotos.length) await uploadPhotos(newId, pendingPhotos);
       }
-      toast(place ? (daySelect && daySelect.value !== place.dayId ? '다른 날로 옮겼어요' : '저장했어요') : (noteMode ? '메모를 추가했어요' : '일정에 추가했어요'));
+      toast(place ? (moved ? (target ? '다른 날로 옮겼어요' : '보관함으로 옮겼어요') : '저장했어요')
+        : (noteMode ? '메모를 추가했어요' : (target ? '일정에 추가했어요' : '보관함에 담았어요')));
       close();
     } catch (err) {
       console.error(err);
@@ -301,8 +308,9 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     }
   });
 
-  const dayField = daySelect ? el('div', { class: 'field' }, el('label', { for: 'ps-day', text: '날짜 (다른 Day로 옮기기)' }), daySelect) : null;
-  const title = place ? (noteMode ? '메모 편집' : '장소 편집') : `${noteMode ? '메모' : '장소'} 추가 · Day ${dayIndex + 1}`;
+  const dayField = daySelect ? el('div', { class: 'field' }, el('label', { for: 'ps-day', text: noteMode ? '날짜 (다른 Day로 옮기기)' : '날짜' }), daySelect) : null;
+  const where = currentDayId == null ? '보관함' : `Day ${dayIndex + 1}`;
+  const title = place ? (noteMode ? '메모 편집' : '장소 편집') : `${noteMode ? '메모' : '장소'} 추가 · ${where}`;
   const body = noteMode
     ? el('div', { class: 'sheet-body' },
       el('div', { class: 'field' }, el('label', { for: 'ps-name', text: '메모 내용' }), name),
@@ -340,7 +348,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       }, '삭제') : el('span'),
       el('div', { class: 'sheet-foot-right' },
         el('button', { type: 'button', class: 'btn', onClick: close }, '취소'),
-        el('button', { type: 'submit', class: 'btn btn-primary' }, place ? '저장' : (noteMode ? '메모 추가' : '일정에 추가')))));
+        el('button', { type: 'submit', class: 'btn btn-primary' }, place ? '저장' : (noteMode ? '메모 추가' : '추가')))));
 
   drawLocation(); drawCategories(); drawPhotos();
   overlay.append(form);

@@ -1,5 +1,5 @@
 import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS, linkedText } from '../ui.js';
-import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations, updatePlace } from '../db.js';
+import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations, updatePlace, movePlaceToDay } from '../db.js';
 import { formatShort } from '../lib/dates.js';
 import { legLabel, hasCoords, distanceKm } from '../lib/geo.js';
 import { googleMapsDirectionsUrl } from '../lib/coords.js';
@@ -22,7 +22,7 @@ export function mount(content, ctx) {
   const { tripId } = ctx;
   const state = {
     days: [], places: [], reservations: [], selectedDayId: null, showAll: false, dragging: false, pending: false,
-    focusPlaceId: ctx.placeId ?? null, lastFitKey: null, highlightId: null,
+    focusPlaceId: ctx.placeId ?? null, lastFitKey: null, highlightId: null, poolOpen: true,
   };
   let closeSheet = null;
 
@@ -93,6 +93,8 @@ export function mount(content, ctx) {
   function placesOf(dayId) {
     return state.places.filter((p) => p.dayId === dayId);
   }
+  // 보관함: 날짜를 정하지 않은 장소 (dayId 없음)
+  const poolPlaces = () => state.places.filter((p) => p.dayId == null && !isNote(p));
 
   function redraw() {
     if (state.dragging) { state.pending = true; return; }
@@ -105,10 +107,11 @@ export function mount(content, ctx) {
       ? state.days.map((d, di) => numbered(placesOf(d.id)).filter((p) => !isNote(p)).map((p) => ({ ...p, label: `${di + 1}-${p.label}` })))
       : [numbered(placesOf(state.selectedDayId)).filter((p) => !isNote(p))];
     // 핀 구성(어느 장소를 어떤 순서로)이 바뀔 때만 시야를 다시 맞춘다. 메모 수정 같은 갱신은 사용자의 확대·이동을 유지한다.
-    const fitKey = groups.map((g) => g.filter(hasCoords).map((p) => `${p.id}@${p.lat},${p.lng}`).join(',')).join('|');
+    const extras = poolPlaces().filter(hasCoords);
+    const fitKey = [...groups, extras].map((g) => g.filter(hasCoords).map((p) => `${p.id}@${p.lat},${p.lng}`).join(',')).join('|');
     const fit = fitKey !== state.lastFitKey;
     state.lastFitKey = fitKey;
-    map.setRoutes(groups, { fit });
+    map.setRoutes(groups, { fit, extras });
   }
 
   function highlight(placeId) {
@@ -181,6 +184,38 @@ export function mount(content, ctx) {
     panel.append(el('div', { class: 'tl-actions' },
       el('button', { class: 'btn btn-dashed', onClick: () => openSheet({ dayId: day.id, dayIndex }) }, icon('plus'), '장소 추가'),
       el('button', { class: 'btn btn-dashed', onClick: () => openSheet({ dayId: day.id, dayIndex, kind: 'note' }) }, icon('edit'), '메모 추가')));
+    panel.append(poolSection());
+  }
+
+  // 가고 싶은 곳 보관함: 날짜 미정 장소. 지도에는 회색 핀으로 같이 보이고, 여기서 바로 Day 에 넣을 수 있다.
+  function poolSection() {
+    const pool = poolPlaces();
+    const head = el('button', {
+      class: 'pool-head', 'aria-expanded': String(state.poolOpen),
+      onClick: () => { state.poolOpen = !state.poolOpen; drawPanel(); },
+    }, el('strong', { text: `가고 싶은 곳 ${pool.length}` }), el('span', { class: 'muted', text: state.poolOpen ? '접기' : '펼치기' }));
+    const section = el('section', { class: 'pool' }, head);
+    if (!state.poolOpen) return section;
+    const list = el('div', { class: 'pool-list' }, ...pool.map((p) => {
+      const move = el('select', { class: 'input pool-move', 'aria-label': `${p.name} 넣을 날짜`, onClick: (e) => e.stopPropagation() },
+        el('option', { value: '', text: 'Day에 넣기…' }),
+        ...state.days.map((d, i) => el('option', { value: d.id, text: `Day ${i + 1} · ${formatShort(d.date)}` })));
+      move.addEventListener('change', async () => {
+        if (!move.value) return;
+        try { await movePlaceToDay(tripId, p.id, move.value); toast(`'${p.name}'을(를) 일정에 넣었어요`); }
+        catch (err) { console.error(err); toast('옮기지 못했어요', { kind: 'error' }); move.value = ''; }
+      });
+      return el('div', { class: 'pool-item', dataset: { id: p.id } },
+        el('button', { class: 'tl-body', onClick: () => { map.focus(p.id); openSheet({ dayId: null, place: p }); } },
+          el('div', { class: 'tl-meta' }, el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }), !hasCoords(p) && el('span', { class: 'muted', text: '위치 없음' })),
+          el('div', { class: 'tl-name', text: p.name || '(이름 없음)' }),
+          p.memo && el('div', { class: 'muted tl-memo' }, linkedText(p.memo, { firstLineOnly: true }))),
+        move);
+    }));
+    section.append(
+      pool.length ? list : el('p', { class: 'muted tl-empty', text: '가고 싶은데 날짜를 아직 못 정한 곳을 담아 두세요. 지도에 회색 핀으로 보여요.' }),
+      el('button', { class: 'btn btn-dashed pool-add', onClick: () => openSheet({ dayId: null }) }, icon('plus'), '보관함에 담기'));
+    return section;
   }
 
   // 오늘 모드 배너: 다음 목적지, 남은 시간, 현재 위치에서 길찾기
@@ -300,7 +335,7 @@ export function mount(content, ctx) {
 
   function openSheet({ dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null, kind = 'place' }) {
     if (closeSheet) closeSheet();
-    closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place, kind, days: state.days, near: nearFor(dayId) });
+    closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place, kind, days: state.days, near: nearFor(dayId ?? state.selectedDayId) });
   }
 
   // 라우트가 바뀌면(뒤로가기 등) 열려 있던 시트도 닫는다. 안 그러면 떠난 여행에 장소가 저장될 수 있다.

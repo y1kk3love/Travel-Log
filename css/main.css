@@ -312,3 +312,12 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .memo-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .memo-links .btn-sm { height: 28px; padding: 0 10px; font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .pre-wrap { white-space: pre-wrap; }
+
+/* ---- 가고 싶은 곳 보관함 ---- */
+.pool { margin-top: 28px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.pool-head { width: 100%; display: flex; align-items: center; justify-content: space-between; background: transparent; border: 0; padding: 6px 0; cursor: pointer; font-size: 15px; }
+.pool-list { display: flex; flex-direction: column; }
+.pool-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); }
+.pool-item .tl-body { flex-grow: 1; min-width: 0; text-align: left; background: transparent; border: 0; padding: 6px 0; cursor: pointer; }
+.pool-move { width: auto; max-width: 150px; height: 34px; font-size: 12px; flex-shrink: 0; }
+.pool-add { margin-top: 10px; width: 100%; }
