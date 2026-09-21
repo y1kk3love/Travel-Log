@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCoordsInput, parseShareText, googleMapsSearchUrl } from '../js/lib/coords.js';
+import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl } from '../js/lib/coords.js';
 
 test('"위도, 경도" 텍스트', () => {
   assert.deepEqual(parseCoordsInput('34.9671, 135.7727'), { lat: 34.9671, lng: 135.7727 });
@@ -45,4 +45,12 @@ test('parseShareText: 링크만 있으면 name 은 null, 짧은 링크가 없으
   assert.deepEqual(parseShareText('https://maps.app.goo.gl/AbCdEf123'), { link: 'https://maps.app.goo.gl/AbCdEf123', name: null });
   assert.equal(parseShareText('니시키 시장'), null);
   assert.equal(parseShareText('https://www.google.com/maps/@35.0050,135.7649,17z'), null);
+});
+
+test('googleMapsPlaceUrl: 장소 ID > 좌표 > 이름 검색 순으로 주소를 만든다', () => {
+  assert.equal(googleMapsPlaceUrl({ placeId: 'ChIJabc', name: '센소지', lat: 1, lng: 2 }),
+    'https://www.google.com/maps/search/?api=1&query=%EC%84%BC%EC%86%8C%EC%A7%80&query_place_id=ChIJabc');
+  assert.equal(googleMapsPlaceUrl({ name: '센소지', lat: 35.7148, lng: 139.7967 }), 'https://www.google.com/maps/search/?api=1&query=35.7148,139.7967');
+  assert.equal(googleMapsPlaceUrl({ name: '센소지' }), googleMapsSearchUrl('센소지'));
+  assert.equal(googleMapsPlaceUrl({}), 'https://www.google.com/maps');
 });

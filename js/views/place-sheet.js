@@ -2,7 +2,7 @@ import { el, toast, confirmDialog, icon, photoPath, CATEGORY_LABELS, CATEGORY_OR
 import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
-import { parseCoordsInput, parseShareText, googleMapsSearchUrl } from '../lib/coords.js';
+import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
 import { formatShort } from '../lib/dates.js';
@@ -16,6 +16,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     name: place?.name ?? '', time: place?.time ?? '', stayMinutes: place?.stayMinutes ?? '',
     category: place?.category ?? (noteMode ? 'note' : 'sight'), memo: place?.memo ?? '',
     lat: place?.lat ?? null, lng: place?.lng ?? null, address: place?.address ?? null,
+    placeId: place?.placeId ?? null, // 구글 장소 ID (검색으로 고른 장소만)
     photos: [...(place?.photos ?? [])],
   };
 
@@ -46,6 +47,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
 
   function drawLocation() {
     location.textContent = draft.lat != null ? `위치 설정됨 · ${draft.address ?? `${draft.lat.toFixed(4)}, ${draft.lng.toFixed(4)}`}` : '위치 없음 · 검색해서 고르면 지도에 표시돼요';
+    googleBtn.replaceChildren(icon('pin'), draft.placeId || draft.lat != null ? 'Google 지도에서 보기' : 'Google 지도에서 찾기');
   }
 
   function drawCategories() {
@@ -157,7 +159,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   function applyPastedCoords(text) {
     const coords = parseCoordsInput(text);
     if (coords) {
-      draft.lat = coords.lat; draft.lng = coords.lng;
+      draft.lat = coords.lat; draft.lng = coords.lng; draft.placeId = null;
       draft.address = `붙여넣은 좌표 ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
       results.hidden = true; search.value = '';
       drawLocation();
@@ -180,7 +182,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   }
 
   function pickResult(r) {
-    draft.lat = r.lat; draft.lng = r.lng; draft.address = r.address;
+    draft.lat = r.lat; draft.lng = r.lng; draft.address = r.address; draft.placeId = r.placeId ?? null;
     if (!name.value.trim()) name.value = r.name;
     results.hidden = true; search.value = '';
     drawLocation();
@@ -231,9 +233,15 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   }, 600);
   search.addEventListener('input', () => runSearch(search.value));
   search.addEventListener('paste', () => setTimeout(() => applyPastedCoords(search.value), 0));
+  // 이미 위치가 정해진 장소면 Google 지도의 그 장소 페이지(사진·평점·영업시간)를 바로 연다
   const googleBtn = el('a', {
     class: 'btn btn-sm', target: '_blank', rel: 'noopener', href: googleMapsSearchUrl(''),
-    onClick: (e) => { e.currentTarget.href = googleMapsSearchUrl(search.value.trim() || name.value.trim()); },
+    onClick: (e) => {
+      const q = name.value.trim() || search.value.trim();
+      e.currentTarget.href = draft.placeId || draft.lat != null
+        ? googleMapsPlaceUrl({ placeId: draft.placeId, name: q, lat: draft.lat, lng: draft.lng })
+        : googleMapsSearchUrl(search.value.trim() || q);
+    },
   }, icon('pin'), 'Google 지도에서 찾기');
   const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도 앱에서 "공유"로 복사한 내용을 붙여넣으면 그 이름으로 검색해요. 주소창의 긴 링크나 "위도, 경도"는 바로 핀이 찍혀요.' });
   const overlay = el('div', { class: 'sheet-overlay' });
@@ -257,7 +265,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         name: name.value.trim(), time: time.value || null,
         stayMinutes: stay.value === '' ? null : Number(stay.value),
         category: draft.category, memo: memo.value,
-        lat: draft.lat, lng: draft.lng, address: draft.address, photos: draft.photos,
+        lat: draft.lat, lng: draft.lng, address: draft.address, placeId: draft.placeId, photos: draft.photos,
       };
     if (!data.name) { toast(noteMode ? '메모 내용을 입력해 주세요' : '장소 이름을 입력해 주세요', { kind: 'error' }); name.focus(); return; }
     try {

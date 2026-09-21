@@ -40,6 +40,15 @@ export function parseShareText(text) {
   return { link: m[0], name: name || null };
 }
 
+// 이미 정해진 장소는 Google 지도의 그 장소 상세 페이지로 바로 연다.
+// 구글 장소 ID 가 있으면 그 장소, 좌표만 있으면 그 지점, 둘 다 없으면 이름 검색.
+export function googleMapsPlaceUrl({ placeId = null, name = '', lat = null, lng = null } = {}) {
+  const q = String(name ?? '').trim();
+  if (placeId) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q || 'place')}&query_place_id=${encodeURIComponent(placeId)}`;
+  if (Number.isFinite(lat) && Number.isFinite(lng)) return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  return googleMapsSearchUrl(q);
+}
+
 export function googleMapsSearchUrl(query) {
   const q = String(query ?? '').trim();
   if (!q) return 'https://www.google.com/maps';

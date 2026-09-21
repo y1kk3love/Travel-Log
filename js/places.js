@@ -29,7 +29,7 @@ export function createPlaceSearch() {
     token = null; // 상세 조회로 세션이 끝난다
     if (!place.location) throw new Error('no location');
     // 자동완성의 부가 설명이 한국어 주소라 그걸 우선 쓰고, 없을 때만 상세의 formattedAddress 를 쓴다
-    return { name: item.name, address: item.address || place.formattedAddress || '', lat: place.location.lat(), lng: place.location.lng() };
+    return { name: item.name, address: item.address || place.formattedAddress || '', lat: place.location.lat(), lng: place.location.lng(), placeId: place.id };
   }
 
   return { suggest, resolve };

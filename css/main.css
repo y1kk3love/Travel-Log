@@ -278,3 +278,10 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .tl-note-text { font-weight: 400; }
 .tl-est { font-style: italic; }
 .day-weather { font-family: var(--sans); font-size: 13px; font-weight: 400; }
+
+/* ---- API 사용량 (주인용) ---- */
+.usage-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.usage-table th, .usage-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line-soft); }
+.usage-table th { color: var(--muted); font-weight: 500; font-size: 12px; }
+.usage-links { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 640px) { .topbar-usage { display: none; } }
