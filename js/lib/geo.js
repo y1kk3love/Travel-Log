@@ -20,8 +20,12 @@ export function walkMinutes(km) {
   return Math.max(1, Math.ceil((km / WALK_KMH) * 60));
 }
 
-export function legLabel(a, b) {
+// route: 저장된 구글 도보 경로 { seconds, meters } (있으면 직선 추정 대신 실제 길 기준으로 표시)
+export function legLabel(a, b, route = null) {
   if (!hasCoords(a) || !hasCoords(b)) return null;
+  if (route && Number.isFinite(route.seconds) && Number.isFinite(route.meters)) {
+    return `도보 ${Math.max(1, Math.ceil(route.seconds / 60))}분 · ${(route.meters / 1000).toFixed(1)}km`;
+  }
   const km = distanceKm(a, b);
   if (km <= WALK_LIMIT_KM) return `도보 ${walkMinutes(km)}분 · ${km.toFixed(1)}km`;
   return `거리 ${km.toFixed(1)}km`;

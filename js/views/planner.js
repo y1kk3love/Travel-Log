@@ -6,7 +6,7 @@ import { googleMapsDirectionsUrl } from '../lib/coords.js';
 import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
 import { openPlaceSheet } from './place-sheet.js';
-import { estimateTimes } from '../lib/timeline.js';
+import { estimateTimes, routeBetween } from '../lib/timeline.js';
 import { weatherLabel, pickDayLocation, forecastWindow } from '../lib/weather.js';
 import { fetchDailyForecast } from '../weather.js';
 import { toDateStr } from '../lib/dates.js';
@@ -152,7 +152,7 @@ export function mount(content, ctx) {
     labeled.forEach((p, i) => {
       if (!isNote(p)) {
         if (prevPlace) {
-          const label = legLabel(prevPlace, p);
+          const label = legLabel(prevPlace, p, routeBetween(prevPlace, p)); // 구글 도보 시간이 저장돼 있으면 그걸로
           // 두 장소 모두 위치가 있으면 Google 지도 길찾기(3km 이하 도보, 그 밖은 대중교통)를 연다
           const dir = hasCoords(prevPlace) && hasCoords(p) ? el('a', {
             class: 'btn tl-leg-btn', target: '_blank', rel: 'noopener', title: `${prevPlace.name} → ${p.name} 길찾기`,

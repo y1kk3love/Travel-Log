@@ -26,3 +26,8 @@ test('legLabel: 3km 이하는 도보, 초과는 거리만, 좌표 없으면 null
   assert.equal(legLabel({ lat: 35, lng: 135 }, { lat: null, lng: null }), null);
   assert.equal(legLabel({ name: '이름만' }, { lat: 35, lng: 135 }), null);
 });
+
+test('legLabel: 구글 도보 경로가 있으면 그 시간·거리를 쓴다 (3km 넘어도 도보 표시)', () => {
+  assert.equal(legLabel({ lat: 35, lng: 135 }, { lat: 35.009, lng: 135 }, { seconds: 970, meters: 1140 }), '도보 17분 · 1.1km');
+  assert.equal(legLabel({ lat: 35, lng: 135 }, { lat: 35.009, lng: 135 }, null), '도보 14분 · 1.0km');
+});
