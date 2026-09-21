@@ -532,3 +532,25 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .receipt-sep { border-top: 2px dashed var(--line); margin: 10px 0; }
 .receipt-note { font-family: var(--sans); }
 .receipt-foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 14px; letter-spacing: 1px; }
+
+/* ---- 탑승권 비행 진행: 비행 중이면 비행기가 진행률(--progress)만큼 이동, 은은하게 깜빡임 ---- */
+.ticket-line.in-flight:after { left: calc(var(--progress, 0.5) * 100%); animation: plane-bob 1.6s ease-in-out infinite; }
+.ticket-inflight { color: var(--accent); font-weight: 700; font-size: 11px; }
+@keyframes plane-bob { 0%, 100% { transform: translate(-50%, -55%); } 50% { transform: translate(-50%, -75%); } }
+
+/* ---- 오늘 배너 "지금 여기" 펄스 ---- */
+.today-banner-text { position: relative; padding-left: 18px; }
+.today-banner-text::before { content: ''; position: absolute; left: 0; top: 9px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 rgba(10, 108, 255, .6); animation: pulse-dot 1.8s ease-out infinite; }
+.today-banner.done .today-banner-text::before { background: var(--success); animation: none; box-shadow: none; }
+@keyframes pulse-dot { 0% { box-shadow: 0 0 0 0 rgba(10, 108, 255, .55); } 100% { box-shadow: 0 0 0 10px rgba(10, 108, 255, 0); } }
+
+/* ---- 다가오는 여행 D-day 수하물 태그 ---- */
+.trip-feature-overlay .badge { position: relative; padding: 4px 10px 4px 18px; border-radius: 4px 8px 8px 4px; background: #FFD54F; color: #3A2E00; font-family: 'Do Hyeon', var(--sans); font-size: 13px; letter-spacing: .5px; transform: rotate(-4deg); box-shadow: 0 2px 6px rgba(0, 0, 0, .25); }
+.trip-feature-overlay .badge::before { content: ''; position: absolute; left: 7px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .6); }
+.trip-feature-overlay .badge::after { content: ''; position: absolute; left: -14px; top: 50%; width: 14px; height: 1.5px; background: rgba(255, 255, 255, .8); transform: rotate(-30deg); transform-origin: right center; }
+
+/* ---- 체크리스트 = 캐리어 태그: 구멍과 끈, 다 채우면 OK 도장 ---- */
+.check-group { position: relative; border-radius: 14px 14px 14px 14px / 14px 14px 14px 14px; padding-top: 18px; }
+.check-group::before { content: ''; position: absolute; top: 8px; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 2px var(--line); }
+.check-group.all-done::after { content: 'OK'; position: absolute; top: 10px; right: 52px; width: 40px; height: 40px; border-radius: 50%; border: 2.5px double #B3261E; color: #B3261E; font-family: 'Do Hyeon', var(--sans); font-size: 16px; display: grid; place-items: center; transform: rotate(-14deg); background: rgba(255, 255, 255, .85); pointer-events: none; }
+.check-group.all-done .check-group-name { color: var(--muted); }

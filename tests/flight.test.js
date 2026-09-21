@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle, airportInfo } from '../js/lib/flight.js';
+import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle, airportInfo, flightProgress } from '../js/lib/flight.js';
 
 test('parseFlightNumber: 공백·소문자·붙여쓰기를 모두 받아 IATA 편명으로 정리한다', () => {
   assert.deepEqual(parseFlightNumber('LJ213'), { airline: 'LJ', number: '213', iata: 'LJ213' });
@@ -78,4 +78,12 @@ test('airportInfo: 코드·좌표·도시. 표에 있는 공항은 전부 좌표
   assert.equal(airportInfo('KIX').city, '오사카');
   assert.equal(airportInfo('모르는곳'), null);
   for (const a of airportSuggestions()) { const i = airportInfo(a.code); assert.ok(i && Number.isFinite(i.lat) && Number.isFinite(i.lng), `${a.code} 좌표 없음`); }
+});
+
+test('flightProgress: 출발~도착 사이면 진행률과 남은 분, 아니면 null', () => {
+  const dep = '2026-04-17T09:30', arr = '2026-04-17T11:00';
+  assert.deepEqual(flightProgress(dep, arr, new Date(2026, 3, 17, 10, 15)), { ratio: 0.5, minutesLeft: 45 });
+  assert.equal(flightProgress(dep, arr, new Date(2026, 3, 17, 9, 0)), null);
+  assert.equal(flightProgress(dep, arr, new Date(2026, 3, 17, 11, 30)), null);
+  assert.equal(flightProgress(dep, null, new Date(2026, 3, 17, 10, 0)), null);
 });

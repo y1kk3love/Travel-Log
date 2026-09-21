@@ -45,7 +45,8 @@ function groupCard(tripId, group, fail) {
     input.value = '';
     await addChecklistItem(tripId, { group: group.name, groupOrder: group.groupOrder, text }).catch(fail('항목을 추가하지 못했어요'));
   });
-  return el('section', { class: 'card check-group' },
+  const allDone = group.items.length > 0 && group.items.every((i) => i.done); // 다 채우면 캐리어 태그에 OK 도장
+  return el('section', { class: `card check-group${allDone ? ' all-done' : ''}` },
     el('div', { class: 'check-group-head' },
       el('span', { class: 'check-group-name', text: group.name }),
       el('div', {},

@@ -108,3 +108,10 @@ export function airportInfo(text) {
   const city = Object.entries(AIRPORTS).find(([, c]) => c === code)?.[0] ?? code;
   return { code, city, lat, lng };
 }
+
+// 비행 중이면 { ratio(0~1), minutesLeft }, 아니면 null. 탑승권의 비행기 위치와 "착륙까지" 표시에 쓴다.
+export function flightProgress(departure, arrival, now = new Date()) {
+  const a = Date.parse(departure ?? ''), b = Date.parse(arrival ?? ''), t = now.getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a || t < a || t > b) return null;
+  return { ratio: Math.round(((t - a) / (b - a)) * 100) / 100, minutesLeft: Math.ceil((b - t) / 60000) };
+}

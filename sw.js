@@ -6,7 +6,7 @@ const VERSION = 'v2';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 const APP_SHELL = ['./', 'index.html', 'manifest.webmanifest', 'favicon.svg', 'css/main.css'];
-const CDN_HOSTS = ['cdn.jsdelivr.net', 'www.gstatic.com'];
+const CDN_HOSTS = ['cdn.jsdelivr.net', 'www.gstatic.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(APP_CACHE).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));

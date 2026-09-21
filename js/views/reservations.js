@@ -3,7 +3,7 @@ import {
   watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays,
   addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, addPlace, updatePlace,
 } from '../db.js';
-import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle } from '../lib/flight.js';
+import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle, flightProgress } from '../lib/flight.js';
 import { placesFromReservation } from '../lib/reservation-place.js';
 import { orderForTime } from '../lib/order.js';
 import { compressImage } from '../photo.js';
@@ -125,7 +125,7 @@ function ticketCard(tripId, r, linked, actions) {
       el('div', { class: 'ticket-body' },
         el('div', { class: 'ticket-route' },
           endpoint(route?.from, r.datetime, '출발', 'from'),
-          el('div', { class: 'ticket-plane' }, el('span', { class: 'ticket-line' }), el('span', { class: 'muted', text: duration ?? '' })),
+          flightPlane(r, duration),
           endpoint(route?.to, r.arrival, '도착', 'to')),
         !route ? el('p', { class: 'muted ps-hint', text: '편집에서 출발·도착 공항을 넣으면 공항 코드가 표시돼요' }) : null,
         el('div', { class: 'ticket-cells' },
@@ -141,6 +141,14 @@ function ticketCard(tripId, r, linked, actions) {
         el('div', { class: 'ticket-foot' },
           flight ? el('a', { href: flightradarUrl(flight.iata), target: '_blank', rel: 'noopener', class: 'link-accent', text: 'Flightradar24에서 보기' }) : null,
           filesField(tripId, r)))));
+}
+
+// 탑승권 가운데 점선과 비행기. 비행 중(출발~도착 사이)이면 비행기가 진행률만큼 가 있고 "착륙까지 N분"
+function flightPlane(r, duration) {
+  const p = flightProgress(r.datetime, r.arrival);
+  const line = el('span', { class: `ticket-line${p ? ' in-flight' : ''}`, style: p ? { '--progress': String(p.ratio) } : {} });
+  const label = p ? `착륙까지 ${p.minutesLeft >= 60 ? `${Math.floor(p.minutesLeft / 60)}시간 ${p.minutesLeft % 60}분` : `${p.minutesLeft}분`}` : (duration ?? '');
+  return el('div', { class: `ticket-plane${p ? ' in-flight' : ''}` }, line, el('span', { class: p ? 'ticket-inflight' : 'muted', text: label }));
 }
 
 // 숙소 예약은 호텔 키카드 모양: 왼쪽 마그네틱 띠, 호텔 이름 크게, 체크인 → 체크아웃과 박 수, 아래 줄에 예약번호·연결 일정·메모·서류
