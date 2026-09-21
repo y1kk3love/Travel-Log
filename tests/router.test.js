@@ -9,6 +9,7 @@ test('빈 해시와 #/ 는 trips', () => {
 });
 
 test('trip 경로와 탭', () => {
+  assert.deepEqual(parseHash('#/share'), { name: 'share' });
   assert.deepEqual(parseHash('#/trip/abc'), { name: 'trip', tripId: 'abc', tab: 'planner' });
   assert.deepEqual(parseHash('#/trip/abc/checklist'), { name: 'trip', tripId: 'abc', tab: 'checklist' });
   assert.deepEqual(parseHash('#/trip/abc/reservations'), { name: 'trip', tripId: 'abc', tab: 'reservations' });

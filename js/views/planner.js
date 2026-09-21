@@ -6,6 +6,7 @@ import { googleMapsDirectionsUrl } from '../lib/coords.js';
 import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
 import { openPlaceSheet } from './place-sheet.js';
+import { takeShareTarget } from './share.js';
 import { estimateTimes, routeBetween, pickNext } from '../lib/timeline.js';
 import { weatherLabel, pickDayLocation, forecastWindow } from '../lib/weather.js';
 import { fetchDailyForecast } from '../weather.js';
@@ -333,9 +334,16 @@ export function mount(content, ctx) {
     return p ? { lat: p.lat, lng: p.lng } : null;
   }
 
-  function openSheet({ dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null, kind = 'place' }) {
+  function openSheet({ dayId, dayIndex = state.days.findIndex((d) => d.id === dayId), place = null, kind = 'place', sharedText = null }) {
     if (closeSheet) closeSheet();
-    closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place, kind, days: state.days, near: nearFor(dayId ?? state.selectedDayId) });
+    closeSheet = openPlaceSheet({ tripId, dayId, dayIndex, place, kind, days: state.days, near: nearFor(dayId ?? state.selectedDayId), sharedText });
+  }
+
+  // 공유 화면에서 넘어왔으면 장소 추가 창을 열고 공유 텍스트를 검색창에 붙여넣는다 (앱 전용)
+  const share = takeShareTarget();
+  if (share && share.tripId === tripId) {
+    if (share.dayId) state.selectedDayId = share.dayId;
+    setTimeout(() => openSheet({ dayId: share.dayId, sharedText: share.text }), 300);
   }
 
   // 라우트가 바뀌면(뒤로가기 등) 열려 있던 시트도 닫는다. 안 그러면 떠난 여행에 장소가 저장될 수 있다.

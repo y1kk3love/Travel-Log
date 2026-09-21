@@ -1,5 +1,7 @@
 // 네이티브(안드로이드 앱) 기능 접근을 이 파일에만 둔다. 웹에서는 전부 no-op.
 // Capacitor 는 앱 웹뷰에 window.Capacitor 를 주입한다. 번들러가 없으므로 registerPlugin 으로 플러그인 프록시를 얻는다.
+import { sharedTextFrom } from './lib/share.js';
+
 const cap = () => (typeof window !== 'undefined' ? window.Capacitor : undefined);
 
 export function isNative() {
@@ -37,6 +39,26 @@ export async function nativeSignOut() {
   const fa = plugin('FirebaseAuthentication');
   if (!fa) return;
   try { await fa.signOut(); } catch (err) { console.warn('native signOut', err); }
+}
+
+// 공유 시트로 들어온 텍스트를 꺼낸다 (없으면 null). 꺼낸 뒤 인텐트 액티비티를 닫는다.
+export async function takeSharedText() {
+  const si = plugin('SendIntent');
+  if (!si) return null;
+  try {
+    const result = await si.checkSendIntentReceived();
+    const text = sharedTextFrom(result);
+    if (text) Promise.resolve(si.finish?.()).catch(() => {});
+    return text;
+  } catch { return null; }
+}
+
+// 앱이 이미 켜진 채로 공유가 들어올 때
+export function onShareReceived(cb) {
+  if (!isNative() || typeof window === 'undefined') return () => {};
+  const handler = () => cb();
+  window.addEventListener('sendIntentReceived', handler);
+  return () => window.removeEventListener('sendIntentReceived', handler);
 }
 
 // 앱이 앞으로 돌아올 때 (공유 인텐트·알림 탭 처리용)

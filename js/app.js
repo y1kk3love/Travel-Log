@@ -2,7 +2,10 @@ import { watchAuth, signIn, signOut, isOwner } from './auth.js';
 import { el, clear, toast } from './ui.js';
 import { startRouter } from './router.js';
 import { canUseApp, ensureProfile } from './db.js';
-import { isNative } from './native.js';
+import { isNative, takeSharedText, onShareReceived, onResume } from './native.js';
+import * as shareView from './views/share.js';
+import { setPendingShare } from './views/share.js';
+import { navigate } from './router.js';
 import * as tripsView from './views/trips.js';
 import * as tripView from './views/trip.js';
 
@@ -39,7 +42,15 @@ function renderChecking() {
 
 function renderApp() {
   clear(app);
-  stopRouter = startRouter({ trips: tripsView, trip: tripView }, app);
+  stopRouter = startRouter({ trips: tripsView, trip: tripView, share: shareView }, app);
+  // 공유 시트로 열렸으면 여행 선택 화면으로 (앱 전용, 웹에서는 아무것도 안 함)
+  const goShare = async () => {
+    const text = await takeSharedText();
+    if (text) { setPendingShare(text); navigate('/share'); }
+  };
+  goShare();
+  onShareReceived(goShare);
+  onResume(goShare);
 }
 
 // 홈 화면 앱(PWA): 서비스 워커는 파일 캐시만 담당한다. 안드로이드 앱은 파일이 APK 안에 있어 등록하지 않는다.

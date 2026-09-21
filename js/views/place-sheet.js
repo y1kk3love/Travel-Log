@@ -11,7 +11,8 @@ import { formatShort } from '../lib/dates.js';
 
 // kind: 'place'(기본) 또는 'note'(장소 없는 메모 항목). days를 주면 기존 항목을 다른 Day로 옮길 수 있다.
 // near: 검색 결과를 우선 보여줄 기준 좌표 (보통 그 날의 마지막 장소)
-export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = 'place', days = [], near = null }) {
+// sharedText: 앱의 공유 시트로 받은 텍스트 (검색창에 붙여넣은 것처럼 처리)
+export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = 'place', days = [], near = null, sharedText = null }) {
   const placeSearch = createPlaceSearch();
   const noteMode = kind === 'note' || place?.category === 'note';
   const draft = {
@@ -355,5 +356,6 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   document.body.append(overlay);
   requestAnimationFrame(() => overlay.classList.add('open'));
   (place || noteMode ? name : search).focus();
+  if (sharedText && !noteMode) { search.value = sharedText; setTimeout(() => applyPastedCoords(sharedText), 0); }
   return close;
 }
