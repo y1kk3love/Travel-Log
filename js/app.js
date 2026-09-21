@@ -61,7 +61,7 @@ function renderApp() {
   // 로그아웃→로그인을 반복해도 리스너가 쌓이지 않게, 라우터와 함께 정리한다
   disposers.push(
     onNotificationTap(({ tripId, placeId }) => { if (tripId) navigate(placeId ? `/trip/${tripId}/planner/${placeId}` : `/trip/${tripId}`); }),
-    onResume(() => { goShare(); refreshAlarms(); }));
+    onResume(() => { goShare(); refreshAlarms(); checkForUpdate(); }));
   stopApp = () => { disposers.forEach((d) => d?.()); stopApp = () => {}; };
 }
 
