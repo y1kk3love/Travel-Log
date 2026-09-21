@@ -10,6 +10,14 @@
   - 예산 알림 월 ₩1,000 (메일)
 - 사진: `photos/<여행 ID>/` 폴더에 GitHub 웹으로 업로드 (`photos/README.md`)
 
+## 안드로이드 앱
+
+- 최신 APK: https://github.com/y1kk3love/Travel-Log/releases/latest → `travel-log-X.Y.Z.apk`
+- 설치: 폰에서 APK 다운로드 → 열기 → "알 수 없는 앱 설치 허용"(처음 한 번) → 설치. 업데이트는 새 APK 를 같은 방법으로 설치하면 덮어써진다.
+- 앱에서만 되는 것: 구글 지도 앱의 "공유 → 여행 로그", 다음 목적지 출발 알림, 인터넷 없이 앱 열기.
+- 릴리스 만들기: `git tag v1.0.1 && git push origin v1.0.1` → Actions 가 APK 를 만들어 릴리스에 붙인다. 서명 키는 `docs/android-signing.md`.
+- 구조: 웹 코드를 `dist/` 로 복사해 Capacitor(`android/`)에 담는다. 네이티브 기능은 `js/native.js` 한 곳에서만 부르고 웹에서는 no-op.
+
 ## 로컬 실행
 
 ```bash

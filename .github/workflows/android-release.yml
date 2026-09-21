@@ -1,0 +1,37 @@
+name: Android release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm test
+      - run: node scripts/build-web.js
+      - run: npx cap sync android
+      - run: node scripts/android-version.js "${GITHUB_REF_NAME}"
+      - name: Decode keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+      - name: Build signed APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "travel-log-${GITHUB_REF_NAME#v}.apk"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: travel-log-*.apk
+          generate_release_notes: true

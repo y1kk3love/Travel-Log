@@ -16,10 +16,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // 릴리스 서명: CI 가 환경변수로 키를 넘긴다 (docs/android-signing.md). 없으면 서명하지 않는다.
+    signingConfigs {
+        release {
+            def ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (ksPath) {
+                storeFile file(ksPath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (System.getenv("ANDROID_KEYSTORE_PATH")) signingConfig signingConfigs.release
         }
     }
 }
