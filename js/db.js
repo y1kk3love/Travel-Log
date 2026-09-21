@@ -435,3 +435,16 @@ export async function deleteReservationFile(tripId, reservationId, meta) {
   batch.update(doc(sub(tripId, 'reservations'), reservationId), { files: arrayRemove(meta) });
   await batch.commit();
 }
+
+// 사이트 주인용: 내가 볼 수 있는 모든 여행의 문서 크기를 합산 (Firestore 저장 한도 1 GiB 대비). 문서 수만큼 읽기를 쓰므로 버튼으로만 부른다.
+export async function estimateStorage() {
+  const { docSize } = await import('./lib/firestore-size.js');
+  const trips = await getDocs(query(tripsCol(), where('memberEmails', 'array-contains', me().email)));
+  let bytes = 0, docs = 0;
+  const add = (snap) => snap.docs.forEach((d) => { bytes += docSize(d.ref.path, d.data()); docs += 1; });
+  add(trips);
+  for (const t of trips.docs) {
+    for (const name of ['days', 'places', 'photos', 'checklist', 'reservations', 'expenses', 'files']) add(await getDocs(sub(t.id, name)));
+  }
+  return { bytes, docs, trips: trips.size };
+}

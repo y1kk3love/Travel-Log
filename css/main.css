@@ -422,3 +422,8 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
   *, ::before, ::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
   ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
 }
+
+/* ---- 사용량 창: Firebase 저장 용량 ---- */
+.usage-sub { font-size: 15px; margin-top: 6px; }
+.usage-storage { display: flex; flex-direction: column; gap: 10px; }
+.usage-storage .progress { height: 8px; }
