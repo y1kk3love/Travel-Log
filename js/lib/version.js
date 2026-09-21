@@ -1,0 +1,16 @@
+// 앱 버전 비교 (순수 함수). "v1.10.0" 같은 태그를 숫자로 비교한다 (문자열 비교면 1.9 > 1.10 이 되어 버린다).
+export function parseVersion(s) {
+  const m = String(s ?? '').trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/);
+  return m ? [Number(m[1]), Number(m[2] ?? 0), Number(m[3] ?? 0)] : null;
+}
+
+export function isNewer(a, b) {
+  const x = parseVersion(a), y = parseVersion(b);
+  if (!x || !y) return false;
+  for (let i = 0; i < 3; i++) { if (x[i] !== y[i]) return x[i] > y[i]; }
+  return false;
+}
+
+export function pickApk(assets) {
+  return (assets ?? []).find((a) => /\.apk$/i.test(a.name ?? ''))?.browser_download_url ?? null;
+}

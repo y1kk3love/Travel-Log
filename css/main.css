@@ -353,3 +353,8 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 /* ---- 공유 받기 (앱) ---- */
 .share-list { display: flex; flex-direction: column; gap: 10px; }
 .share-trip { text-align: left; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+
+/* ---- 새 버전 배너 (앱) ---- */
+.update-banner { position: sticky; top: 0; z-index: 900; display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--accent); color: var(--accent-ink); font-size: 14px; }
+.update-banner span { flex-grow: 1; }
+.update-banner .btn-ghost { color: var(--accent-ink); }
