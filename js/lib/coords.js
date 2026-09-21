@@ -49,6 +49,19 @@ export function googleMapsPlaceUrl({ placeId = null, name = '', lat = null, lng 
   return googleMapsSearchUrl(q);
 }
 
+// Google 지도 길찾기 링크. from 을 비우면 현재 위치에서 출발한다.
+// mode: 'walking' | 'transit' | 'driving'. 폰에서는 Google 지도 앱이 바로 열린다.
+export function googleMapsDirectionsUrl({ from = null, to, mode = 'transit' }) {
+  const point = (p) => `${p.lat},${p.lng}`;
+  const params = new URLSearchParams({ api: '1', destination: point(to), travelmode: mode });
+  if (to.placeId) params.set('destination_place_id', to.placeId);
+  if (from && Number.isFinite(from.lat) && Number.isFinite(from.lng)) {
+    params.set('origin', point(from));
+    if (from.placeId) params.set('origin_place_id', from.placeId);
+  }
+  return `https://www.google.com/maps/dir/?${params}`;
+}
+
 export function googleMapsSearchUrl(query) {
   const q = String(query ?? '').trim();
   if (!q) return 'https://www.google.com/maps';

@@ -1,7 +1,8 @@
 import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS } from '../ui.js';
 import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations } from '../db.js';
 import { formatShort } from '../lib/dates.js';
-import { legLabel, hasCoords } from '../lib/geo.js';
+import { legLabel, hasCoords, distanceKm } from '../lib/geo.js';
+import { googleMapsDirectionsUrl } from '../lib/coords.js';
 import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
 import { openPlaceSheet } from './place-sheet.js';
@@ -147,7 +148,12 @@ export function mount(content, ctx) {
       if (!isNote(p)) {
         if (prevPlace) {
           const label = legLabel(prevPlace, p);
-          list.append(el('div', { class: 'tl-leg' }, el('span', { class: 'tl-leg-line' }), el('span', { class: 'muted', text: label ?? '' })));
+          // 두 장소 모두 위치가 있으면 Google 지도 길찾기(3km 이하 도보, 그 밖은 대중교통)를 연다
+          const dir = hasCoords(prevPlace) && hasCoords(p) ? el('a', {
+            class: 'btn tl-leg-btn', target: '_blank', rel: 'noopener', title: `${prevPlace.name} → ${p.name} 길찾기`,
+            href: googleMapsDirectionsUrl({ from: prevPlace, to: p, mode: distanceKm(prevPlace, p) <= 3 ? 'walking' : 'transit' }),
+          }, icon('pin'), '길찾기') : null;
+          list.append(el('div', { class: 'tl-leg' }, el('span', { class: 'tl-leg-line' }), el('span', { class: 'muted', text: label ?? '' }), dir));
         }
         prevPlace = p;
       }

@@ -2,7 +2,7 @@ import { el, toast, confirmDialog, icon, photoPath, CATEGORY_LABELS, CATEGORY_OR
 import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
-import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl } from '../lib/coords.js';
+import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
 import { formatShort } from '../lib/dates.js';
@@ -48,6 +48,9 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   function drawLocation() {
     location.textContent = draft.lat != null ? `위치 설정됨 · ${draft.address ?? `${draft.lat.toFixed(4)}, ${draft.lng.toFixed(4)}`}` : '위치 없음 · 검색해서 고르면 지도에 표시돼요';
     googleBtn.replaceChildren(icon('pin'), draft.placeId || draft.lat != null ? 'Google 지도에서 보기' : 'Google 지도에서 찾기');
+    // 위치가 있으면 현재 위치에서 이 장소까지 길찾기 (Google 지도 앱이 열린다)
+    directionsBtn.hidden = draft.lat == null;
+    if (draft.lat != null) directionsBtn.href = googleMapsDirectionsUrl({ to: { lat: draft.lat, lng: draft.lng, placeId: draft.placeId } });
   }
 
   function drawCategories() {
@@ -243,6 +246,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         : googleMapsSearchUrl(search.value.trim() || q);
     },
   }, icon('pin'), 'Google 지도에서 찾기');
+  const directionsBtn = el('a', { class: 'btn btn-sm', target: '_blank', rel: 'noopener', href: '#', hidden: true, title: '현재 위치에서 여기까지' }, '여기로 길찾기');
   const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도 앱에서 "공유"로 복사한 내용을 붙여넣으면 그 이름으로 검색해요. 주소창의 긴 링크나 "위도, 경도"는 바로 핀이 찍혀요.' });
   const overlay = el('div', { class: 'sheet-overlay' });
   const form = el('form', { class: 'sheet' });
@@ -294,7 +298,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '자세한 내용 (선택)' }), memo))
     : el('div', { class: 'sheet-body' },
       el('div', { class: 'field' },
-        el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-search', text: '장소 검색' }), googleBtn),
+        el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-search', text: '장소 검색' }), el('div', { class: 'ps-head-actions' }, directionsBtn, googleBtn)),
         search, results, location, hint),
       el('div', { class: 'field' }, el('label', { for: 'ps-name', text: '이름' }), name),
       el('div', { class: 'form-grid' },

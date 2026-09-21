@@ -285,3 +285,8 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .usage-table th { color: var(--muted); font-weight: 500; font-size: 12px; }
 .usage-links { display: flex; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 640px) { .topbar-usage { display: none; } }
+
+/* ---- 길찾기 ---- */
+.tl-leg-btn { height: 22px; padding: 0 8px; font-size: 11px; color: var(--muted); border-radius: 6px; margin-left: auto; margin-right: 8px; }
+.tl-leg-btn svg { width: 12px; height: 12px; }
+.ps-head-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }

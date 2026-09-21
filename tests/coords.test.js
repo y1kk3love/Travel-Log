@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl } from '../js/lib/coords.js';
+import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl } from '../js/lib/coords.js';
 
 test('"위도, 경도" 텍스트', () => {
   assert.deepEqual(parseCoordsInput('34.9671, 135.7727'), { lat: 34.9671, lng: 135.7727 });
@@ -53,4 +53,14 @@ test('googleMapsPlaceUrl: 장소 ID > 좌표 > 이름 검색 순으로 주소를
   assert.equal(googleMapsPlaceUrl({ name: '센소지', lat: 35.7148, lng: 139.7967 }), 'https://www.google.com/maps/search/?api=1&query=35.7148,139.7967');
   assert.equal(googleMapsPlaceUrl({ name: '센소지' }), googleMapsSearchUrl('센소지'));
   assert.equal(googleMapsPlaceUrl({}), 'https://www.google.com/maps');
+});
+
+test('googleMapsDirectionsUrl: 출발·도착 좌표와 장소 ID, 이동 수단을 담는다', () => {
+  const url = googleMapsDirectionsUrl({ from: { lat: 35.71, lng: 139.79, placeId: 'A' }, to: { lat: 35.72, lng: 139.8, placeId: 'B' }, mode: 'walking' });
+  assert.equal(url, 'https://www.google.com/maps/dir/?api=1&destination=35.72%2C139.8&travelmode=walking&destination_place_id=B&origin=35.71%2C139.79&origin_place_id=A');
+});
+
+test('googleMapsDirectionsUrl: 출발지를 비우면 현재 위치 출발 (origin 없음), 기본은 대중교통', () => {
+  const url = googleMapsDirectionsUrl({ to: { lat: 35.72, lng: 139.8 } });
+  assert.equal(url, 'https://www.google.com/maps/dir/?api=1&destination=35.72%2C139.8&travelmode=transit');
 });
