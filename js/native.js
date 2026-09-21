@@ -29,7 +29,9 @@ export async function googleIdToken() {
   if (!fa) return null;
   let result;
   try {
-    result = await fa.signInWithGoogle();
+    // Credential Manager 방식은 콘솔 설정이 맞아도 [28444] Developer console is not set up correctly 로 실패하는 사례가 있어
+    // (미해결 이슈 다수) 기존 Google Sign-In 인텐트 방식을 쓴다. 같은 OAuth 클라이언트·SHA-1 을 검사하므로 설정 문제면 code 10 으로 드러난다.
+    result = await fa.signInWithGoogle({ useCredentialManager: false });
   } catch (err) {
     const message = String(err?.message ?? err);
     const e = new Error(message);

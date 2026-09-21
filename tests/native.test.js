@@ -47,3 +47,12 @@ test('native: 구글 로그인 실패는 삼키지 않는다 — 취소는 code 
   await assert.rejects(fresh4(), (e) => e.code === 'auth/native-no-token');
   delete globalThis.window;
 });
+
+test('native: 구글 로그인은 Credential Manager 대신 기존 방식(useCredentialManager:false)으로 부른다', async () => {
+  let opts = null;
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, registerPlugin: () => ({ signInWithGoogle: async (o) => { opts = o; return { credential: { idToken: 't' } }; } }) } };
+  const { googleIdToken: fresh } = await import('../js/native.js?legacy=' + Date.now());
+  assert.equal(await fresh(), 't');
+  assert.deepEqual(opts, { useCredentialManager: false });
+  delete globalThis.window;
+});
