@@ -210,11 +210,14 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   }
 
   let searchSeq = 0; // 늦게 도착한 이전 검색 응답이 최신 결과를 덮지 않도록
+  let lastQuery = null; // 같은 검색어로는 다시 요청하지 않는다 (붙여넣기 두 번, 글자 지웠다 다시 치기)
   const runSearch = debounce(async (q) => {
     const seq = ++searchSeq;
     const query = q.trim();
-    if (query.length < 2) { results.hidden = true; return; }
+    if (query.length < 2) { results.hidden = true; lastQuery = null; return; }
     if (applyPastedCoords(q)) return;
+    if (query === lastQuery) { results.hidden = results.childElementCount === 0; return; }
+    lastQuery = query;
     let items = null;
     try {
       items = (await placeSearch.suggest(query, { near })).map(googleResult);

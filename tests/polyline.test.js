@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodePolyline, legKey, splitLegs } from '../js/lib/polyline.js';
+import { decodePolyline, legKey, splitLegs, isFreshRoute, ROUTE_TTL_MS } from '../js/lib/polyline.js';
 
 test('decodePolyline: Google 예제 문자열을 좌표 배열로 푼다', () => {
   // https://developers.google.com/maps/documentation/utilities/polylinealgorithm 의 예제
@@ -27,4 +27,15 @@ test('splitLegs: 좌표 있는 장소만 이어서 구간 목록을 만든다', 
   ];
   assert.deepEqual(splitLegs(places).map((l) => [l.from.id, l.to.id]), [['a', 'c'], ['c', 'd']]);
   assert.deepEqual(splitLegs([{ id: 'x', lat: 1, lng: 1 }]), []);
+});
+
+test('isFreshRoute: 같은 구간이고 30일 안이면 저장본을 쓴다', () => {
+  const now = 1_800_000_000_000;
+  const route = { key: 'a>b', encoded: '_p~iF~ps|U', at: now - 5 * 24 * 3600 * 1000 };
+  assert.equal(isFreshRoute(route, 'a>b', now), true);
+  assert.equal(isFreshRoute(route, 'a>c', now), false);            // 구간이 바뀜(좌표·순서 변경)
+  assert.equal(isFreshRoute({ ...route, at: now - ROUTE_TTL_MS }, 'a>b', now), false); // 30일 경과
+  assert.equal(isFreshRoute({ ...route, encoded: '' }, 'a>b', now), false);
+  assert.equal(isFreshRoute(null, 'a>b', now), false);
+  assert.equal(isFreshRoute(undefined, 'a>b', now), false);
 });

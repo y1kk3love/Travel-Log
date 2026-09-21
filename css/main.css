@@ -290,3 +290,4 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .tl-leg-btn { height: 22px; padding: 0 8px; font-size: 11px; color: var(--muted); border-radius: 6px; margin-left: auto; margin-right: 8px; }
 .tl-leg-btn svg { width: 12px; height: 12px; }
 .ps-head-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.map-canvas { position: absolute; inset: 0; }

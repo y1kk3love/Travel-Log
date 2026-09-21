@@ -25,6 +25,13 @@ export function legKey(a, b) {
   return `${round5(a.lat)},${round5(a.lng)}>${round5(b.lat)},${round5(b.lng)}`;
 }
 
+// Google 약관상 경로 결과는 30일까지만 보관할 수 있다. 구간(key)이 같고 30일이 안 지났을 때만 저장본을 쓴다.
+export const ROUTE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export function isFreshRoute(route, key, now = Date.now()) {
+  return !!route && route.key === key && typeof route.encoded === 'string' && route.encoded.length > 0
+    && typeof route.at === 'number' && now - route.at >= 0 && now - route.at < ROUTE_TTL_MS;
+}
+
 // 좌표가 있는 장소들을 순서대로 이어 구간 목록으로 만든다
 export function splitLegs(places) {
   const pts = places.filter(hasCoords);

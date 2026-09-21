@@ -1,32 +1,16 @@
-// Routes API 로 실제 도보 경로를 받는다 (Compute Routes Essentials, 하루 한도 100건).
-// 같은 구간은 localStorage 에 두고 다시 묻지 않는다. 실패하면 null 을 돌려주고 호출한 쪽이 직선으로 그린다.
+// Routes API 로 실제 도보 경로를 받는다 (Compute Routes Essentials, 하루 한도 320건).
+// 받은 경로는 호출한 쪽(planner)이 출발 장소 문서의 routeToNext 에 저장해 모든 기기·동행이 다시 묻지 않게 한다.
+// 실패하면 null 을 돌려주고 호출한 쪽이 직선으로 그린다.
 import { MAPS_API_KEY } from './firebase-config.js';
-import { decodePolyline } from './lib/polyline.js';
+import { decodePolyline, isFreshRoute } from './lib/polyline.js';
 
 const ENDPOINT = 'https://routes.googleapis.com/directions/v2:computeRoutes';
-const STORE_KEY = 'tl.routes.v1';
-const MAX_CACHED = 400;
 const inflight = new Map();
-let store = null;
+const memory = new Map(); // 이번 세션 안에서 같은 구간을 두 번 묻지 않는다
 
-function loadStore() {
-  if (store) return store;
-  try { store = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { store = {}; }
-  return store;
-}
-
-function saveStore() {
-  try {
-    const keys = Object.keys(store);
-    if (keys.length > MAX_CACHED) for (const k of keys.slice(0, keys.length - MAX_CACHED)) delete store[k];
-    localStorage.setItem(STORE_KEY, JSON.stringify(store));
-  } catch { /* 저장 공간이 없으면 캐시 없이 동작 */ }
-}
-
-// 반환: { points: [[lat,lng],...], meters, seconds } 또는 null
+// 반환: { key, encoded, points: [[lat,lng],...], meters, seconds, at } 또는 null
 export async function walkingRoute(key, from, to) {
-  const cache = loadStore();
-  if (cache[key]) return cache[key];
+  if (memory.has(key)) return memory.get(key);
   if (inflight.has(key)) return inflight.get(key);
   const p = (async () => {
     try {
@@ -48,14 +32,15 @@ export async function walkingRoute(key, from, to) {
       if (!res.ok) throw new Error(`routes ${res.status}`);
       const json = await res.json();
       const route = json.routes?.[0];
-      if (!route?.polyline?.encodedPolyline) return null;
+      const encoded = route?.polyline?.encodedPolyline;
+      if (!encoded) return null;
       const out = {
-        points: decodePolyline(route.polyline.encodedPolyline),
+        key, encoded, points: decodePolyline(encoded),
         meters: route.distanceMeters ?? null,
         seconds: route.duration ? Number(String(route.duration).replace('s', '')) : null,
+        at: Date.now(),
       };
-      cache[key] = out;
-      saveStore();
+      memory.set(key, out);
       return out;
     } catch (err) {
       console.warn('walkingRoute', err);
@@ -67,3 +52,13 @@ export async function walkingRoute(key, from, to) {
   inflight.set(key, p);
   return p;
 }
+
+// 장소 문서에 저장된 경로를 그릴 수 있는 형태로 (없거나 오래됐거나 구간이 바뀌었으면 null)
+export function storedRoute(place, key, now = Date.now()) {
+  const r = place?.routeToNext;
+  if (!isFreshRoute(r, key, now)) return null;
+  const points = decodePolyline(r.encoded);
+  return points.length ? { ...r, points } : null;
+}
+
+export { isFreshRoute };

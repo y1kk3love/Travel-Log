@@ -1,9 +1,13 @@
-// 지도: Google Maps JavaScript API (Dynamic Maps, 하루 로드 한도 300건).
+// 지도: Google Maps JavaScript API (Dynamic Maps, 하루 로드 한도 320건).
 // 한국어 지명은 로더의 language=ko 로 받는다. 구간은 Routes API 도보 경로(3km 이하)로 그리고, 못 받으면 직선.
+//
+// 요청을 아끼는 규칙
+// - 지도 인스턴스는 페이지 안에서 하나만 만들고(= 지도 로드 1건) 화면을 오갈 때 재사용한다.
+// - 구간 경로는 출발 장소 문서(routeToNext)에 30일간 저장된 것을 먼저 쓰고, 없을 때만 Routes API 를 부른다.
 import { importLibrary } from './gmaps.js';
 import { hasCoords, distanceKm } from './lib/geo.js';
 import { splitLegs } from './lib/polyline.js';
-import { walkingRoute } from './routes.js';
+import { walkingRoute, storedRoute } from './routes.js';
 import { escapeHtml } from './ui.js';
 
 const ROUTE_COLOR = '#B4502B';
@@ -12,41 +16,62 @@ const DEFAULT_VIEW = { center: { lat: 36.5, lng: 127.8 }, zoom: 6 };
 const MAX_FIT_ZOOM = 15;
 const WALK_ROUTE_KM = 3; // 이보다 먼 구간은 (대중교통일 테니) 경로를 묻지 않고 직선으로
 
+// 페이지 전체에서 공유하는 지도 인스턴스 (탭을 오가도 다시 만들지 않는다)
+let shared = null; // { div, map, g, Marker }
+
+async function acquireMap(container) {
+  if (shared) {
+    container.replaceChildren(shared.div);
+    shared.g.event.trigger(shared.map, 'resize');
+    return shared;
+  }
+  const [{ Map, InfoWindow }, { Marker }] = await Promise.all([importLibrary('maps'), importLibrary('marker')]);
+  const g = globalThis.google.maps;
+  const div = document.createElement('div');
+  div.className = 'map-canvas';
+  container.replaceChildren(div);
+  // 화면을 어지럽히는 컨트롤은 끈다. Google 로고와 지도 데이터 저작권·약관 표시는 약관상 남겨야 한다.
+  const map = new Map(div, {
+    center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom, tilt: 0,
+    mapTypeControl: false, streetViewControl: false, fullscreenControl: false, rotateControl: false,
+    cameraControl: false, zoomControl: true, keyboardShortcuts: false, clickableIcons: false,
+    gestureHandling: 'greedy', zoomControlOptions: { position: g.ControlPosition.RIGHT_TOP },
+  });
+  const infoWindow = new InfoWindow({ headerDisabled: true });
+  shared = { div, map, g, Marker, infoWindow };
+  return shared;
+}
+
 export function createMap(container) {
   let map = null;
-  let g = null; // google.maps 네임스페이스 (로드 후)
+  let g = null;
+  let Marker = null;
+  let infoWindow = null;
   let destroyed = false;
   const pending = [];
   let markers = new Map();
   let lines = [];
   let selectCb = null;
+  let routeCb = null;
   let openPopupId = null;
-  let infoWindow = null;
   let routeGen = 0;
+  let closeListener = null;
 
-  const ready = (async () => {
-    const [{ Map, InfoWindow }, { Marker }] = await Promise.all([importLibrary('maps'), importLibrary('marker')]);
-    if (destroyed) return;
-    g = globalThis.google.maps;
-    // 화면을 어지럽히는 컨트롤은 끈다. Google 로고와 지도 데이터 저작권·약관 표시는 약관상 남겨야 한다.
-    map = new Map(container, {
-      center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom, tilt: 0,
-      mapTypeControl: false, streetViewControl: false, fullscreenControl: false, rotateControl: false,
-      cameraControl: false, zoomControl: true, keyboardShortcuts: false, clickableIcons: false,
-      gestureHandling: 'greedy', zoomControlOptions: { position: g.ControlPosition.RIGHT_TOP },
-    });
-    g.__Marker = Marker;
-    infoWindow = new InfoWindow({ headerDisabled: true });
-    infoWindow.addListener('closeclick', () => { openPopupId = null; });
-  })().catch((err) => { console.error('Google Maps 로드 실패', err); container.classList.add('map-failed'); throw err; })
-    .then(() => { while (pending.length) pending.shift()(); }, () => {});
+  const ready = acquireMap(container)
+    .then((s) => {
+      if (destroyed) return;
+      ({ map, g, Marker, infoWindow } = s);
+      infoWindow.close();
+      closeListener = infoWindow.addListener('closeclick', () => { openPopupId = null; });
+      while (pending.length) pending.shift()();
+    })
+    .catch((err) => { console.error('Google Maps 로드 실패', err); container.classList.add('map-failed'); });
 
   const whenReady = (fn) => { if (map) fn(); else pending.push(fn); };
 
   function pinIcon(label) {
-    const wide = label.length > 2;
     return {
-      path: g.SymbolPath.CIRCLE, scale: wide ? 17 : 14,
+      path: g.SymbolPath.CIRCLE, scale: label.length > 2 ? 17 : 14,
       fillColor: ROUTE_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 3,
     };
   }
@@ -75,16 +100,20 @@ export function createMap(container) {
     return line;
   }
 
-  // 구간마다 먼저 직선(점선)을 긋고, 도보 경로가 오면 실선으로 바꾼다
+  const toPath = (points) => points.map(([lat, lng]) => ({ lat, lng }));
+
+  // 구간마다: 저장된 경로가 있으면 바로 실선, 없으면 점선을 긋고 Routes API 결과가 오면 실선으로 바꾼다
   function drawLegs(groups, gen) {
     for (const group of groups) {
       for (const leg of splitLegs(group)) {
-        const straight = [{ lat: leg.from.lat, lng: leg.from.lng }, { lat: leg.to.lat, lng: leg.to.lng }];
-        const line = drawLine(straight, { dashed: true });
+        const stored = storedRoute(leg.from, leg.key);
+        if (stored) { drawLine(toPath(stored.points), { dashed: false }); continue; }
+        const line = drawLine([{ lat: leg.from.lat, lng: leg.from.lng }, { lat: leg.to.lat, lng: leg.to.lng }], { dashed: true });
         if (distanceKm(leg.from, leg.to) > WALK_ROUTE_KM) continue;
         walkingRoute(leg.key, leg.from, leg.to).then((route) => {
-          if (gen !== routeGen || !route?.points?.length || !lines.includes(line)) return;
-          line.setOptions({ path: route.points.map(([lat, lng]) => ({ lat, lng })), strokeOpacity: 0.9, icons: [] });
+          if (!route?.points?.length) return;
+          if (gen === routeGen && lines.includes(line)) line.setOptions({ path: toPath(route.points), strokeOpacity: 0.9, icons: [] });
+          routeCb?.(leg.from.id, { key: route.key, encoded: route.encoded, meters: route.meters, seconds: route.seconds, at: route.at });
         });
       }
     }
@@ -101,7 +130,7 @@ export function createMap(container) {
       let count = 0;
       for (const group of groups) {
         for (const p of group.filter(hasCoords)) {
-          const marker = new g.__Marker({
+          const marker = new Marker({
             map, position: { lat: p.lat, lng: p.lng }, icon: pinIcon(p.label ?? ''), title: p.name,
             label: { text: p.label ?? '', color: '#FFFDF9', fontSize: '12px', fontWeight: '700', fontFamily: 'inherit' },
           });
@@ -137,7 +166,7 @@ export function createMap(container) {
   function drawMe(lat, lng, { center }) {
     whenReady(() => {
       if (!meMarker) {
-        meMarker = new g.__Marker({
+        meMarker = new Marker({
           map, position: { lat, lng }, clickable: false, zIndex: 1000,
           icon: { path: g.SymbolPath.CIRCLE, scale: 8, fillColor: ME_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 3 },
         });
@@ -173,13 +202,23 @@ export function createMap(container) {
     locateStop,
     isLocating: () => watchId != null,
     onSelect: (cb) => { selectCb = cb; },
+    // Routes API 에서 새로 받은 구간 경로를 알려준다 (출발 장소 id, 저장용 route). 호출한 쪽이 문서에 저장한다.
+    onRoute: (cb) => { routeCb = cb; },
     invalidate: () => { if (map) g.event.trigger(map, 'resize'); },
+    // 공유 지도는 없애지 않고 마커·선만 걷어낸 뒤 화면에서 떼어 둔다 (다음에 다시 붙여 쓴다)
     destroy: () => {
       destroyed = true;
       locateStop();
-      if (map) { markers.forEach((m) => m.marker.setMap(null)); clearLines(); infoWindow.close(); }
+      if (map) {
+        markers.forEach((m) => m.marker.setMap(null));
+        markers = new Map();
+        clearLines();
+        infoWindow.close();
+        closeListener?.remove();
+        routeGen++;
+      }
       map = null;
-      container.replaceChildren();
+      if (shared && shared.div.parentNode === container) shared.div.remove();
     },
     ready,
   };

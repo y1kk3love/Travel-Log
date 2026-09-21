@@ -1,5 +1,5 @@
 import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS } from '../ui.js';
-import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations } from '../db.js';
+import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations, updatePlace } from '../db.js';
 import { formatShort } from '../lib/dates.js';
 import { legLabel, hasCoords, distanceKm } from '../lib/geo.js';
 import { googleMapsDirectionsUrl } from '../lib/coords.js';
@@ -50,6 +50,11 @@ export function mount(content, ctx) {
     if (ok) locateBtn.classList.add('active');
   }
   map.onSelect((placeId) => highlight(placeId));
+  // 새로 받은 도보 경로는 출발 장소 문서에 30일간 저장해 다른 기기·동행이 다시 요청하지 않게 한다
+  map.onRoute((placeId, route) => {
+    if (!state.places.some((p) => p.id === placeId)) return;
+    updatePlace(tripId, placeId, { routeToNext: route }).catch((err) => console.warn('routeToNext 저장 실패', err));
+  });
   requestAnimationFrame(() => map.invalidate());
 
   const unsubs = [
