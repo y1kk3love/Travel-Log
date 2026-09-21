@@ -56,3 +56,14 @@ test('native: 구글 로그인은 Credential Manager 대신 기존 방식(useCre
   assert.deepEqual(opts, { useCredentialManager: false });
   delete globalThis.window;
 });
+
+test('native: registerPlugin 이 없으면(안드로이드 주입 런타임) Capacitor.Plugins.<이름> 프록시를 쓴다', async () => {
+  const appProxy = { getInfo: async () => ({ version: '2.0.0' }) };
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, Plugins: { App: appProxy } } };
+  const mod = await import('../js/native.js?legacyproxy=' + Date.now());
+  assert.equal(mod.isNative(), true);
+  assert.equal(mod.plugin('App'), appProxy);
+  assert.equal(await mod.appVersion(), '2.0.0');
+  assert.equal(mod.plugin('FirebaseAuthentication'), null, '없는 플러그인은 null');
+  delete globalThis.window;
+});

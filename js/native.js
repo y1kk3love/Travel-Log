@@ -8,11 +8,17 @@ export function isNative() {
   return !!cap()?.isNativePlatform?.();
 }
 
+// 안드로이드 런타임이 웹뷰에 주입하는 스크립트에는 registerPlugin 이 없다 (그건 번들러로 넣는 @capacitor/core 몫).
+// 대신 네이티브 플러그인마다 Capacitor.Plugins.<이름> 프록시(메서드 → nativePromise, addListener → {remove})를 넣어 준다.
+// registerPlugin 이 있으면 그걸, 없으면 그 프록시를 쓴다. 둘 다 없으면 null (웹).
 const cache = new Map();
 export function plugin(name) {
   const c = cap();
-  if (!c?.registerPlugin) return null;
-  if (!cache.has(name)) cache.set(name, c.registerPlugin(name));
+  if (!c) return null;
+  if (!cache.has(name)) {
+    const p = typeof c.registerPlugin === 'function' ? c.registerPlugin(name) : (c.Plugins?.[name] ?? null);
+    cache.set(name, p ?? null);
+  }
   return cache.get(name);
 }
 
