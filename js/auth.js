@@ -1,14 +1,20 @@
-import { GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { GoogleAuthProvider, signInWithPopup, signInWithCredential, signOut as firebaseSignOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { auth } from './firebase.js';
 import { OWNER_UID } from './firebase-config.js';
+import { isNative, googleIdToken, nativeSignOut } from './native.js';
 
 export function watchAuth(cb) {
   return onAuthStateChanged(auth, cb);
 }
 
-// 리디렉트 방식은 앱 도메인(github.io)과 인증 도메인(firebaseapp.com)이 달라
-// 브라우저의 서드파티 저장소 차단에 걸려 결과를 잃어버린다. 팝업만 쓴다.
+// 웹: 팝업 (리디렉트는 authDomain 불일치로 결과를 잃는다). 앱: 네이티브 구글 로그인 → 같은 Firebase 계정으로 signInWithCredential.
 export async function signIn() {
+  if (isNative()) {
+    const idToken = await googleIdToken();
+    if (!idToken) return; // 취소
+    await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+    return;
+  }
   const provider = new GoogleAuthProvider();
   try {
     await signInWithPopup(auth, provider);
@@ -23,7 +29,8 @@ export async function signIn() {
   }
 }
 
-export function signOut() {
+export async function signOut() {
+  await nativeSignOut();
   return firebaseSignOut(auth);
 }
 

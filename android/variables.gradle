@@ -13,4 +13,7 @@ ext {
     androidxJunitVersion = '1.3.0'
     androidxEspressoCoreVersion = '3.7.0'
     cordovaAndroidVersion = '14.0.1'
+    // @capacitor-firebase/authentication: 네이티브 구글 로그인 의존성 포함
+    rgcfaIncludeGoogle = true
+    androidxCredentialsVersion = '1.3.0'
 }
