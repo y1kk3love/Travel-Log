@@ -28,9 +28,11 @@ export function createMap(container) {
     const [{ Map, InfoWindow }, { Marker }] = await Promise.all([importLibrary('maps'), importLibrary('marker')]);
     if (destroyed) return;
     g = globalThis.google.maps;
+    // 화면을 어지럽히는 컨트롤은 끈다. Google 로고와 지도 데이터 저작권·약관 표시는 약관상 남겨야 한다.
     map = new Map(container, {
-      center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom,
-      mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false,
+      center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom, tilt: 0,
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false, rotateControl: false,
+      cameraControl: false, zoomControl: true, keyboardShortcuts: false, clickableIcons: false,
       gestureHandling: 'greedy', zoomControlOptions: { position: g.ControlPosition.RIGHT_TOP },
     });
     g.__Marker = Marker;
