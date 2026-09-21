@@ -30,3 +30,8 @@ test('navDirection: 홈→여행은 forward, 여행→홈은 back, 같은 여행
   assert.equal(navDirection(null, home), 'same');
   assert.equal(navDirection(home, parseHash('#/share')), 'forward');
 });
+
+test('reservations 탭 뒤의 ID 는 reservationId 로 넘어온다 (일정 → 예약 바로가기)', () => {
+  assert.deepEqual(parseHash('#/trip/abc/reservations/r1'), { name: 'trip', tripId: 'abc', tab: 'reservations', reservationId: 'r1' });
+  assert.deepEqual(parseHash('#/trip/abc/reservations'), { name: 'trip', tripId: 'abc', tab: 'reservations' });
+});

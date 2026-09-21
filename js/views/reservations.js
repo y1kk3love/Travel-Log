@@ -15,10 +15,17 @@ const TYPE_LABELS = { flight: '항공', stay: '숙소', food: '식당', etc: '�
 
 export function mount(content, ctx) {
   const { tripId } = ctx;
-  const state = { reservations: [], places: [], days: [] };
+  // 일정에서 넘어온 예약: 강조는 다시 그릴 때마다 유지하고, 스크롤은 처음 한 번만
+  const state = { reservations: [], places: [], days: [], focusId: ctx.reservationId ?? null, scrolled: false };
   const main = el('main', { class: 'container reservations-page' });
   content.append(main);
-  const redraw = () => draw(main, tripId, state);
+  const redraw = () => {
+    draw(main, tripId, state);
+    const target = state.focusId && main.querySelector(`.reservation[data-id="${state.focusId}"]`);
+    if (!target) return;
+    target.classList.add('active');
+    if (!state.scrolled) { state.scrolled = true; target.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  };
   const unsubs = [
     watchReservations(tripId, (r) => { state.reservations = r; redraw(); }, (err) => { console.error(err); toast('예약을 불러오지 못했어요', { kind: 'error' }); }),
     watchPlaces(tripId, (p) => { state.places = p; redraw(); }),
@@ -57,7 +64,7 @@ function draw(main, tripId, state) {
 
 function card(tripId, state, r) {
   const linked = r.linkedPlaceId ? placeLabel(state, r.linkedPlaceId) : null;
-  return el('section', { class: 'card reservation' },
+  return el('section', { class: 'card reservation', dataset: { id: r.id } },
     el('div', { class: 'reservation-head' },
       el('div', { class: 'reservation-title' },
         el('span', { class: 'badge badge-muted', text: TYPE_LABELS[r.type] ?? '기타' }),

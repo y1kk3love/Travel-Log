@@ -325,7 +325,10 @@ export function mount(content, ctx) {
           el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }),
           p.stayMinutes ? el('span', { class: 'muted', text: `${p.stayMinutes}분` }) : null,
           p.photoCount > 0 ? el('span', { class: 'tag', text: `사진 ${p.photoCount}` }) : null,
-          state.reservations.some((r) => r.linkedPlaceId === p.id) ? el('span', { class: 'badge', text: '예약' }) : null),
+          ...state.reservations.filter((r) => r.linkedPlaceId === p.id).map((r) => el('a', {
+            class: 'badge badge-link', href: `#/trip/${tripId}/reservations/${r.id}`, title: r.title, text: '예약 ›',
+            onClick: (e) => e.stopPropagation(), // 장소 창 대신 그 예약 카드로
+          }))),
         el('div', { class: 'tl-name', text: p.name || '(이름 없음)' }),
         p.memo && el('div', { class: 'muted tl-memo' }, linkedText(p.memo, { firstLineOnly: true }))),
       el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));

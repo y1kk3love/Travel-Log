@@ -7,6 +7,7 @@ export function parseHash(hash) {
     const tab = TABS.includes(parts[2]) ? parts[2] : 'planner';
     const route = { name: 'trip', tripId: parts[1], tab };
     if (tab === 'planner' && parts[2] === 'planner' && parts[3]) route.placeId = parts[3];
+    if (tab === 'reservations' && parts[3]) route.reservationId = parts[3]; // 일정의 "예약" 배지 → 그 예약 카드로
     return route;
   }
   return { name: 'trips' };
