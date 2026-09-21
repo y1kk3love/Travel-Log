@@ -351,7 +351,7 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .share-list label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 
 /* ---- 공유 받기 (앱) ---- */
-.share-list { display: flex; flex-direction: column; gap: 10px; }
+.share-pick-list { display: flex; flex-direction: column; gap: 10px; }
 .share-trip { text-align: left; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
 
 /* ---- 새 버전 배너 (앱) ---- */

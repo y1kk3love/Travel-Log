@@ -20,7 +20,8 @@ export function render(container) {
   container.append(topbar({ backHref: '#/' }), main);
   if (!text) { toast('공유된 내용이 없어요'); navigate('/'); return () => {}; }
   let unsubDays = null;
-  const unsub = watchTrips((trips) => drawTrips(main, trips, text), (err) => { console.error(err); toast('여행 목록을 불러오지 못했어요', { kind: 'error' }); });
+  let lastTrips = [];
+  const unsub = watchTrips((trips) => { lastTrips = trips; drawTrips(main, trips, text); }, (err) => { console.error(err); toast('여행 목록을 불러오지 못했어요', { kind: 'error' }); });
 
   function drawTrips(root, trips, sharedText) {
     clear(root);
@@ -35,7 +36,7 @@ export function render(container) {
     root.append(
       el('div', { class: 'page-head' }, el('div', {}, el('h2', { class: 'checklist-title', text: '어느 여행에 넣을까요?' }),
         el('p', { class: 'muted', text: sharedText.split('\n')[0].slice(0, 60) }))),
-      el('div', { class: 'share-list' }, ...sorted.map((t) => el('button', { class: 'card share-trip', onClick: () => drawDays(root, t, sharedText) },
+      el('div', { class: 'share-pick-list' }, ...sorted.map((t) => el('button', { class: 'card share-trip', onClick: () => drawDays(root, t, sharedText) },
         el('strong', { text: t.title }), el('span', { class: 'muted', text: `${formatRange(t.startDate, t.endDate)} · ${formatStatus(t.status)}` })))));
   }
 
@@ -46,8 +47,8 @@ export function render(container) {
       const go = (dayId) => { target = { tripId: trip.id, dayId, text: sharedText }; takePendingShare(); navigate(`/trip/${trip.id}`); };
       root.append(
         el('div', { class: 'page-head' }, el('div', {}, el('h2', { class: 'checklist-title', text: trip.title }), el('p', { class: 'muted', text: '어느 날에 넣을까요?' })),
-          el('button', { class: 'btn btn-sm', onClick: () => { if (unsubDays) { unsubDays(); unsubDays = null; } drawTrips(root, [trip], sharedText); } }, icon('back'), '여행 다시 고르기')),
-        el('div', { class: 'share-list' },
+          el('button', { class: 'btn btn-sm', onClick: () => { if (unsubDays) { unsubDays(); unsubDays = null; } drawTrips(root, lastTrips, sharedText); } }, icon('back'), '여행 다시 고르기')),
+        el('div', { class: 'share-pick-list' },
           ...days.map((d, i) => el('button', { class: 'card share-trip', onClick: () => go(d.id) }, el('strong', { text: `Day ${i + 1}` }), el('span', { class: 'muted', text: formatShort(d.date) }))),
           el('button', { class: 'card share-trip', onClick: () => go(null) }, el('strong', { text: '보관함' }), el('span', { class: 'muted', text: '날짜 미정' }))));
     });

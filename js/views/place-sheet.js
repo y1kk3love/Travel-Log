@@ -356,6 +356,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   document.body.append(overlay);
   requestAnimationFrame(() => overlay.classList.add('open'));
   (place || noteMode ? name : search).focus();
-  if (sharedText && !noteMode) { search.value = sharedText; setTimeout(() => applyPastedCoords(sharedText), 0); }
+  // 공유로 받은 텍스트: 좌표·짧은 링크면 그대로 처리, 아니면(그냥 장소 이름 등) 그 텍스트로 검색
+  if (sharedText && !noteMode) { search.value = sharedText; setTimeout(() => { if (!applyPastedCoords(sharedText)) runSearch(sharedText); }, 0); }
   return close;
 }

@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: npm }
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
+        with: { distribution: temurin, java-version: 21 } # Capacitor 8 은 Java 21 로 컴파일 (keytool 은 17 이어도 됨)
       - uses: android-actions/setup-android@v3
       - run: npm ci
       - run: npm test

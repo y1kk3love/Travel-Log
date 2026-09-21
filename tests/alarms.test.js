@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { planAlarms, alarmId } from '../js/lib/alarms.js';
 import { legKey } from '../js/lib/polyline.js';
 
-const now = new Date('2026-09-21T09:00:00+09:00');
+// planAlarms 는 기기 시간대의 로컬 시각으로 계산한다. 기대값도 로컬로 만들어 CI(UTC)에서도 같아야 한다.
+const local = (y, m, d, hh, mm) => new Date(y, m - 1, d, hh, mm).getTime();
+const now = new Date(local(2026, 9, 21, 9, 0));
 const trip = { id: 't1', title: '도쿄', startDate: '2026-09-20', endDate: '2026-09-23' };
 const days = [{ id: 'd1', date: '2026-09-21', order: 0 }, { id: 'd2', date: '2026-09-22', order: 1 }, { id: 'd0', date: '2026-09-20', order: -1 }];
 const places = [
@@ -16,9 +18,9 @@ const places = [
 
 test('planAlarms: 오늘·내일, 시각 있는 장소만, 출발 = 도착 − 도보 − 10분, 지난 것 제외', () => {
   const out = planAlarms({ trips: [trip], placesByTrip: { t1: places }, daysByTrip: { t1: days } }, now);
-  assert.deepEqual(out.map((a) => [a.placeId, new Date(a.at).toISOString()]), [
-    ['p2', new Date('2026-09-21T09:26:00+09:00').toISOString()],
-    ['p4', new Date('2026-09-22T12:50:00+09:00').toISOString()],
+  assert.deepEqual(out.map((a) => [a.placeId, a.at]), [
+    ['p2', local(2026, 9, 21, 9, 26)],
+    ['p4', local(2026, 9, 22, 12, 50)],
   ]);
   assert.equal(out[0].title, '곧 출발: 센소지');
   assert.match(out[0].body, /10:00 도착 예정 · 도보 \d+분/);
@@ -31,7 +33,7 @@ test('planAlarms: 저장된 구글 도보 시간이 있으면 그걸 쓰고, 20�
   const p2 = { ...places[1], time: '10:00' };
   p1.routeToNext = { key: legKey(p1, p2), encoded: 'x', seconds: 15 * 60, meters: 1000, at: now.getTime() };
   const out = planAlarms({ trips: [trip], placesByTrip: { t1: [p1, p2] }, daysByTrip: { t1: days } }, now);
-  assert.equal(new Date(out.find((a) => a.placeId === 'p2').at).toISOString(), new Date('2026-09-21T09:35:00+09:00').toISOString());
+  assert.equal(out.find((a) => a.placeId === 'p2').at, local(2026, 9, 21, 9, 35));
   const many = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, dayId: 'd2', name: `m${i}`, time: `${String(8 + Math.floor(i / 4)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}`, lat: 35.7, lng: 139.8, order: i }));
   assert.equal(planAlarms({ trips: [trip], placesByTrip: { t1: many }, daysByTrip: { t1: days } }, now).length, 20);
 });

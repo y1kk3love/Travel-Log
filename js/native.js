@@ -88,6 +88,8 @@ export async function scheduleNotifications(list) {
   await ln.schedule({
     notifications: list.map((a) => ({
       id: a.id, title: a.title, body: a.body,
+      // 정확 알람(isExactNotification)은 안드로이드 12+ 에서 별도 권한이 필요해 설정 화면으로 튕긴다. 출발 알림은 몇 분 오차가 괜찮으니 요구하지 않는다.
+      isExactNotification: false,
       schedule: { at: new Date(a.at), allowWhileIdle: true },
       extra: { tripId: a.tripId, placeId: a.placeId },
     })),
