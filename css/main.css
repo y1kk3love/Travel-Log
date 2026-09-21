@@ -435,7 +435,7 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 @media (max-width: 640px) { .topbar-invites { display: none; } }
 
 /* ---- 항공 예약: 탑승권 카드. 위 색 띠 · 본문(공항·시각·세부 줄) · 절취선 · 스텁. 폰은 세로 쌓기, 넓은 화면은 오른쪽 스텁 ---- */
-.ticket { padding: 0; overflow: hidden; display: grid; grid-template-columns: 1fr; background: var(--sf); }
+.ticket { padding: 0; gap: 0; overflow: hidden; display: grid; grid-template-columns: 1fr; background: var(--sf); }
 .ticket-main { display: flex; flex-direction: column; }
 .ticket-band { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 10px 6px 18px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; min-height: 44px; }
 .ticket-band-title { display: inline-flex; align-items: center; gap: 6px; letter-spacing: .3px; }
@@ -459,9 +459,9 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .ticket-v { font-weight: 700; margin-top: 2px; word-break: break-word; }
 .ticket-mono { font-family: ui-monospace, Consolas, monospace; letter-spacing: .5px; }
 .ticket-memo { font-weight: 500; }
-.ticket-cut { position: relative; border-top: 2px dashed var(--line); margin: 0 14px; }
+.ticket-cut { position: relative; z-index: 1; border-top: 2px dashed var(--line); margin: 0 12px; }
 .ticket-cut:before, .ticket-cut:after { content: ''; position: absolute; top: -13px; width: 24px; height: 24px; border-radius: 50%; background: var(--bg); }
-.ticket-cut:before { left: -26px; } .ticket-cut:after { right: -26px; }
+.ticket-cut:before { left: -24px; } .ticket-cut:after { right: -24px; }
 .ticket-stub { display: flex; flex-direction: column; }
 .ticket-band-stub { padding-right: 18px; }
 .ticket-band-date { font-weight: 600; opacity: .9; }
@@ -474,7 +474,7 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
   .ticket { grid-template-columns: 1fr 0 230px; align-items: stretch; }
   .ticket-body { padding: 16px 22px 18px; }
   .ticket-cut { border-top: 0; border-left: 2px dashed var(--line); margin: 0; }
-  .ticket-cut:before, .ticket-cut:after { left: -13px; right: auto; top: auto; }
+  .ticket-cut:before, .ticket-cut:after { left: -11px; right: auto; top: auto; }
   .ticket-cut:before { top: -12px; } .ticket-cut:after { bottom: -12px; }
   .ticket-stub-body { padding: 14px 18px 16px; }
   .ticket-foot { flex-direction: column; align-items: flex-start; gap: 8px; }
