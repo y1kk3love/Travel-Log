@@ -1,5 +1,5 @@
 // 웹 전용: 최신 안드로이드 APK 로 이어 주는 카드. 앱 안에서는 보이지 않는다.
-// 처음엔 GitHub "최신 릴리스" 페이지를 가리키고, 릴리스 API 로 APK 직접 주소를 알아내면 바꿔 단다 (하루 1회 캐시).
+// 처음엔 GitHub "최신 릴리스" 페이지를 가리키고, 릴리스 API 로 APK 직접 주소를 알아내면 바꿔 단다 (1시간 캐시).
 import { el } from '../ui.js';
 import { isNative } from '../native.js';
 import { latestApk } from '../lib/version.js';
@@ -7,7 +7,7 @@ import { latestApk } from '../lib/version.js';
 const API = 'https://api.github.com/repos/y1kk3love/Travel-Log/releases/latest';
 const LATEST_PAGE = 'https://github.com/y1kk3love/Travel-Log/releases/latest';
 const CACHE = 'tl.apk.latest';
-const TTL = 24 * 3600 * 1000;
+const TTL = 3600 * 1000; // 1시간: 새 릴리스가 웹 버튼에 너무 늦게 반영되지 않게
 
 function readCache() {
   try {
