@@ -2,6 +2,7 @@ import { watchAuth, signIn, signOut, isOwner } from './auth.js';
 import { el, clear, toast } from './ui.js';
 import { startRouter } from './router.js';
 import { canUseApp, ensureProfile } from './db.js';
+import { isNative } from './native.js';
 import * as tripsView from './views/trips.js';
 import * as tripView from './views/trip.js';
 
@@ -41,8 +42,8 @@ function renderApp() {
   stopRouter = startRouter({ trips: tripsView, trip: tripView }, app);
 }
 
-// 홈 화면 앱(PWA): 서비스 워커는 파일 캐시만 담당한다. 실패해도 앱은 그대로 동작.
-if ('serviceWorker' in navigator) {
+// 홈 화면 앱(PWA): 서비스 워커는 파일 캐시만 담당한다. 안드로이드 앱은 파일이 APK 안에 있어 등록하지 않는다.
+if ('serviceWorker' in navigator && !isNative()) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js', { scope: './' }).catch((err) => console.warn('service worker 등록 실패', err));
   });

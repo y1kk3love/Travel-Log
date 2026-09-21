@@ -1,0 +1,11 @@
+{
+  "appId": "io.github.y1kk3love.travellog",
+  "appName": "여행 로그",
+  "webDir": "dist",
+  "server": { "androidScheme": "https", "hostname": "travellog.local" },
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "FirebaseAuthentication": { "skipNativeAuth": false, "providers": ["google.com"] },
+    "LocalNotifications": { "smallIcon": "ic_stat_icon", "iconColor": "#B4502B" }
+  }
+}
