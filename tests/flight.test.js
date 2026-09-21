@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration } from '../js/lib/flight.js';
+import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle } from '../js/lib/flight.js';
 
 test('parseFlightNumber: 공백·소문자·붙여쓰기를 모두 받아 IATA 편명으로 정리한다', () => {
   assert.deepEqual(parseFlightNumber('LJ213'), { airline: 'LJ', number: '213', iata: 'LJ213' });
@@ -52,4 +52,21 @@ test('flightDuration: 출발·도착 일시로 비행 시간 문구, 하나라�
   assert.equal(flightDuration('2026-04-17T09:30', '2026-04-17T12:30'), '3시간');
   assert.equal(flightDuration('2026-04-17T09:30', null), null);
   assert.equal(flightDuration('2026-04-17T09:30', '2026-04-17T09:00'), null); // 도착이 더 이르면 무시
+});
+
+test('airportSuggestions: 자동완성용 도시·코드 목록 (코드 순 정렬, 중복 코드는 도시 이름을 묶음)', () => {
+  const list = airportSuggestions();
+  assert.ok(list.length > 40);
+  const icn = list.find((a) => a.code === 'ICN');
+  assert.equal(icn.label, '인천 (ICN)');
+  const kix = list.find((a) => a.code === 'KIX');
+  assert.match(kix.label, /오사카|간사이/);
+  assert.match(kix.label, /\(KIX\)$/);
+});
+
+test('flightTitle: 공항·항공사·편명으로 제목을 만든다', () => {
+  assert.equal(flightTitle({ from: '인천', to: '오사카', airline: '진에어', iata: 'LJ313' }), '인천 → 오사카 · 진에어 LJ313');
+  assert.equal(flightTitle({ from: '인천', to: '오사카', airline: null, iata: 'XX123' }), '인천 → 오사카 · XX123');
+  assert.equal(flightTitle({ from: '', to: '', airline: '진에어', iata: 'LJ313' }), '진에어 LJ313');
+  assert.equal(flightTitle({ from: '인천', to: '', airline: null, iata: null }), '인천 →');
 });

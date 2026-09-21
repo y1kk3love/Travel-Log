@@ -69,3 +69,22 @@ export function flightDuration(departure, arrival) {
   const h = Math.floor(min / 60), m = min % 60;
   return h ? (m ? `${h}시간 ${m}분` : `${h}시간`) : `${m}분`;
 }
+
+// 예약 창 자동완성용: [{ code, label: '인천 (ICN)' }] 코드순. 같은 코드의 이름들은 하나로 묶는다 (오사카·간사이 (KIX)).
+export function airportSuggestions() {
+  const byCode = new Map();
+  for (const [name, code] of Object.entries(AIRPORTS)) {
+    if (!byCode.has(code)) byCode.set(code, []);
+    byCode.get(code).push(name);
+  }
+  return [...byCode.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([code, names]) => ({ code, label: `${names.join('·')} (${code})` }));
+}
+
+// 제목 자동 생성: "인천 → 오사카 · 진에어 LJ313". 빈 조각은 뺀다.
+export function flightTitle({ from = '', to = '', airline = null, iata = null } = {}) {
+  const route = [String(from ?? '').trim(), String(to ?? '').trim()];
+  const routeText = route[0] || route[1] ? `${route[0]} → ${route[1]}`.trim() : '';
+  const flightText = [airline, iata].filter(Boolean).join(' ');
+  return [routeText, flightText].filter(Boolean).join(' · ');
+}

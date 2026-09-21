@@ -3,7 +3,7 @@ import {
   watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays,
   addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, addPlace, updatePlace,
 } from '../db.js';
-import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration } from '../lib/flight.js';
+import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle } from '../lib/flight.js';
 import { placesFromReservation } from '../lib/reservation-place.js';
 import { orderForTime } from '../lib/order.js';
 import { compressImage } from '../photo.js';
@@ -101,7 +101,8 @@ function card(tripId, state, r) {
 // 스텁(폰은 아래, 넓은 화면은 오른쪽)에 항공사 띠와 메모·Flightradar·서류. 공항 코드는 제목의 "인천 → 후쿠오카" 에서.
 function ticketCard(tripId, r, linked, actions) {
   const flight = parseFlightNumber(r.flightNumber);
-  const route = parseRoute(r.title);
+  // 공항: 정식 칸(출발·도착 공항)을 먼저, 없으면 옛 예약처럼 제목의 "인천 → 후쿠오카" 에서
+  const route = r.fromAirport || r.toAirport ? { from: r.fromAirport || null, to: r.toAirport || null } : parseRoute(r.title);
   const airline = airlineName(flight?.airline);
   const timeOf = (dt) => (dt ? String(dt).slice(11, 16) : null);
   const dateOf = (dt) => (dt ? formatDatetime(dt).split(' ')[0] : '');
@@ -124,7 +125,7 @@ function ticketCard(tripId, r, linked, actions) {
           endpoint(route?.from, r.datetime, '출발', 'from'),
           el('div', { class: 'ticket-plane' }, el('span', { class: 'ticket-line' }), el('span', { class: 'muted', text: duration ?? '' })),
           endpoint(route?.to, r.arrival, '도착', 'to')),
-        !route && flight ? el('p', { class: 'muted ps-hint', text: '제목을 "인천 → 후쿠오카" 처럼 적으면 공항이 표시돼요' }) : null,
+        !route ? el('p', { class: 'muted ps-hint', text: '편집에서 출발·도착 공항을 넣으면 공항 코드가 표시돼요' }) : null,
         el('div', { class: 'ticket-cells' },
           cell('편명', flight ? el('span', { class: 'ticket-mono', text: flight.iata }) : el('span', { class: 'muted', text: '—' })),
           cell('예약번호', r.code ? el('span', { class: 'ticket-mono', text: r.code }) : el('span', { class: 'muted', text: '없음' })),
@@ -218,14 +219,23 @@ function field(label, value) {
 function openDialog(tripId, state, existing = null) {
   const type = el('select', { class: 'input', id: 'rs-type' },
     ...Object.entries(TYPE_LABELS).map(([k, v]) => el('option', { value: k, selected: (existing?.type ?? 'etc') === k, text: v })));
-  const title = el('input', { class: 'input', id: 'rs-title', value: existing?.title ?? '', required: true, placeholder: '예: 인천 → 간사이 KE723' });
+  const title = el('input', { class: 'input', id: 'rs-title', value: existing?.title ?? '', placeholder: '비워 두면 항공은 자동으로 채워요' });
   const flight = el('input', { class: 'input', id: 'rs-flight', value: existing?.flightNumber ?? '', placeholder: '예: LJ213', autocomplete: 'off', autocapitalize: 'characters' });
   const flightHint = el('p', { class: 'muted ps-hint rs-flight-hint' });
   const arrival = el('input', { class: 'input', id: 'rs-arrival', type: 'datetime-local', value: existing?.arrival ?? '' });
+  // 출발·도착 공항: 도시 이름이나 코드. 자동완성 목록은 자주 가는 공항 표에서
+  const airportList = el('datalist', { id: 'rs-airports' }, ...airportSuggestions().map((a) => el('option', { value: a.label })));
+  const airportValue = (v) => String(v ?? '').replace(/\s*\([A-Z]{3}\)$/, '').split('·')[0].trim(); // "오사카·간사이 (KIX)" → "오사카"
+  const fromAirport = el('input', { class: 'input', id: 'rs-from', list: 'rs-airports', value: existing?.fromAirport ?? '', placeholder: '예: 인천', autocomplete: 'off' });
+  const toAirport = el('input', { class: 'input', id: 'rs-to', list: 'rs-airports', value: existing?.toAirport ?? '', placeholder: '예: 오사카', autocomplete: 'off' });
   const flightField = el('div', { class: 'field', hidden: (existing?.type ?? 'etc') !== 'flight' },
+    el('div', { class: 'form-grid' },
+      el('div', { class: 'field' }, el('label', { for: 'rs-from', text: '출발 공항' }), fromAirport),
+      el('div', { class: 'field' }, el('label', { for: 'rs-to', text: '도착 공항' }), toAirport)),
+    airportList,
     el('label', { for: 'rs-flight', text: '편명' }), flight, flightHint,
     el('label', { for: 'rs-arrival', text: '도착 일시' }), arrival,
-    el('p', { class: 'muted ps-hint', text: '제목을 "인천 → 후쿠오카" 로 시작하면 탑승권에 공항 코드가 표시돼요. 일시는 출발 시각.' }));
+    el('p', { class: 'muted ps-hint', text: '일시는 출발 시각. 제목을 비워 두면 "인천 → 오사카 · 진에어 LJ313" 처럼 자동으로 채워요.' }));
   function drawFlightHint() {
     const parsed = parseFlightNumber(flight.value);
     flightHint.replaceChildren();
@@ -233,7 +243,6 @@ function openDialog(tripId, state, existing = null) {
     const name = airlineName(parsed.airline);
     flightHint.append(name ? `${name} ${parsed.iata} · ` : `${parsed.iata} (항공사 코드 ${parsed.airline}) · `,
       el('a', { href: flightradarUrl(parsed.iata), target: '_blank', rel: 'noopener', class: 'link-accent', text: 'Flightradar24에서 보기' }));
-    if (!title.value.trim() && name) title.value = `${name} ${parsed.iata}`;
   }
   flight.addEventListener('input', drawFlightHint);
   type.addEventListener('change', () => { flightField.hidden = type.value !== 'flight'; checkoutField.hidden = type.value !== 'stay'; });
@@ -273,8 +282,14 @@ function openDialog(tripId, state, existing = null) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const parsedFlight = type.value === 'flight' ? parseFlightNumber(flight.value) : null;
+    const isFlight = type.value === 'flight';
+    const from = isFlight ? airportValue(fromAirport.value) : '';
+    const to = isFlight ? airportValue(toAirport.value) : '';
+    // 항공은 제목이 비어 있으면 공항·항공사·편명으로 만든다
+    if (isFlight && !title.value.trim()) title.value = flightTitle({ from, to, airline: airlineName(parsedFlight?.airline), iata: parsedFlight?.iata ?? null });
     const data = {
       type: type.value, title: title.value.trim(), datetime: datetime.value || null, code: code.value.trim(), note: note.value,
+      fromAirport: from, toAirport: to,
       checkout: type.value === 'stay' && checkout.value ? checkout.value : null,
       arrival: type.value === 'flight' && arrival.value ? arrival.value : null,
       linkedPlaceId: linked.value || null, linkedPlaceIds: existing?.linkedPlaceIds ?? [], flightNumber: parsedFlight ? parsedFlight.iata : null,
