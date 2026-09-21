@@ -24,6 +24,22 @@ export function parseCoordsInput(text) {
   return null;
 }
 
+// Google 지도 앱 '공유'로 복사되는 짧은 링크(maps.app.goo.gl 등)에는 좌표가 없다.
+// 대신 함께 복사되는 "이름 · 주소" 텍스트에서 이름을 뽑아 검색어로 쓴다.
+// 반환: { link, name } (name 은 없으면 null). 짧은 링크가 없으면 null.
+const SHORT_LINK = /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/maps|maps\.google\.com\/maps\?[^\s]*shorturl)[^\s]*/i;
+const ANY_URL = /https?:\/\/[^\s]+/g;
+
+export function parseShareText(text) {
+  const s = String(text ?? '').trim();
+  const m = s.match(SHORT_LINK);
+  if (!m) return null;
+  const rest = s.replace(ANY_URL, ' ').replace(/[ \t]+/g, ' ').trim();
+  const firstLine = rest.split(/\n/).map((l) => l.trim()).find(Boolean) ?? '';
+  const name = firstLine.split(/\s·\s|\s\|\s/)[0].replace(/[,\s]+$/, '').trim();
+  return { link: m[0], name: name || null };
+}
+
 export function googleMapsSearchUrl(query) {
   const q = String(query ?? '').trim();
   if (!q) return 'https://www.google.com/maps';

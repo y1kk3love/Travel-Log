@@ -2,7 +2,7 @@ import { el, toast, confirmDialog, icon, photoPath, CATEGORY_LABELS, CATEGORY_OR
 import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
-import { parseCoordsInput, googleMapsSearchUrl } from '../lib/coords.js';
+import { parseCoordsInput, parseShareText, googleMapsSearchUrl } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
 import { formatShort } from '../lib/dates.js';
@@ -153,15 +153,29 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   }
 
   // Google 지도 링크나 "위도, 경도"를 붙여넣으면 검색 대신 좌표를 바로 채운다.
+  // 앱 '공유'의 짧은 링크에는 좌표가 없으므로, 같이 복사된 이름으로 검색을 돌린다.
   function applyPastedCoords(text) {
     const coords = parseCoordsInput(text);
-    if (!coords) return false;
-    draft.lat = coords.lat; draft.lng = coords.lng;
-    draft.address = `붙여넣은 좌표 ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
-    results.hidden = true; search.value = '';
-    drawLocation();
-    toast('좌표를 가져왔어요. 이름을 적어 주세요');
-    if (!name.value.trim()) name.focus();
+    if (coords) {
+      draft.lat = coords.lat; draft.lng = coords.lng;
+      draft.address = `붙여넣은 좌표 ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
+      results.hidden = true; search.value = '';
+      drawLocation();
+      toast('좌표를 가져왔어요. 이름을 적어 주세요');
+      if (!name.value.trim()) name.focus();
+      return true;
+    }
+    const share = parseShareText(text);
+    if (!share) return false;
+    if (share.name) {
+      search.value = share.name;
+      if (!name.value.trim()) name.value = share.name;
+      toast(`짧은 공유 링크에는 좌표가 없어서 '${share.name}'(으)로 검색했어요. 결과에서 골라 주세요`, { ms: 4500 });
+      runSearch(share.name);
+    } else {
+      search.value = '';
+      toast('이 짧은 링크에는 좌표가 없어요. 장소 이름으로 검색하거나, 링크를 연 뒤 주소창의 긴 주소를 붙여넣어 주세요', { kind: 'error', ms: 6000 });
+    }
     return true;
   }
 
@@ -221,7 +235,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     class: 'btn btn-sm', target: '_blank', rel: 'noopener', href: googleMapsSearchUrl(''),
     onClick: (e) => { e.currentTarget.href = googleMapsSearchUrl(search.value.trim() || name.value.trim()); },
   }, icon('pin'), 'Google 지도에서 찾기');
-  const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도에서 찾은 장소의 공유 링크나 "위도, 경도"를 검색창에 붙여넣으면 핀이 찍혀요.' });
+  const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도 앱에서 "공유"로 복사한 내용을 붙여넣으면 그 이름으로 검색해요. 주소창의 긴 링크나 "위도, 경도"는 바로 핀이 찍혀요.' });
   const overlay = el('div', { class: 'sheet-overlay' });
   const form = el('form', { class: 'sheet' });
   const onKey = (e) => { if (e.key === 'Escape') close(); };
