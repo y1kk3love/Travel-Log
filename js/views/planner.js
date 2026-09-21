@@ -7,6 +7,7 @@ import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
 import { openPlaceSheet } from './place-sheet.js';
 import { takeShareTarget } from './share.js';
+import { refreshAlarms } from '../alarms.js';
 import { estimateTimes, routeBetween, pickNext } from '../lib/timeline.js';
 import { weatherLabel, pickDayLocation, forecastWindow } from '../lib/weather.js';
 import { fetchDailyForecast } from '../weather.js';
@@ -67,6 +68,7 @@ export function mount(content, ctx) {
         state.selectedDayId = today?.id ?? days[0]?.id ?? null;
       }
       redraw();
+      refreshAlarms(); // 앱 전용: 일정이 바뀌면 알림 다시 예약 (웹에서는 no-op)
     }),
     watchPlaces(tripId, (places) => {
       state.places = places;
@@ -75,6 +77,7 @@ export function mount(content, ctx) {
       if (target) { state.selectedDayId = target.dayId; state.focusPlaceId = null; }
       redraw();
       if (target) { map.focus(target.id); highlight(target.id); }
+      refreshAlarms();
     }),
     watchReservations(tripId, (r) => { state.reservations = r; redraw(); }),
   ];

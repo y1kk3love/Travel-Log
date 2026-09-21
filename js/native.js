@@ -61,6 +61,46 @@ export function onShareReceived(cb) {
   return () => window.removeEventListener('sendIntentReceived', handler);
 }
 
+// ---- 로컬 알림 ----
+export async function notificationPermission() {
+  const ln = plugin('LocalNotifications');
+  if (!ln) return 'unavailable';
+  try {
+    let { display } = await ln.checkPermissions();
+    if (display === 'prompt' || display === 'prompt-with-rationale') ({ display } = await ln.requestPermissions());
+    return display === 'granted' ? 'granted' : 'denied';
+  } catch { return 'unavailable'; }
+}
+
+export async function cancelAllNotifications() {
+  const ln = plugin('LocalNotifications');
+  if (!ln) return;
+  try {
+    const { notifications } = await ln.getPending();
+    if (notifications?.length) await ln.cancel({ notifications: notifications.map((n) => ({ id: n.id })) });
+  } catch (err) { console.warn('cancel notifications', err); }
+}
+
+// list: planAlarms() 결과
+export async function scheduleNotifications(list) {
+  const ln = plugin('LocalNotifications');
+  if (!ln || !list.length) return;
+  await ln.schedule({
+    notifications: list.map((a) => ({
+      id: a.id, title: a.title, body: a.body,
+      schedule: { at: new Date(a.at), allowWhileIdle: true },
+      extra: { tripId: a.tripId, placeId: a.placeId },
+    })),
+  });
+}
+
+export function onNotificationTap(cb) {
+  const ln = plugin('LocalNotifications');
+  if (!ln?.addListener) return () => {};
+  const handle = ln.addListener('localNotificationActionPerformed', (e) => cb(e?.notification?.extra ?? {}));
+  return () => { Promise.resolve(handle).then((h) => h?.remove?.()); };
+}
+
 // 앱이 앞으로 돌아올 때 (공유 인텐트·알림 탭 처리용)
 export function onResume(cb) {
   const app = plugin('App');

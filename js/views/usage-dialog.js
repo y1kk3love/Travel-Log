@@ -1,6 +1,8 @@
 import { el, openModal } from '../ui.js';
 import { quotaHits } from '../quota.js';
 import { quotaResetLabel } from '../lib/quota.js';
+import { alarmsStatus } from '../alarms.js';
+import { appVersion } from '../native.js';
 
 // 사이트 주인용: Google 지도 API 하루 한도와 콘솔 바로가기.
 // 실제 사용량은 브라우저에서 읽을 수 없어(Cloud 콘솔 로그인 필요) 콘솔 링크로 안내한다.
@@ -13,6 +15,16 @@ const LIMITS = [
   ['장소 상세 (위치·주소만)', '320 / 일', '10,000 / 월'],
   ['도보 경로 (Routes)', '320 / 일', '10,000 / 월'],
 ];
+
+// 안드로이드 앱에서만: 앱 버전과 알림 상태 (웹에서는 빈 요소)
+function appInfo() {
+  const box = el('div', { class: 'usage-app muted' });
+  const status = alarmsStatus();
+  if (status === 'denied') box.append(el('p', { text: '다음 목적지 알림이 꺼져 있어요. 폰 설정 → 앱 → 여행 로그 → 알림에서 켜 주세요.' }));
+  else if (status === 'granted') box.append(el('p', { text: '다음 목적지 알림 켜짐 (출발 10분 전)' }));
+  appVersion().then((v) => { if (v) box.append(el('p', { text: `앱 버전 ${v}` })); });
+  return box;
+}
 
 export function openUsageDialog() {
   const dialog = el('dialog', { class: 'usage-dialog' });
@@ -29,7 +41,8 @@ export function openUsageDialog() {
       el('table', { class: 'usage-table' },
         el('thead', {}, el('tr', {}, el('th', { text: 'API' }), el('th', { text: '하루 한도' }), el('th', { text: '무료 범위' }))),
         el('tbody', {}, ...LIMITS.map(([a, b, c]) => el('tr', {}, el('td', { text: a }), el('td', { text: b }), el('td', { text: c }))))),
-      el('div', { class: 'usage-links' }, link(CONSOLE, '할당량·사용량 보기'), link(BILLING, '결제 계정 보기'))),
+      el('div', { class: 'usage-links' }, link(CONSOLE, '할당량·사용량 보기'), link(BILLING, '결제 계정 보기')),
+      appInfo()),
     el('div', { class: 'dialog-actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, '닫기'))));
   openModal(dialog);
 }
