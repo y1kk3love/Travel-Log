@@ -39,8 +39,9 @@ function draw(main, trips) {
       siteOwner ? el('button', { class: 'btn btn-primary', onClick: openNewTripDialog }, icon('plus'), '새 여행') : null),
     section('다가오는 여행', upcoming.map(featureCard), siteOwner ? '아직 계획한 여행이 없어요. 새 여행을 만들어 보세요.' : '초대받은 여행이 여기에 보여요.'),
     section('지난 여행', past.map(smallCard), '지난 여행이 없어요.'),
-    appDownloadCard(), // 웹에서만: 최신 APK 링크
   );
+  const download = appDownloadCard(); // 웹에서만: 최신 APK 링크 (앱 안에서는 null → append 하면 글자 "null" 이 찍히므로 걸러 낸다)
+  if (download) main.append(download);
 }
 
 function section(title, cards, emptyText) {
