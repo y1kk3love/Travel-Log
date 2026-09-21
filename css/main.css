@@ -512,3 +512,23 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .keycard-cells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; font-size: 13px; }
 .keycard-cell .ticket-v { font-weight: 600; }
 @media (max-width: 640px) { .keycard-cells { grid-template-columns: 1fr 1fr; } .keycard-name { font-size: 19px; } }
+
+/* ---- 지출 정산: 영수증 종이 (위아래 뜯긴 자국) ---- */
+.receipt { position: relative; border-radius: 0; margin: 10px 0; padding: 18px 20px 14px; font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Pretendard Variable', monospace; font-size: 13px; background: var(--sf); box-shadow: 0 1px 0 rgba(0, 0, 0, .04); }
+.receipt::before, .receipt::after { content: ''; position: absolute; left: 0; right: 0; height: 8px; background: radial-gradient(circle at 8px 0, transparent 7px, var(--sf) 7.5px) 0 0 / 16px 8px repeat-x; }
+.receipt::before { top: -8px; }
+.receipt::after { bottom: -8px; transform: scaleY(-1); }
+.receipt-head { text-align: center; padding-bottom: 12px; border-bottom: 2px dashed var(--line); margin-bottom: 10px; }
+.receipt-title { font-family: 'Do Hyeon', var(--sans); font-size: 22px; letter-spacing: 2px; }
+.receipt-head .muted { font-size: 12px; margin-top: 2px; }
+.receipt-section { display: flex; flex-direction: column; gap: 6px; }
+.receipt-row { display: flex; align-items: baseline; gap: 6px; }
+.receipt-label { white-space: nowrap; }
+.receipt-dots { flex-grow: 1; border-bottom: 2px dotted var(--line); transform: translateY(-3px); min-width: 12px; }
+.receipt-amount { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.receipt-transfer { font-weight: 700; }
+.receipt-transfer .receipt-amount { color: var(--accent); }
+.receipt-total { font-weight: 800; font-size: 15px; }
+.receipt-sep { border-top: 2px dashed var(--line); margin: 10px 0; }
+.receipt-note { font-family: var(--sans); }
+.receipt-foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 14px; letter-spacing: 1px; }

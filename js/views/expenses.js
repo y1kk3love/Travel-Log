@@ -85,17 +85,27 @@ function draw(main, tripId, state) {
       s.missingRates.length ? el('span', { class: 'muted', text: `${s.missingRates.join(', ')} 환율이 없어 원화 합계에서 빠졌어요` }) : null));
   }
 
-  // 정산
+  // 정산: 영수증 종이 모양 (위아래 뜯긴 자국, 점선 이음줄, 고정폭 금액)
   if (members.length > 1) {
     const transfers = settle(s.perPerson);
-    main.append(el('section', { class: 'card expense-settle' },
-      el('strong', { text: '정산' }),
-      ...members.map((m) => el('div', { class: 'expense-settle-row muted' },
-        el('span', { text: `${nameOf(state, m)} · 낸 돈 ${formatKRW(s.perPerson[m].paid)} · 부담 ${formatKRW(s.perPerson[m].share)}` }))),
-      ...(transfers.length
-        ? transfers.map((t) => el('div', { class: 'expense-settle-row' },
-          el('strong', { text: `${nameOf(state, t.from)} → ${nameOf(state, t.to)}` }), el('span', { class: 'badge', text: formatKRW(t.amountKRW) })))
-        : [el('span', { class: 'muted', text: state.expenses.length ? '정산할 금액이 없어요' : '지출을 적으면 누가 누구에게 얼마를 보내면 되는지 나와요' })])));
+    const row = (label, value, cls = '') => el('div', { class: `receipt-row ${cls}` },
+      el('span', { class: 'receipt-label', text: label }), el('span', { class: 'receipt-dots' }), el('span', { class: 'receipt-amount', text: value }));
+    main.append(el('section', { class: 'card receipt' },
+      el('div', { class: 'receipt-head' },
+        el('div', { class: 'receipt-title', text: '정산 영수증' }),
+        el('div', { class: 'muted', text: `${state.trip?.title ?? ''} · ${members.length}명` })),
+      el('div', { class: 'receipt-section' },
+        ...members.map((m) => row(nameOf(state, m), `낸 돈 ${formatKRW(s.perPerson[m].paid)} · 부담 ${formatKRW(s.perPerson[m].share)}`))),
+      el('div', { class: 'receipt-sep' }),
+      el('div', { class: 'receipt-section' },
+        ...(transfers.length
+          ? transfers.map((t) => row(`${nameOf(state, t.from)} → ${nameOf(state, t.to)}`, formatKRW(t.amountKRW), 'receipt-transfer'))
+          : [el('p', { class: 'muted receipt-note', text: state.expenses.length ? '정산할 금액이 없어요' : '지출을 적으면 누가 누구에게 얼마를 보내면 되는지 나와요' })])),
+      el('div', { class: 'receipt-sep' }),
+      el('div', { class: 'receipt-section' },
+        row('총 지출', formatKRW(s.totalKRW), 'receipt-total'),
+        row('1인당', formatKRW(perHead))),
+      el('div', { class: 'receipt-foot', text: '★ 즐거운 여행 되세요 ★' })));
   }
 
   // 날짜별 목록 (최근 날짜부터)
