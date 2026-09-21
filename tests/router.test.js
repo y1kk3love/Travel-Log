@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseHash } from '../js/router.js';
+import { parseHash, navDirection } from '../js/router.js';
 
 test('빈 해시와 #/ 는 trips', () => {
   assert.deepEqual(parseHash(''), { name: 'trips' });
@@ -19,4 +19,14 @@ test('trip 경로와 탭', () => {
 test('planner 탭 뒤의 장소 ID는 placeId로 넘어온다', () => {
   assert.deepEqual(parseHash('#/trip/abc/planner/p1'), { name: 'trip', tripId: 'abc', tab: 'planner', placeId: 'p1' });
   assert.deepEqual(parseHash('#/trip/abc/checklist/p1'), { name: 'trip', tripId: 'abc', tab: 'checklist' });
+});
+
+test('navDirection: 홈→여행은 forward, 여행→홈은 back, 같은 여행의 탭 이동은 same', () => {
+  const home = parseHash('#/'), trip = parseHash('#/trip/abc'), tab = parseHash('#/trip/abc/expenses'), other = parseHash('#/trip/xyz');
+  assert.equal(navDirection(home, trip), 'forward');
+  assert.equal(navDirection(trip, home), 'back');
+  assert.equal(navDirection(trip, tab), 'same');
+  assert.equal(navDirection(tab, other), 'same');
+  assert.equal(navDirection(null, home), 'same');
+  assert.equal(navDirection(home, parseHash('#/share')), 'forward');
 });

@@ -92,15 +92,17 @@ function featureCard(trip) {
       stat('예약', `${s.reservations}건`));
     bar.firstChild.style.width = s.checklistTotal ? `${Math.round((s.checklistDone / s.checklistTotal) * 100)}%` : '0%';
   });
+  // 사진 위에 제목·날짜를 얹고, 아래 흰 면에 일정·체크·예약 숫자
   return el('a', { href: `#/trip/${trip.id}`, class: 'card trip-feature' },
-    cover(trip, 'trip-feature-cover'),
-    el('div', { class: 'trip-feature-body' },
-      el('div', { class: 'trip-meta' },
-        el('span', { class: 'badge', text: formatStatus(trip.status) }),
-        el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) }),
-        membersTag(trip)),
-      el('h2', { class: 'trip-title', text: trip.title }),
-      stats, bar),
+    el('div', { class: 'trip-feature-cover-wrap' },
+      cover(trip, 'trip-feature-cover'),
+      el('div', { class: 'trip-feature-overlay' },
+        el('div', { class: 'trip-meta' },
+          el('span', { class: 'badge', text: formatStatus(trip.status) }),
+          membersTag(trip)),
+        el('h2', { class: 'trip-title', text: trip.title }),
+        el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) }))),
+    el('div', { class: 'trip-feature-body' }, stats, bar),
     deleteButton(trip));
 }
 

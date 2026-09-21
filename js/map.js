@@ -11,9 +11,10 @@ import { walkingRoute, storedRoute } from './routes.js';
 import { escapeHtml, toast } from './ui.js';
 import { notifyQuota } from './quota.js';
 
-const ROUTE_COLOR = '#B4502B';
-const ME_COLOR = '#3E5C8A';
-const POOL_COLOR = '#8C8578'; // 보관함(날짜 미정) 핀
+const ROUTE_COLOR = '#0A6CFF'; // css --accent 와 같은 파랑
+const ME_COLOR = '#34C759';
+const POOL_COLOR = '#8E8E93'; // 보관함(날짜 미정) 핀
+const PIN_STROKE = '#FFFFFF';
 const DEFAULT_VIEW = { center: { lat: 36.5, lng: 127.8 }, zoom: 6 };
 const MAX_FIT_ZOOM = 15;
 const WALK_ROUTE_KM = 3; // 이보다 먼 구간은 (대중교통일 테니) 경로를 묻지 않고 직선으로
@@ -89,7 +90,7 @@ export function createMap(container) {
 
   function pinIcon(label) {
     const scale = label.length <= 2 ? 14 : label.length <= 4 ? 18 : 22;
-    return { path: g.SymbolPath.CIRCLE, scale, fillColor: ROUTE_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 3 };
+    return { path: g.SymbolPath.CIRCLE, scale, fillColor: ROUTE_COLOR, fillOpacity: 1, strokeColor: PIN_STROKE, strokeWeight: 3 };
   }
 
   // 한 핀에 묶인 장소들을 모두 보여주고, 방금 고른 장소를 굵게
@@ -153,7 +154,7 @@ export function createMap(container) {
       for (const p of groupOverlapping(extras)) {
         const marker = new Marker({
           map, position: { lat: p.lat, lng: p.lng }, title: p.items.map((x) => x.name).join(', '), zIndex: 1,
-          icon: { path: g.SymbolPath.CIRCLE, scale: 9, fillColor: POOL_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 2 },
+          icon: { path: g.SymbolPath.CIRCLE, scale: 9, fillColor: POOL_COLOR, fillOpacity: 1, strokeColor: PIN_STROKE, strokeWeight: 2 },
         });
         const entry = { marker, items: p.items.map((x) => ({ ...x, label: '보관' })) };
         marker.addListener('click', () => { openPopup(entry); selectCb && selectCb(p.items[0].id); });
@@ -166,7 +167,7 @@ export function createMap(container) {
         const label = spot.items.map((p) => p.label).filter(Boolean).join('·');
         const marker = new Marker({
           map, position: { lat: spot.lat, lng: spot.lng }, icon: pinIcon(label), title: spot.items.map((p) => p.name).join(', '),
-          label: { text: label, color: '#FFFDF9', fontSize: label.length > 4 ? '10px' : '12px', fontWeight: '700', fontFamily: 'inherit' },
+          label: { text: label, color: PIN_STROKE, fontSize: label.length > 4 ? '10px' : '12px', fontWeight: '700', fontFamily: 'inherit' },
         });
         const entry = { marker, items: spot.items };
         marker.addListener('click', () => { openPopup(entry); selectCb && selectCb(spot.items[0].id); });
@@ -201,7 +202,7 @@ export function createMap(container) {
       if (!meMarker) {
         meMarker = new Marker({
           map, position: { lat, lng }, clickable: false, zIndex: 1000,
-          icon: { path: g.SymbolPath.CIRCLE, scale: 8, fillColor: ME_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 3 },
+          icon: { path: g.SymbolPath.CIRCLE, scale: 8, fillColor: ME_COLOR, fillOpacity: 1, strokeColor: PIN_STROKE, strokeWeight: 3 },
         });
       } else {
         meMarker.setPosition({ lat, lng });

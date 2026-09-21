@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const BG = [0xb4, 0x50, 0x2b]; // 테라코타 (favicon.svg 배경색)
-const FG = [0xff, 0xfd, 0xf9]; // 비행기 색
+const BG = [0x0a, 0x6c, 0xff]; // 파랑 (favicon.svg 배경색, css --accent)
+const FG = [0xff, 0xff, 0xff]; // 비행기 색
 const SIZES = [180, 192, 512];
 const SS = 4; // 안티앨리어싱 슈퍼샘플 (SS x SS)
 

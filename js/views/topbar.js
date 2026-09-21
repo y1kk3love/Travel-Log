@@ -36,7 +36,7 @@ export function topbar({ backHref = null } = {}) {
   return el('header', { class: 'topbar' },
     el('div', { class: 'topbar-left' },
       el('a', { href: '#/', class: 'wordmark', text: '여행 로그' }),
-      backHref && el('a', { href: backHref, class: 'muted', text: '← 내 여행' })),
+      backHref && el('a', { href: backHref, class: 'topbar-back', text: '‹ 내 여행' })),
     el('div', { class: 'topbar-right' },
       offline,
       // 사이트 주인만: 지도 API 한도와 콘솔 바로가기
