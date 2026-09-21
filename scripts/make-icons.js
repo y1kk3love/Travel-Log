@@ -1,6 +1,6 @@
 // favicon.svg(비행기)를 PNG 홈 화면 아이콘으로 렌더링한다. 외부 의존성 없음.
 //   node scripts/make-icons.js
-// icons/icon-180.png (iOS), icon-192.png, icon-512.png (Android/Chrome) 생성.
+// icons/icon-180.png (iOS), icon-192.png, icon-512.png (Android/Chrome), og-image.png (링크 미리보기 1200x630) 생성.
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -35,22 +35,27 @@ function inside(poly, x, y) {
   return hit;
 }
 
-function render(size) {
+// width x height 캔버스 가운데에 비행기를 planeSize 크기로 그린다 (정사각 아이콘은 planeSize = size)
+function render(width, height = width, planeSize = width) {
   const poly = planePolygon();
-  const scale = size / 64;
-  const raw = Buffer.alloc((size * 3 + 1) * size);
-  for (let py = 0; py < size; py++) {
-    raw[py * (size * 3 + 1)] = 0; // 필터 없음
-    for (let px = 0; px < size; px++) {
+  const scale = planeSize / 64;
+  const ox = (width - planeSize) / 2, oy = (height - planeSize) / 2;
+  const stride = width * 3 + 1;
+  const raw = Buffer.alloc(stride * height);
+  for (let py = 0; py < height; py++) {
+    raw[py * stride] = 0; // 필터 없음
+    for (let px = 0; px < width; px++) {
       let cover = 0;
-      for (let sy = 0; sy < SS; sy++) {
-        for (let sx = 0; sx < SS; sx++) {
-          const x = (px + (sx + 0.5) / SS) / scale, y = (py + (sy + 0.5) / SS) / scale;
-          if (inside(poly, x, y)) cover++;
+      if (px >= ox - 1 && px < ox + planeSize + 1 && py >= oy - 1 && py < oy + planeSize + 1) {
+        for (let sy = 0; sy < SS; sy++) {
+          for (let sx = 0; sx < SS; sx++) {
+            const x = (px - ox + (sx + 0.5) / SS) / scale, y = (py - oy + (sy + 0.5) / SS) / scale;
+            if (inside(poly, x, y)) cover++;
+          }
         }
       }
       const t = cover / (SS * SS);
-      const o = py * (size * 3 + 1) + 1 + px * 3;
+      const o = py * stride + 1 + px * 3;
       for (let k = 0; k < 3; k++) raw[o + k] = Math.round(BG[k] + (FG[k] - BG[k]) * t);
     }
   }
@@ -73,9 +78,9 @@ function chunk(type, data) {
   const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
   return Buffer.concat([len, body, crc]);
 }
-function png(size, raw) {
+function png(width, height, raw) {
   const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0; // 8bit RGB
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -89,6 +94,10 @@ const outDir = path.join(__dirname, '..', 'icons');
 fs.mkdirSync(outDir, { recursive: true });
 for (const size of SIZES) {
   const file = path.join(outDir, `icon-${size}.png`);
-  fs.writeFileSync(file, png(size, render(size)));
+  fs.writeFileSync(file, png(size, size, render(size)));
   console.log(`${file} (${fs.statSync(file).size} bytes)`);
 }
+// 링크 미리보기(카카오톡·슬랙 등 Open Graph)용 1200x630
+const og = path.join(outDir, 'og-image.png');
+fs.writeFileSync(og, png(1200, 630, render(1200, 630, 360)));
+console.log(`${og} (${fs.statSync(og).size} bytes)`);
