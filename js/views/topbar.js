@@ -5,6 +5,7 @@ import { watchMyProfile } from '../db.js';
 import { displayNameFor } from '../lib/profile.js';
 import { openProfileDialog } from './profile-dialog.js';
 import { openUsageDialog } from './usage-dialog.js';
+import { openInvitesDialog } from './invites-dialog.js';
 import { avatar } from './avatar.js';
 
 // 뷰가 바뀔 때마다 topbar가 새로 만들어지므로 window 리스너는 모듈에서 한 번만 단다.
@@ -41,6 +42,7 @@ export function topbar({ backHref = null } = {}) {
       offline,
       // 사이트 주인만: 지도 API 한도와 콘솔 바로가기
       isOwner(auth.currentUser) && el('button', { class: 'btn btn-sm btn-ghost topbar-usage', title: 'Google 지도 API 사용량', onClick: () => openUsageDialog() }, 'API 사용량'),
+      isOwner(auth.currentUser) && el('button', { class: 'btn btn-sm btn-ghost topbar-invites', title: '초대 목록과 여행 만들기 허용', onClick: () => openInvitesDialog() }, '초대 관리'),
       el('button', {
         class: 'btn btn-sm btn-ghost topbar-me', title: `${email} · 닉네임 바꾸기`,
         onClick: () => openProfileDialog(myProfile?.nickname ?? ''),

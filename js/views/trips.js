@@ -1,9 +1,9 @@
 import { el, clear, toast, confirmDialog, openModal, icon, photoPath } from '../ui.js';
 import { topbar } from './topbar.js';
-import { watchTrips, createTrip, deleteTrip, tripStats, coverBytes } from '../db.js';
+import { watchTrips, createTrip, deleteTrip, tripStats, coverBytes, myAllowedEntry } from '../db.js';
 import { bytesToObjectUrl } from '../photo.js';
 import { tripStatus, formatStatus, formatRange, toDateStr, dayList } from '../lib/dates.js';
-import { isTripOwner } from '../lib/members.js';
+import { isTripOwner, canCreateTrips } from '../lib/members.js';
 import { auth } from '../firebase.js';
 import { isOwner } from '../auth.js';
 import { navigate } from '../router.js';
@@ -12,8 +12,12 @@ import { appDownloadCard } from './app-download.js';
 export function render(container) {
   const main = el('main', { class: 'container trips-page' });
   container.append(topbar(), main);
+  // 새 여행 버튼: 사이트 주인은 바로, 초대 계정은 "여행 만들기"가 켜져 있으면 (초대 목록 항목을 한 번 읽는다)
+  let trips = null;
+  const perm = { canCreate: isOwner(auth.currentUser) };
+  if (!perm.canCreate) myAllowedEntry().then((allowed) => { perm.canCreate = canCreateTrips({ isSiteOwner: false, allowed }); if (trips) draw(main, trips, perm); });
   const unsub = watchTrips(
-    (trips) => draw(main, trips),
+    (t) => { trips = t; draw(main, trips, perm); },
     (err) => {
       console.error(err);
       if (err.code === 'permission-denied') toast('접근 권한이 없어요. firestore.rules의 UID를 확인해 주세요', { kind: 'error', ms: 6000 });
@@ -23,13 +27,13 @@ export function render(container) {
   return () => unsub();
 }
 
-function draw(main, trips) {
+function draw(main, trips, perm) {
   clear(main);
   const today = toDateStr(new Date());
   const withStatus = trips.map((t) => ({ ...t, status: tripStatus(t.startDate, t.endDate, today) }));
   const upcoming = withStatus.filter((t) => t.status.kind !== 'after').sort((a, b) => a.startDate.localeCompare(b.startDate));
   const past = withStatus.filter((t) => t.status.kind === 'after');
-  const siteOwner = isOwner(auth.currentUser); // 새 여행은 사이트 주인만 만든다
+  const siteOwner = perm.canCreate; // 새 여행: 사이트 주인 또는 "여행 만들기"가 켜진 초대 계정
 
   main.append(
     el('div', { class: 'page-head' },

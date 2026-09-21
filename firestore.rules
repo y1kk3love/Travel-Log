@@ -34,18 +34,28 @@ service cloud.firestore {
       allow write: if signedIn() && email == myEmail() && request.resource.data.uid == request.auth.uid;
     }
 
-    // 초대 목록: 본인 항목만 읽을 수 있고, 초대(쓰기)는 사이트 주인만 한다
+    // 새 여행을 만들 수 있는 계정: 사이트 주인이거나 초대 목록 항목에 canCreate 가 켜진 계정
+    function canCreateTrips() {
+      return isSiteOwner()
+        || (signedIn() && exists(/databases/$(database)/documents/allowedUsers/$(myEmail()))
+            && get(/databases/$(database)/documents/allowedUsers/$(myEmail())).data.get('canCreate', false) == true);
+    }
+    // 초대 목록: 본인 항목은 누구나, 전체 목록은 사이트 주인만 읽는다.
+    // 쓰기: 사이트 주인은 전부. 여행을 만들 수 있는 계정은 동행 초대용으로 항목을 추가·갱신만 할 수 있고 canCreate 는 못 켠다.
     match /allowedUsers/{email} {
-      allow read: if signedIn() && email == myEmail();
-      allow write: if isSiteOwner();
+      allow get: if signedIn() && (email == myEmail() || isSiteOwner());
+      allow list: if isSiteOwner();
+      allow create: if isSiteOwner() || (canCreateTrips() && request.resource.data.get('canCreate', false) == false);
+      allow update: if isSiteOwner() || (canCreateTrips() && request.resource.data.get('canCreate', false) == resource.data.get('canCreate', false));
+      allow delete: if isSiteOwner();
     }
 
     match /trips/{tripId} {
       // 없는 여행(방금 삭제된 것 등)을 단건 조회하면 오류 대신 "없음"이 오도록 허용한다. 목록 조회는 멤버만.
       allow get: if signedIn() && (resource == null || isMemberOf(resource.data));
       allow list: if isMemberOf(resource.data);
-      // 새 여행은 사이트 주인만 만든다. 초대받은 동행은 기존 여행만 함께 편집한다.
-      allow create: if isSiteOwner()
+      // 새 여행은 사이트 주인 또는 "여행 만들기"가 켜진 초대 계정이 만든다. 만든 사람이 그 여행의 주인.
+      allow create: if canCreateTrips()
         && request.resource.data.ownerUid == request.auth.uid
         && myEmail() in request.resource.data.memberEmails;
       // 멤버는 내용을 고칠 수 있지만 소유자는 못 바꾸고, 동행 목록은 소유자만 바꾼다

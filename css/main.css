@@ -431,3 +431,5 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .badge-link:hover { filter: brightness(.92); }
 .reservation.active { box-shadow: 0 0 0 2px var(--accent); animation: card-flash 1.2s var(--ease); }
 @keyframes card-flash { from { background: var(--accent-soft); } to { background: var(--sf); } }
+.invite-create { margin-top: 0; white-space: nowrap; }
+@media (max-width: 640px) { .topbar-invites { display: none; } }

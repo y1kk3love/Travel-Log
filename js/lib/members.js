@@ -14,3 +14,8 @@ export function sortTripsByStart(trips) {
 export function isTripOwner(trip, user) {
   return !!user && !!trip?.ownerUid && trip.ownerUid === user.uid;
 }
+
+// 새 여행을 만들 수 있나: 사이트 주인이거나, 초대 목록(allowedUsers) 항목에 canCreate 가 켜진 계정
+export function canCreateTrips({ isSiteOwner, allowed }) {
+  return !!isSiteOwner || allowed?.canCreate === true;
+}

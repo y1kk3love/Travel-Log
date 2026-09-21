@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeEmail, sortTripsByStart, isTripOwner } from '../js/lib/members.js';
+import { normalizeEmail, sortTripsByStart, isTripOwner, canCreateTrips } from '../js/lib/members.js';
 
 test('normalizeEmail: 공백 제거·소문자, 형식이 아니면 null', () => {
   assert.equal(normalizeEmail('  Friend@Gmail.com '), 'friend@gmail.com');
@@ -24,4 +24,11 @@ test('isTripOwner', () => {
   assert.equal(isTripOwner({ ownerUid: 'u1' }, { uid: 'u2' }), false);
   assert.equal(isTripOwner({}, { uid: 'u1' }), false);
   assert.equal(isTripOwner({ ownerUid: 'u1' }, null), false);
+});
+
+test('canCreateTrips: 사이트 주인은 항상, 그 외는 초대 목록 항목에 canCreate 가 켜져 있을 때만', () => {
+  assert.equal(canCreateTrips({ isSiteOwner: true, allowed: null }), true);
+  assert.equal(canCreateTrips({ isSiteOwner: false, allowed: { canCreate: true } }), true);
+  assert.equal(canCreateTrips({ isSiteOwner: false, allowed: { invitedAt: 1 } }), false);
+  assert.equal(canCreateTrips({ isSiteOwner: false, allowed: null }), false);
 });

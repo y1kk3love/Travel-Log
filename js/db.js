@@ -444,3 +444,22 @@ export async function estimateStorage() {
   }
   return { bytes, docs, trips: trips.size };
 }
+
+// ---------- 초대 목록 관리 (사이트 주인) ----------
+// allowedUsers/{email}: { invitedAt, invitedBy, canCreate? }. canCreate 가 켜진 계정은 새 여행을 만들 수 있다 (규칙에서도 검사).
+export async function myAllowedEntry() {
+  try { const s = await getDoc(doc(db, 'allowedUsers', me().email)); return s.exists() ? s.data() : null; }
+  catch (err) { logError(err); return null; }
+}
+
+export function watchAllowedUsers(cb, onError = logError) {
+  return onSnapshot(collection(db, 'allowedUsers'), (s) => cb(s.docs.map((d) => ({ email: d.id, ...d.data() }))), onError);
+}
+
+export function setAllowedUser(email, data = {}) {
+  return setDoc(doc(db, 'allowedUsers', email), { invitedAt: serverTimestamp(), invitedBy: me().uid, ...data }, { merge: true });
+}
+
+export function removeAllowedUser(email) {
+  return deleteDoc(doc(db, 'allowedUsers', email));
+}
