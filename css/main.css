@@ -293,3 +293,6 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .map-canvas { position: absolute; inset: 0; }
 .usage-status { font-size: 13px; padding: 8px 12px; border-radius: 8px; background: var(--line-soft); }
 .usage-status-hit { background: #FBE9E4; color: #8C2F14; font-weight: 600; }
+.map-popup-row { padding: 2px 0; }
+.map-popup-row.active { font-weight: 700; }
+.map-popup-num { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 11px; text-align: center; padding: 0 4px; margin-right: 2px; }

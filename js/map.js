@@ -5,7 +5,7 @@
 // - 지도 인스턴스는 페이지 안에서 하나만 만들고(= 지도 로드 1건) 화면을 오갈 때 재사용한다.
 // - 구간 경로는 출발 장소 문서(routeToNext)에 30일간 저장된 것을 먼저 쓰고, 없을 때만 Routes API 를 부른다.
 import { importLibrary } from './gmaps.js';
-import { hasCoords, distanceKm } from './lib/geo.js';
+import { distanceKm, groupOverlapping } from './lib/geo.js';
 import { splitLegs } from './lib/polyline.js';
 import { walkingRoute, storedRoute } from './routes.js';
 import { escapeHtml, toast } from './ui.js';
@@ -87,20 +87,24 @@ export function createMap(container) {
   const whenReady = (fn) => { if (map) fn(); else pending.push(fn); };
 
   function pinIcon(label) {
-    return {
-      path: g.SymbolPath.CIRCLE, scale: label.length > 2 ? 17 : 14,
-      fillColor: ROUTE_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 3,
-    };
+    const scale = label.length <= 2 ? 14 : label.length <= 4 ? 18 : 22;
+    return { path: g.SymbolPath.CIRCLE, scale, fillColor: ROUTE_COLOR, fillOpacity: 1, strokeColor: '#FFFDF9', strokeWeight: 3 };
   }
 
-  function popupHtml(p) {
-    return `<div class="map-popup"><strong>${escapeHtml(p.name)}</strong>${p.time ? `<br><span class="muted">${escapeHtml(p.time)}</span>` : ''}</div>`;
+  // 한 핀에 묶인 장소들을 모두 보여주고, 방금 고른 장소를 굵게
+  function popupHtml(items, highlightId) {
+    const rows = items.map((p) => {
+      const meta = p.time ? ` <span class="muted">${escapeHtml(p.time)}</span>` : '';
+      const line = `${p.label ? `<span class="map-popup-num">${escapeHtml(p.label)}</span> ` : ''}${escapeHtml(p.name)}${meta}`;
+      return `<div class="map-popup-row${p.id === highlightId ? ' active' : ''}">${line}</div>`;
+    });
+    return `<div class="map-popup">${rows.join('')}</div>`;
   }
 
-  function openPopup(p, marker) {
-    infoWindow.setContent(popupHtml(p));
-    infoWindow.open({ map, anchor: marker });
-    openPopupId = p.id;
+  function openPopup(entry, highlightId = entry.items[0]?.id) {
+    infoWindow.setContent(popupHtml(entry.items, highlightId));
+    infoWindow.open({ map, anchor: entry.marker });
+    openPopupId = highlightId;
   }
 
   function clearLines() {
@@ -144,25 +148,25 @@ export function createMap(container) {
       markers = new Map();
       clearLines();
       const bounds = new g.LatLngBounds();
-      let count = 0;
-      for (const group of groups) {
-        for (const p of group.filter(hasCoords)) {
-          const marker = new Marker({
-            map, position: { lat: p.lat, lng: p.lng }, icon: pinIcon(p.label ?? ''), title: p.name,
-            label: { text: p.label ?? '', color: '#FFFDF9', fontSize: '12px', fontWeight: '700', fontFamily: 'inherit' },
-          });
-          marker.addListener('click', () => { openPopup(p, marker); selectCb && selectCb(p.id); });
-          markers.set(p.id, { marker, place: p });
-          bounds.extend(marker.getPosition());
-          count++;
-        }
+      // 같은 자리의 장소(여러 날 묵는 호텔 등)는 핀 하나에 "3·6" 처럼 번호를 모아 쓴다
+      const spots = groupOverlapping(groups.flat());
+      for (const spot of spots) {
+        const label = spot.items.map((p) => p.label).filter(Boolean).join('·');
+        const marker = new Marker({
+          map, position: { lat: spot.lat, lng: spot.lng }, icon: pinIcon(label), title: spot.items.map((p) => p.name).join(', '),
+          label: { text: label, color: '#FFFDF9', fontSize: label.length > 4 ? '10px' : '12px', fontWeight: '700', fontFamily: 'inherit' },
+        });
+        const entry = { marker, items: spot.items };
+        marker.addListener('click', () => { openPopup(entry); selectCb && selectCb(spot.items[0].id); });
+        for (const p of spot.items) markers.set(p.id, entry);
+        bounds.extend(marker.getPosition());
       }
       drawLegs(groups, gen);
-      if (fit && count) {
+      if (fit && spots.length) {
         map.fitBounds(bounds, 48);
         g.event.addListenerOnce(map, 'idle', () => { if (map.getZoom() > MAX_FIT_ZOOM) map.setZoom(MAX_FIT_ZOOM); });
       }
-      if (keepPopup && markers.has(keepPopup)) { const { marker, place } = markers.get(keepPopup); openPopup(place, marker); }
+      if (keepPopup && markers.has(keepPopup)) openPopup(markers.get(keepPopup), keepPopup);
       else openPopupId = null;
     });
   }
@@ -172,7 +176,7 @@ export function createMap(container) {
       const entry = markers.get(placeId);
       if (!entry) return;
       map.panTo(entry.marker.getPosition());
-      openPopup(entry.place, entry.marker);
+      openPopup(entry, placeId);
     });
   }
 
