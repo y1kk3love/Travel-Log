@@ -7,6 +7,7 @@ import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode
 import { placesFromReservation } from '../lib/reservation-place.js';
 import { orderForTime } from '../lib/order.js';
 import { compressImage } from '../photo.js';
+import { diffDays } from '../lib/dates.js';
 
 const FILE_ACCEPT = 'image/*,application/pdf';
 const formatSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
@@ -79,6 +80,7 @@ function card(tripId, state, r) {
     }, icon('trash')),
   ];
   if (r.type === 'flight') return ticketCard(tripId, r, linked, actions);
+  if (r.type === 'stay') return keyCard(tripId, r, linked, actions);
   return el('section', { class: 'card reservation', dataset: { id: r.id } },
     el('div', { class: 'reservation-head' },
       el('div', { class: 'reservation-title' },
@@ -139,6 +141,29 @@ function ticketCard(tripId, r, linked, actions) {
         el('div', { class: 'ticket-foot' },
           flight ? el('a', { href: flightradarUrl(flight.iata), target: '_blank', rel: 'noopener', class: 'link-accent', text: 'Flightradar24에서 보기' }) : null,
           filesField(tripId, r)))));
+}
+
+// 숙소 예약은 호텔 키카드 모양: 왼쪽 마그네틱 띠, 호텔 이름 크게, 체크인 → 체크아웃과 박 수, 아래 줄에 예약번호·연결 일정·메모·서류
+function keyCard(tripId, r, linked, actions) {
+  const fmt = (dt) => (dt ? formatDatetime(dt) : null);
+  const nights = r.datetime && r.checkout ? diffDays(r.datetime.slice(0, 10), r.checkout.slice(0, 10)) : null;
+  const cell = (k, v) => el('div', { class: 'keycard-cell' }, el('div', { class: 'ticket-k', text: k }), el('div', { class: 'ticket-v' }, v));
+  return el('section', { class: 'card reservation keycard', dataset: { id: r.id } },
+    el('div', { class: 'keycard-stripe' }, el('span', { class: 'keycard-stripe-text', text: 'ROOM KEY' })),
+    el('div', { class: 'keycard-body' },
+      el('div', { class: 'keycard-top' },
+        el('span', { class: 'keycard-brand' }, icon('pin'), '숙소'),
+        el('span', { class: 'keycard-actions' }, ...actions())),
+      el('div', { class: 'keycard-name', text: r.title || '(제목 없음)' }),
+      el('div', { class: 'keycard-dates' },
+        el('span', { class: 'keycard-date' }, el('span', { class: 'ticket-k', text: '체크인' }), el('strong', { text: fmt(r.datetime) ?? '미정' })),
+        el('span', { class: 'keycard-arrow', text: nights != null && nights > 0 ? `${nights}박` : '→' }),
+        el('span', { class: 'keycard-date' }, el('span', { class: 'ticket-k', text: '체크아웃' }), el('strong', { class: r.checkout ? '' : 'muted', text: fmt(r.checkout) ?? '미정' }))),
+      el('div', { class: 'keycard-cells' },
+        cell('예약번호', r.code ? el('span', { class: 'ticket-mono', text: r.code }) : el('span', { class: 'muted', text: '없음' })),
+        cell('연결된 일정', linked ?? el('span', { class: 'muted', text: '없음' })),
+        cell('메모', r.note ? el('span', { class: 'pre-wrap' }, linkedText(r.note)) : el('span', { class: 'muted', text: '—' })),
+        cell('서류', filesField(tripId, r)))));
 }
 
 // 예약 서류: 항공권 PDF·바우처·여권 사본을 붙여 두고 여행 중에 바로 연다 (한 번 연 서류는 오프라인에서도 열린다)
