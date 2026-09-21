@@ -354,6 +354,13 @@ dialog h2 { font-size: 22px; margin-bottom: 16px; }
 .share-pick-list { display: flex; flex-direction: column; gap: 10px; }
 .share-trip { text-align: left; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
 
+/* ---- 안드로이드 앱 받기 카드 (웹) ---- */
+.app-download { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; margin-top: 32px; }
+.app-download-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.app-download-body p { font-size: 13px; }
+.app-download .btn { flex-shrink: 0; white-space: nowrap; }
+@media (max-width: 640px) { .app-download { flex-direction: column; align-items: stretch; } }
+
 /* ---- 새 버전 배너 (앱) ---- */
 .update-banner { position: sticky; top: 0; z-index: 900; display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--accent); color: var(--accent-ink); font-size: 14px; }
 .update-banner span { flex-grow: 1; }

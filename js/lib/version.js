@@ -14,3 +14,9 @@ export function isNewer(a, b) {
 export function pickApk(assets) {
   return (assets ?? []).find((a) => /\.apk$/i.test(a.name ?? ''))?.browser_download_url ?? null;
 }
+
+// GitHub 릴리스 JSON → { url, version }. APK 자산이 없으면 릴리스 페이지 주소로. 태그가 없으면 null.
+export function latestApk(rel) {
+  if (!rel || !rel.tag_name) return null;
+  return { url: pickApk(rel.assets) ?? rel.html_url ?? null, version: rel.tag_name };
+}

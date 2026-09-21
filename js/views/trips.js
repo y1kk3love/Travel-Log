@@ -7,6 +7,7 @@ import { isTripOwner } from '../lib/members.js';
 import { auth } from '../firebase.js';
 import { isOwner } from '../auth.js';
 import { navigate } from '../router.js';
+import { appDownloadCard } from './app-download.js';
 
 export function render(container) {
   const main = el('main', { class: 'container trips-page' });
@@ -38,6 +39,7 @@ function draw(main, trips) {
       siteOwner ? el('button', { class: 'btn btn-primary', onClick: openNewTripDialog }, icon('plus'), '새 여행') : null),
     section('다가오는 여행', upcoming.map(featureCard), siteOwner ? '아직 계획한 여행이 없어요. 새 여행을 만들어 보세요.' : '초대받은 여행이 여기에 보여요.'),
     section('지난 여행', past.map(smallCard), '지난 여행이 없어요.'),
+    appDownloadCard(), // 웹에서만: 최신 APK 링크
   );
 }
 
