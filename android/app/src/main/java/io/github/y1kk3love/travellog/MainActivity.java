@@ -33,12 +33,15 @@ public class MainActivity extends BridgeActivity {
         WindowInsetsControllerCompat controller = new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView());
         controller.setAppearanceLightStatusBars(true); // 밝은 배경 → 어두운 상태바 아이콘
         controller.setAppearanceLightNavigationBars(true);
-        ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
+        // WebView 는 자기 padding 을 잘 반영하지 않으므로, 웹뷰를 담는 화면 컨테이너(android.R.id.content)에 여백을 준다
+        View content = findViewById(android.R.id.content);
+        content.setBackgroundColor(bg);
+        ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime());
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             return WindowInsetsCompat.CONSUMED;
         });
-        ViewCompat.requestApplyInsets(webView);
+        ViewCompat.requestApplyInsets(content);
     }
 
     // 앱이 이미 켜진 채로 공유가 들어오면(singleTask) 새 인텐트로 바꿔 둔다. 웹은 resume 때 ShareIntent.take() 로 꺼낸다.
