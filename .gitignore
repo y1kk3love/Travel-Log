@@ -4,3 +4,7 @@ dist/
 *.keystore
 *.jks
 android/app/release/
+# Firebase 에뮬레이터 로그
+firebase-debug.log
+firestore-debug.log
+ui-debug.log

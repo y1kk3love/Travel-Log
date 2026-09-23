@@ -7,7 +7,9 @@
     "serve": "npx --yes http-server -p 8080 -c-1 .",
     "build:web": "node scripts/build-web.js",
     "cap:sync": "node scripts/build-web.js && npx cap sync android",
-    "sw:precache": "node scripts/sw-precache.js"
+    "sw:precache": "node scripts/sw-precache.js",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-travel-log \"node --test tests-rules/firestore.rules.test.js\"",
+    "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.5.2",
@@ -17,6 +19,9 @@
     "@capacitor/local-notifications": "^8.3.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.5.2"
+    "@capacitor/cli": "^8.5.2",
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.30.2"
   }
 }

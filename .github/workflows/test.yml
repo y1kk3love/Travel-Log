@@ -15,3 +15,19 @@ jobs:
         with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: npm test
+
+  # 보안 규칙 테스트: Firestore 에뮬레이터(Java 21)에서 demo 프로젝트로 돈다 (로그인·과금 없음)
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 24, cache: npm }
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: 21 }
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+      - run: npm run test:rules
