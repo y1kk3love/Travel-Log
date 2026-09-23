@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle, airportInfo, flightProgress } from '../js/lib/flight.js';
+import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle, airportInfo, flightProgress , zonedToEpoch, airportTimeZone } from '../js/lib/flight.js';
 
 test('parseFlightNumber: 공백·소문자·붙여쓰기를 모두 받아 IATA 편명으로 정리한다', () => {
   assert.deepEqual(parseFlightNumber('LJ213'), { airline: 'LJ', number: '213', iata: 'LJ213' });
@@ -86,4 +86,38 @@ test('flightProgress: 출발~도착 사이면 진행률과 남은 분, 아니면
   assert.equal(flightProgress(dep, arr, new Date(2026, 3, 17, 9, 0)), null);
   assert.equal(flightProgress(dep, arr, new Date(2026, 3, 17, 11, 30)), null);
   assert.equal(flightProgress(dep, null, new Date(2026, 3, 17, 10, 0)), null);
+});
+
+test('zonedToEpoch: 공항 현지 시각을 실제 시각으로 (서머타임 포함)', () => {
+  assert.equal(new Date(zonedToEpoch('2027-02-13T09:00', 'Asia/Seoul')).toISOString(), '2027-02-13T00:00:00.000Z');
+  assert.equal(new Date(zonedToEpoch('2027-02-13T13:00', 'Asia/Bangkok')).toISOString(), '2027-02-13T06:00:00.000Z');
+  assert.equal(new Date(zonedToEpoch('2027-07-01T14:00', 'America/Los_Angeles')).toISOString(), '2027-07-01T21:00:00.000Z'); // PDT
+  assert.equal(new Date(zonedToEpoch('2027-01-15T14:00', 'America/Los_Angeles')).toISOString(), '2027-01-15T22:00:00.000Z'); // PST
+});
+
+test('airportTimeZone: 표에 있는 공항은 시간대, 모르면 null', () => {
+  assert.equal(airportTimeZone('ICN'), 'Asia/Seoul');
+  assert.equal(airportTimeZone('방콕'), 'Asia/Bangkok');
+  assert.equal(airportTimeZone('XYZ'), null);
+});
+
+test('flightDuration: 시차가 있으면 두 공항의 현지 시각으로 계산한다 (인천 09:00 → 방콕 13:00 은 6시간)', () => {
+  assert.equal(flightDuration('2027-02-13T09:00', '2027-02-13T13:00', { from: 'Asia/Seoul', to: 'Asia/Bangkok' }), '6시간');
+  assert.equal(flightDuration('2027-02-16T23:00', '2027-02-17T06:30', { from: 'Asia/Bangkok', to: 'Asia/Seoul' }), '5시간 30분');
+  assert.equal(flightDuration('2027-07-01T20:00', '2027-07-01T14:00', { from: 'Asia/Seoul', to: 'America/Los_Angeles' }), '10시간'); // 날짜 변경선
+  assert.equal(flightDuration('2027-02-13T08:05', '2027-02-13T09:50'), '1시간 45분'); // 시간대를 모르면 예전처럼
+});
+
+test('flightProgress: 시간대를 알면 실제 시각으로 비행 중인지 본다', () => {
+  const zones = { from: 'Asia/Seoul', to: 'Asia/Bangkok' };
+  const mid = new Date('2027-02-13T03:00:00Z'); // 출발(00:00Z)과 도착(06:00Z)의 가운데
+  assert.deepEqual(flightProgress('2027-02-13T09:00', '2027-02-13T13:00', mid, zones), { ratio: 0.5, minutesLeft: 180 });
+  assert.equal(flightProgress('2027-02-13T09:00', '2027-02-13T13:00', new Date('2027-02-13T06:30:00Z'), zones), null); // 이미 착륙
+});
+
+test('좌표가 있는 공항은 모두 시간대도 있다 (공항을 더하면 시간대도 함께)', async () => {
+  const { AIRPORT_COORDS, AIRPORT_TZ } = await import('../js/lib/flight.js');
+  const missing = Object.keys(AIRPORT_COORDS).filter((c) => !AIRPORT_TZ[c]);
+  assert.deepEqual(missing, []);
+  for (const tz of new Set(Object.values(AIRPORT_TZ))) assert.doesNotThrow(() => new Intl.DateTimeFormat('en-US', { timeZone: tz }), tz);
 });

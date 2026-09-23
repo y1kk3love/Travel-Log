@@ -61,9 +61,11 @@ export function parseRoute(title) {
   return from && to ? { from, to } : null;
 }
 
-// 출발·도착 일시(YYYY-MM-DDTHH:MM)로 "1시간 30분". 둘 중 하나가 없거나 도착이 더 이르면 null.
-export function flightDuration(departure, arrival) {
-  const a = Date.parse(departure ?? ''), b = Date.parse(arrival ?? '');
+// 출발·도착 일시(YYYY-MM-DDTHH:MM, 각 공항 현지 시각)로 "1시간 30분". 둘 중 하나가 없거나 도착이 더 이르면 null.
+// zones: { from, to } 시간대 (airportTimeZone). 없으면 두 시각을 같은 시간대로 본다
+export function flightDuration(departure, arrival, zones = {}) {
+  if (!departure || !arrival) return null;
+  const a = toEpoch(departure, zones.from), b = toEpoch(arrival, zones.to);
   if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
   const min = Math.round((b - a) / 60000);
   const h = Math.floor(min / 60), m = min % 60;
@@ -90,7 +92,7 @@ export function flightTitle({ from = '', to = '', airline = null, iata = null } 
 }
 
 // 공항 좌표 (위도, 경도). 예약에서 만든 항공 일정을 지도에 찍는 데 쓴다.
-const AIRPORT_COORDS = {
+export const AIRPORT_COORDS = {
   ICN: [37.4602, 126.4407], GMP: [37.5583, 126.7906], CJU: [33.5113, 126.4930], PUS: [35.1795, 128.9382], TAE: [35.8941, 128.6589], CJJ: [36.7166, 127.4990], MWX: [34.9914, 126.3828],
   NRT: [35.7720, 140.3929], HND: [35.5494, 139.7798], KIX: [34.4347, 135.2440], ITM: [34.7855, 135.4382], FUK: [33.5859, 130.4507], NGO: [34.8584, 136.8054],
   CTS: [42.7752, 141.6923], OKA: [26.1958, 127.6459], SDJ: [38.1397, 140.9169], HIJ: [34.4361, 132.9194], KMJ: [32.8373, 130.8550], KOJ: [31.8034, 130.7194], OIT: [33.4794, 131.7373], TAK: [34.2142, 134.0156], MYJ: [33.8272, 132.6997], KKJ: [33.8459, 131.0349],
@@ -99,6 +101,40 @@ const AIRPORT_COORDS = {
   SIN: [1.3644, 103.9915], KUL: [2.7456, 101.7099], CEB: [10.3075, 123.9790], MNL: [14.5086, 121.0198], DPS: [-8.7482, 115.1672], GUM: [13.4834, 144.7960], SPN: [15.1190, 145.7294], HNL: [21.3187, -157.9225],
   CDG: [49.0097, 2.5479], LHR: [51.4700, -0.4543], FRA: [50.0379, 8.5622], FCO: [41.8003, 12.2389], SYD: [-33.9399, 151.1753], LAX: [33.9416, -118.4085], JFK: [40.6413, -73.7781], YVR: [49.1947, -123.1792],
 };
+
+// 공항 → 시간대 (IANA). 예약의 출발·도착 일시는 각 공항의 현지 시각이라, 시차가 있으면 이걸로 실제 시각을 맞춘다.
+const TZ_GROUPS = {
+  'Asia/Seoul': 'ICN GMP CJU PUS TAE CJJ MWX',
+  'Asia/Tokyo': 'NRT HND KIX ITM FUK NGO CTS OKA SDJ HIJ KMJ KOJ OIT TAK MYJ KKJ',
+  'Asia/Taipei': 'TPE TSA KHH', 'Asia/Hong_Kong': 'HKG', 'Asia/Macau': 'MFM', 'Asia/Shanghai': 'PVG PEK',
+  'Asia/Ho_Chi_Minh': 'DAD HAN SGN CXR', 'Asia/Bangkok': 'BKK DMK HKT CNX', 'Asia/Singapore': 'SIN', 'Asia/Kuala_Lumpur': 'KUL',
+  'Asia/Manila': 'CEB MNL', 'Asia/Makassar': 'DPS', 'Pacific/Guam': 'GUM', 'Pacific/Saipan': 'SPN', 'Pacific/Honolulu': 'HNL',
+  'Europe/Paris': 'CDG', 'Europe/London': 'LHR', 'Europe/Berlin': 'FRA', 'Europe/Rome': 'FCO', 'Australia/Sydney': 'SYD',
+  'America/Los_Angeles': 'LAX', 'America/New_York': 'JFK', 'America/Vancouver': 'YVR',
+};
+export const AIRPORT_TZ = Object.fromEntries(Object.entries(TZ_GROUPS).flatMap(([tz, codes]) => codes.split(' ').map((c) => [c, tz])));
+
+// 도시·코드 → 시간대. 모르는 공항이면 null
+export function airportTimeZone(text) {
+  const code = airportCode(text);
+  return (code && AIRPORT_TZ[code]) || null;
+}
+
+// 그 시간대의 현지 시각 "YYYY-MM-DDTHH:MM" → 실제 시각(epoch ms). 서머타임 경계도 맞게 두 번 맞춘다.
+function tzOffsetMinutes(epoch, tz) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(epoch));
+  const get = (type) => Number(parts.find((p) => p.type === type)?.value);
+  return (Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second')) - epoch) / 60000;
+}
+export function zonedToEpoch(local, tz) {
+  const m = String(local ?? '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return NaN;
+  const guess = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+  const first = guess - tzOffsetMinutes(guess, tz) * 60000;
+  return guess - tzOffsetMinutes(first, tz) * 60000;
+}
+// 시간대를 알면 그 현지 시각으로, 모르면 예전처럼 기기 시각으로
+const toEpoch = (local, tz) => (tz ? zonedToEpoch(local, tz) : Date.parse(local ?? ''));
 
 // 도시·코드 → { code, city, lat, lng }. 모르는 공항이면 null. city 는 표의 첫 이름(오사카·간사이 → 오사카).
 export function airportInfo(text) {
@@ -110,8 +146,9 @@ export function airportInfo(text) {
 }
 
 // 비행 중이면 { ratio(0~1), minutesLeft }, 아니면 null. 탑승권의 비행기 위치와 "착륙까지" 표시에 쓴다.
-export function flightProgress(departure, arrival, now = new Date()) {
-  const a = Date.parse(departure ?? ''), b = Date.parse(arrival ?? ''), t = now.getTime();
+export function flightProgress(departure, arrival, now = new Date(), zones = {}) {
+  if (!departure || !arrival) return null;
+  const a = toEpoch(departure, zones.from), b = toEpoch(arrival, zones.to), t = now.getTime();
   if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a || t < a || t > b) return null;
   return { ratio: Math.round(((t - a) / (b - a)) * 100) / 100, minutesLeft: Math.ceil((b - t) / 60000) };
 }

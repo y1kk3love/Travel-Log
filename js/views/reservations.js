@@ -3,7 +3,7 @@ import {
   watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays,
   addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, addPlace, updatePlace,
 } from '../db.js';
-import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle, flightProgress } from '../lib/flight.js';
+import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle, flightProgress, airportTimeZone } from '../lib/flight.js';
 import { placesFromReservation } from '../lib/reservation-place.js';
 import { orderForTime } from '../lib/order.js';
 import { compressImage } from '../photo.js';
@@ -114,7 +114,9 @@ function ticketCard(tripId, r, linked, actions) {
     el('div', { class: `ticket-code${airportCode(city) ? '' : ' ticket-code-text'}`, text: airportCode(city) ?? (city || '—') }),
     el('div', { class: 'ticket-city', text: airportCode(city) && city ? city : '' }),
     el('div', { class: `ticket-time${dt ? '' : ' muted'}`, text: dt ? `${dateOf(dt)} ${timeOf(dt)}` : '시각 미정' }));
-  const duration = flightDuration(r.datetime, r.arrival);
+  // 출발·도착은 각 공항의 현지 시각이라 시차가 있으면 공항 시간대로 계산한다 (인천 09:00 → 방콕 13:00 은 6시간)
+  const zones = { from: airportTimeZone(route?.from), to: airportTimeZone(route?.to) };
+  const duration = flightDuration(r.datetime, r.arrival, zones);
   const cell = (k, v) => el('div', { class: 'ticket-cell' }, el('div', { class: 'ticket-k', text: k }), el('div', { class: 'ticket-v' }, v));
   return el('section', { class: 'card reservation ticket', dataset: { id: r.id } },
     el('div', { class: 'ticket-main' },
@@ -126,7 +128,7 @@ function ticketCard(tripId, r, linked, actions) {
       el('div', { class: 'ticket-body' },
         el('div', { class: 'ticket-route' },
           endpoint(route?.from, r.datetime, '출발', 'from'),
-          flightPlane(r, duration),
+          flightPlane(r, duration, zones),
           endpoint(route?.to, r.arrival, '도착', 'to')),
         !route ? el('p', { class: 'muted ps-hint', text: '편집에서 출발·도착 공항을 넣으면 공항 코드가 표시돼요' }) : null,
         el('div', { class: 'ticket-cells' },
@@ -145,8 +147,8 @@ function ticketCard(tripId, r, linked, actions) {
 }
 
 // 탑승권 가운데 점선과 비행기. 비행 중(출발~도착 사이)이면 비행기가 진행률만큼 가 있고 "착륙까지 N분"
-function flightPlane(r, duration) {
-  const p = flightProgress(r.datetime, r.arrival);
+function flightPlane(r, duration, zones = {}) {
+  const p = flightProgress(r.datetime, r.arrival, new Date(), zones);
   const line = el('span', { class: `ticket-line${p ? ' in-flight' : ''}`, style: p ? { '--progress': String(p.ratio) } : {} });
   const label = p ? `착륙까지 ${p.minutesLeft >= 60 ? `${Math.floor(p.minutesLeft / 60)}시간 ${p.minutesLeft % 60}분` : `${p.minutesLeft}분`}` : (duration ?? '');
   return el('div', { class: `ticket-plane${p ? ' in-flight' : ''}` }, line, el('span', { class: p ? 'ticket-inflight' : 'muted', text: label }));
