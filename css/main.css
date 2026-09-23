@@ -584,3 +584,8 @@ dialog.account-menu[open] { animation: menu-in .28s var(--spring); }
   .account-menu-inner { padding: 16px 16px 22px; }
 }
 @keyframes menu-up { from { transform: translateY(100%); } to { transform: none; } }
+
+/* ---- 최소 지원 버전보다 낮은 앱: 닫을 수 없는 업데이트 화면 ---- */
+.force-update { position: fixed; inset: 0; z-index: 2000; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.force-update-card { max-width: 360px; text-align: center; display: flex; flex-direction: column; gap: 14px; }
+.force-update-card h2 { font-size: 22px; }

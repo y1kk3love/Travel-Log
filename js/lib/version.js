@@ -20,3 +20,10 @@ export function latestApk(rel) {
   if (!rel || !rel.tag_name) return null;
   return { url: pickApk(rel.assets) ?? rel.html_url ?? null, version: rel.tag_name };
 }
+
+// 앱이 최소 지원 버전(app-config.json 의 minAppVersion)보다 낮으면 true. 설정이 없거나 이상하면 막지 않는다.
+export function mustUpdate(current, config) {
+  const min = config?.minAppVersion;
+  if (!parseVersion(current) || !parseVersion(min)) return false;
+  return isNewer(min, current);
+}

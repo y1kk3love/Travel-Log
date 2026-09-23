@@ -6,7 +6,7 @@ import { isNative, takeSharedText, onResume, onNotificationTap, onBackButton, ex
 import { isHomeHash } from './lib/nav.js';
 import { shareFromQuery } from './lib/share.js';
 import { refreshAlarms } from './alarms.js';
-import { checkForUpdate } from './update-check.js';
+import { checkForUpdate, checkMinVersion } from './update-check.js';
 import * as shareView from './views/share.js';
 import { setPendingShare } from './views/share.js';
 import { navigate } from './router.js';
@@ -68,11 +68,12 @@ function renderApp() {
   goShare();
   // 다음 목적지 알림: 앱 시작·복귀 때 다시 예약, 알림을 누르면 그 여행으로 (앱 전용)
   refreshAlarms();
+  checkMinVersion();
   checkForUpdate();
   // 로그아웃→로그인을 반복해도 리스너가 쌓이지 않게, 라우터와 함께 정리한다
   disposers.push(
     onNotificationTap(({ tripId, placeId }) => { if (tripId) navigate(placeId ? `/trip/${tripId}/planner/${placeId}` : `/trip/${tripId}`); }),
-    onResume(() => { goShare(); refreshAlarms(); checkForUpdate(); }));
+    onResume(() => { goShare(); refreshAlarms(); checkMinVersion(); checkForUpdate(); }));
   stopApp = () => { disposers.forEach((d) => d?.()); stopApp = () => {}; };
 }
 
