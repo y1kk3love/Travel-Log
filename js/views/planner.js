@@ -14,6 +14,7 @@ import { weatherLabel, pickDayLocation, forecastWindow } from '../lib/weather.js
 import { fetchDailyForecast } from '../weather.js';
 import { toDateStr } from '../lib/dates.js';
 import { linkedIds } from '../lib/reservation-links.js';
+import { isPooled } from '../lib/pool.js';
 
 const isNote = (p) => p.category === 'note';
 // 메모 항목은 번호를 차지하지 않는다: 장소에만 1, 2, 3… 을 붙인다
@@ -103,8 +104,8 @@ export function mount(content, ctx) {
   function placesOf(dayId) {
     return state.places.filter((p) => p.dayId === dayId);
   }
-  // 보관함: 날짜를 정하지 않은 장소 (dayId 없음)
-  const poolPlaces = () => state.places.filter((p) => p.dayId == null && !isNote(p));
+  // 보관함: 날짜를 정하지 않은 장소, 그리고 지워진 Day 를 가리키는 장소 (어디에도 안 보이지 않게)
+  const poolPlaces = () => { const dayIds = new Set(state.days.map((d) => d.id)); return state.places.filter((p) => isPooled(p, dayIds) && !isNote(p)); };
 
   function redraw() {
     if (state.dragging) { state.pending = true; return; }

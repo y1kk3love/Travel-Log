@@ -1,6 +1,7 @@
 // Firestore 보안 규칙 테스트 (에뮬레이터에서만 돈다: npm run test:rules)
 // 실제 프로젝트와 무관한 demo- 프로젝트라 로그인·과금 없이 돈다.
 import { test, before, after, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch, Bytes, serverTimestamp, setLogLevel } from 'firebase/firestore';
@@ -97,6 +98,26 @@ test('여행과 첫 Day·체크리스트를 한 배치로 만들 수 있다 (새
   batch.set(doc(db, 'trips', 'B1', 'days', 'D1'), { date: '2027-06-01', order: 0 });
   batch.set(doc(db, 'trips', 'B1', 'checklist', 'C1'), { group: '짐', groupOrder: 0, order: 0, text: '여권', done: false });
   await assertSucceeds(batch.commit());
+});
+
+test('예약과 자동으로 만든 일정 장소를 한 배치로 저장할 수 있다 (예약 추가 흐름)', async () => {
+  const db = friend();
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'trips', 'T1', 'places', 'PA'), place({ name: '호텔 체크인', time: '15:00', category: 'stay' }));
+  batch.set(doc(db, 'trips', 'T1', 'places', 'PB'), place({ name: '호텔 체크아웃', time: '10:00', category: 'stay', dayId: 'D2' }));
+  batch.set(doc(db, 'trips', 'T1', 'reservations', 'R1'), {
+    type: 'stay', title: '호텔', datetime: '2027-02-14T15:00', arrival: null, checkout: '2027-02-15T10:00', code: '', note: '',
+    linkedPlaceId: 'PA', linkedPlaceIds: ['PA', 'PB'], flightNumber: null, fromAirport: '', toAirport: '',
+  });
+  await assertSucceeds(batch.commit());
+  // 예약에 모르는 필드가 섞이면 장소까지 함께 저장되지 않는다
+  const bad = writeBatch(db);
+  bad.set(doc(db, 'trips', 'T1', 'places', 'PC'), place());
+  bad.set(doc(db, 'trips', 'T1', 'reservations', 'R2'), { type: 'etc', title: '', price: 1 });
+  await assertFails(bad.commit());
+  let left = true;
+  await env.withSecurityRulesDisabled(async (ctx) => { left = (await getDoc(doc(ctx.firestore(), 'trips', 'T1', 'places', 'PC'))).exists(); });
+  assert.equal(left, false);
 });
 
 test('프로필: 초대받은 본인만, 닉네임 20자·Google 사진 주소만', async () => {

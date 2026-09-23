@@ -9,6 +9,7 @@ import { sortTripsByStart } from './lib/members.js';
 import { planScheduleChange } from './lib/schedule.js';
 import { settleSoon, preferWithin } from './lib/settle.js';
 import { withoutPlaces, linkedIds, linkFields } from './lib/reservation-links.js';
+import { chunk } from './lib/pool.js';
 
 // 현재 로그인 사용자 (여행 소유자·동행 판정에 쓴다)
 function me() {
@@ -145,11 +146,9 @@ export async function updateTripSchedule(tripId, { title, startDate, endDate }) 
   plan.add.forEach((d) => batch.set(doc(sub(tripId, 'days')), d));
   for (const dayId of plan.remove) {
     const placesSnap = await readDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId)));
-    for (const p of placesSnap.docs) {
-      const photosSnap = await readDocs(query(sub(tripId, 'photos'), where('placeId', '==', p.id)));
-      photosSnap.docs.forEach((ph) => batch.delete(ph.ref));
-      batch.delete(p.ref);
-    }
+    const photoSnaps = await Promise.all(placesSnap.docs.map((p) => readDocs(query(sub(tripId, 'photos'), where('placeId', '==', p.id)))));
+    photoSnaps.forEach((s) => s.docs.forEach((ph) => batch.delete(ph.ref)));
+    placesSnap.docs.forEach((p) => batch.delete(p.ref));
     if (placesSnap.size) await unlinkReservations(batch, tripId, placesSnap.docs.map((d) => d.id));
     batch.delete(doc(sub(tripId, 'days'), dayId));
   }
@@ -173,14 +172,19 @@ export function coverBytes(trip) {
   return trip?.cover instanceof Bytes ? trip.cover.toUint8Array() : null;
 }
 
+// 여행 안 문서를 모두 지우고 여행을 지운다. 배치는 500개까지라 450개씩 나누고, 여행 문서는 맨 마지막에
+// (규칙이 하위 문서를 지울 때 여행 문서로 멤버인지 보므로 먼저 지우면 나머지가 막힌다).
 export async function deleteTrip(tripId) {
-  const batch = writeBatch(db);
-  for (const name of ['days', 'places', 'photos', 'checklist', 'reservations', 'expenses', 'files']) {
-    const snap = await readDocs(sub(tripId, name));
-    snap.docs.forEach((d) => batch.delete(d.ref));
+  const snaps = await Promise.all(['days', 'places', 'photos', 'checklist', 'reservations', 'expenses', 'files'].map((name) => readDocs(sub(tripId, name))));
+  const refs = snaps.flatMap((s) => s.docs.map((d) => d.ref));
+  const groups = chunk(refs, 450);
+  for (const [i, group] of groups.entries()) {
+    const batch = writeBatch(db);
+    group.forEach((ref) => batch.delete(ref));
+    if (i === groups.length - 1) batch.delete(tripDoc(tripId));
+    await save(batch.commit());
   }
-  batch.delete(tripDoc(tripId));
-  await save(batch.commit());
+  if (!groups.length) await save(deleteDoc(tripDoc(tripId)));
 }
 
 // 오프라인이면 서버 카운트가 실패하므로 캐시된 문서를 세어 대신 채운다
@@ -249,11 +253,9 @@ export async function deleteDay(tripId, dayId) {
   const remaining = docsOf(daysSnap).filter((d) => d.id !== dayId);
   if (remaining.length === 0) throw new Error('last-day');
   const batch = writeBatch(db);
-  for (const d of placesSnap.docs) {
-    const photosSnap = await readDocs(query(sub(tripId, 'photos'), where('placeId', '==', d.id)));
-    photosSnap.docs.forEach((p) => batch.delete(p.ref));
-    batch.delete(d.ref);
-  }
+  const photoSnaps = await Promise.all(placesSnap.docs.map((d) => readDocs(query(sub(tripId, 'photos'), where('placeId', '==', d.id))))); // 장소마다 차례로 기다리지 않게
+  photoSnaps.forEach((s) => s.docs.forEach((p) => batch.delete(p.ref)));
+  placesSnap.docs.forEach((d) => batch.delete(d.ref));
   if (placesSnap.size) await unlinkReservations(batch, tripId, placesSnap.docs.map((d) => d.id));
   batch.delete(doc(sub(tripId, 'days'), dayId));
   const first = remaining[0].date;
@@ -375,16 +377,21 @@ export function watchReservations(tripId, cb, onError = logError) {
   return onSnapshot(sub(tripId, 'reservations'), (s) => cb(docsOf(s)), onError);
 }
 
-export async function addReservation(tripId, data) {
-  const ref = doc(sub(tripId, 'reservations'));
-  await save(setDoc(ref, {
-    type: 'etc', title: '', datetime: null, arrival: null, checkout: null, code: '', note: '', linkedPlaceId: null, linkedPlaceIds: [], flightNumber: null, fromAirport: '', toAirport: '', ...data,
-  }));
-  return ref.id;
-}
-
-export function updateReservation(tripId, id, data) {
-  return save(updateDoc(doc(sub(tripId, 'reservations'), id), data));
+// 예약을 저장하면서 자동으로 만든 일정 장소도 같은 배치로 (예약 저장이 실패하면 장소만 남던 것을 막는다).
+// newPlaces: [{ dayId, time, name, category, memo, order, ... }]. 만든 장소들은 예약의 연결(linkedPlaceIds)이 된다.
+export async function saveReservation(tripId, id, data, newPlaces = []) {
+  const batch = writeBatch(db);
+  const placeIds = newPlaces.map((p) => {
+    const ref = doc(sub(tripId, 'places'));
+    batch.set(ref, { name: '', time: null, stayMinutes: null, category: 'sight', memo: '', lat: null, lng: null, address: null, photos: [], ...p });
+    return ref.id;
+  });
+  const full = placeIds.length ? { ...data, ...linkFields(placeIds) } : data;
+  const ref = id ? doc(sub(tripId, 'reservations'), id) : doc(sub(tripId, 'reservations'));
+  if (id) batch.update(ref, full);
+  else batch.set(ref, { type: 'etc', title: '', datetime: null, arrival: null, checkout: null, code: '', note: '', linkedPlaceId: null, linkedPlaceIds: [], flightNumber: null, fromAirport: '', toAirport: '', ...full });
+  await save(batch.commit());
+  return { id: ref.id, placeIds };
 }
 
 export async function deleteReservation(tripId, id) {

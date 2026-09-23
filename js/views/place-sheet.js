@@ -99,13 +99,17 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     photoStatus.textContent = pendingPhotos.length ? `저장하면 사진 ${pendingPhotos.length}장이 함께 올라가요` : '';
   }
 
+  // 하나씩 올리고, 올라간 사진은 대기 목록에서 뺀다 (중간에 실패해 다시 저장하면 남은 것만 올린다)
   async function uploadPhotos(placeId, items) {
-    for (let i = 0; i < items.length; i++) {
-      photoStatus.textContent = `사진 올리는 중 ${i + 1} / ${items.length}`;
-      await addPhoto(tripId, { placeId, bytes: items[i].bytes, width: items[i].width, height: items[i].height });
+    const list = [...items];
+    for (let i = 0; i < list.length; i++) {
+      photoStatus.textContent = `사진 올리는 중 ${i + 1} / ${list.length}`;
+      await addPhoto(tripId, { placeId, bytes: list[i].bytes, width: list[i].width, height: list[i].height });
+      pendingPhotos = pendingPhotos.filter((x) => x !== list[i]);
     }
     photoStatus.textContent = '';
   }
+  let createdId = null; // 새 장소를 만든 뒤 사진 올리기가 실패하면, 다시 저장할 때 또 만들지 않고 이 장소를 고친다
 
   async function handleFiles(files) {
     if (!files.length) return;
@@ -333,9 +337,12 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       if (place) {
         await updatePlace(tripId, place.id, data);
         if (moved) await movePlaceToDay(tripId, place.id, target);
+      } else if (createdId) {
+        await updatePlace(tripId, createdId, { ...data, dayId: target });
+        if (pendingPhotos.length) await uploadPhotos(createdId, pendingPhotos);
       } else {
-        const newId = await addPlace(tripId, { dayId: target, ...data });
-        if (pendingPhotos.length) await uploadPhotos(newId, pendingPhotos);
+        createdId = await addPlace(tripId, { dayId: target, ...data });
+        if (pendingPhotos.length) await uploadPhotos(createdId, pendingPhotos);
       }
       toast(place ? (moved ? (target ? '다른 날로 옮겼어요' : '보관함으로 옮겼어요') : '저장했어요')
         : (noteMode ? '메모를 추가했어요' : (target ? '일정에 추가했어요' : '보관함에 담았어요')));

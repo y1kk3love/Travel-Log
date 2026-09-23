@@ -1,7 +1,7 @@
 import { el, clear, toast, confirmDialog, openModal, icon, linkedText, openLightbox, onSubmit } from '../ui.js';
 import {
-  watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays,
-  addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, addPlace, updatePlace,
+  watchReservations, saveReservation, deleteReservation, watchPlaces, watchDays,
+  addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, updatePlace,
 } from '../db.js';
 import { parseFlightNumber, airlineName, flightradarUrl, parseRoute, airportCode, flightDuration, airportSuggestions, flightTitle, flightProgress, airportTimeZone } from '../lib/flight.js';
 import { placesFromReservation } from '../lib/reservation-place.js';
@@ -335,24 +335,20 @@ function openDialog(tripId, state, existing = null) {
     if (!data.title) { toast('제목을 입력해 주세요', { kind: 'error' }); return; }
     try {
       const specs = placesFromReservation(data, state.days, { places: state.places }); // 항공은 여행 장소들과 가까운 공항 좌표를 붙인다
+      let newPlaces = [];
       if (!data.linkedPlaceIds.length && data.datetime && autoAdd.checked) {
-        // 새로 연결: 해당 Day 마다 시각 순서로 장소를 만들고 전부 연결 (숙소는 기간만큼 여러 개)
+        // 새로 연결: 해당 Day 마다 시각 순서로 장소를 만들고 전부 연결 (숙소는 기간만큼 여러 개). 예약과 한 배치로 저장한다
         if (!specs.length) toast('그 날짜의 Day 가 없어 일정에는 넣지 않았어요', { ms: 4000 });
-        else {
-          const ids = [];
-          for (const spec of specs) {
-            const sameDay = state.places.filter((p) => p.dayId === spec.dayId);
-            ids.push(await addPlace(tripId, { ...spec, order: orderForTime(sameDay, spec.time) }));
-          }
-          Object.assign(data, linkFields(ids));
-          const dayNums = specs.map((s) => state.days.findIndex((d) => d.id === s.dayId) + 1);
-          toast(ids.length === 1 ? `Day ${dayNums[0]} 일정에 넣었어요` : `Day ${dayNums[0]}~${dayNums[dayNums.length - 1]} 일정에 ${ids.length}개 넣었어요`);
-        }
+        else newPlaces = specs.map((spec) => ({ ...spec, order: orderForTime(state.places.filter((p) => p.dayId === spec.dayId), spec.time) }));
       } else if (currentLinks.length === 1 && data.linkedPlaceIds.length === 1 && data.linkedPlaceId === currentLinks[0] && data.datetime !== existing.datetime && specs[0]) {
         // 하나짜리 연결에서 일시를 고쳤으면 연결된 일정의 시각(날짜가 바뀌면 Day 도)을 따라 옮긴다. 여러 개짜리는 손대지 않는다
         await updatePlace(tripId, data.linkedPlaceId, { time: specs[0].time, dayId: specs[0].dayId });
       }
-      if (existing) await updateReservation(tripId, existing.id, data); else await addReservation(tripId, data);
+      await saveReservation(tripId, existing?.id ?? null, data, newPlaces);
+      if (newPlaces.length) {
+        const dayNums = newPlaces.map((p) => state.days.findIndex((d) => d.id === p.dayId) + 1);
+        toast(newPlaces.length === 1 ? `Day ${dayNums[0]} 일정에 넣었어요` : `Day ${dayNums[0]}~${dayNums[dayNums.length - 1]} 일정에 ${newPlaces.length}개 넣었어요`);
+      }
       dialog.close();
     } catch (err) { console.error(err); toast('저장하지 못했어요', { kind: 'error' }); }
   });

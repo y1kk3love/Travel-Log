@@ -41,6 +41,7 @@ const PRECACHE = [
   "js/lib/order.js",
   "js/lib/overlays.js",
   "js/lib/polyline.js",
+  "js/lib/pool.js",
   "js/lib/profile.js",
   "js/lib/quota.js",
   "js/lib/reservation-links.js",
