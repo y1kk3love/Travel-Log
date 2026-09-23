@@ -8,6 +8,7 @@ import { importLibrary } from './gmaps.js';
 import { distanceKm, groupOverlapping } from './lib/geo.js';
 import { splitLegs } from './lib/polyline.js';
 import { walkingRoute, storedRoute } from './routes.js';
+import { isKnownNoRoute } from './lib/polyline.js';
 import { escapeHtml, toast } from './ui.js';
 import { notifyQuota } from './quota.js';
 
@@ -133,7 +134,9 @@ export function createMap(container) {
         if (stored) { drawLine(toPath(stored.points), { dashed: false }); continue; }
         const line = drawLine([{ lat: leg.from.lat, lng: leg.from.lng }, { lat: leg.to.lat, lng: leg.to.lng }], { dashed: true });
         if (distanceKm(leg.from, leg.to) > WALK_ROUTE_KM) continue;
+        if (isKnownNoRoute(leg.from.routeToNext, leg.key)) continue; // 도보 경로가 없다고 저장된 구간은 다시 묻지 않는다
         walkingRoute(leg.key, leg.from, leg.to).then((route) => {
+          if (route?.none) { routeCb?.(leg.from.id, { key: route.key, none: true, at: route.at }); return; }
           if (!route?.points?.length) return;
           if (gen === routeGen && lines.includes(line)) line.setOptions({ path: toPath(route.points), strokeOpacity: 0.9, icons: [] });
           routeCb?.(leg.from.id, { key: route.key, encoded: route.encoded, meters: route.meters, seconds: route.seconds, at: route.at });

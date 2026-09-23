@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodePolyline, legKey, splitLegs, isFreshRoute, ROUTE_TTL_MS } from '../js/lib/polyline.js';
+import { decodePolyline, legKey, splitLegs, isFreshRoute, isKnownNoRoute, ROUTE_TTL_MS } from '../js/lib/polyline.js';
 
 test('decodePolyline: Google 예제 문자열을 좌표 배열로 푼다', () => {
   // https://developers.google.com/maps/documentation/utilities/polylinealgorithm 의 예제
@@ -38,4 +38,19 @@ test('isFreshRoute: 같은 구간이고 30일 안이면 저장본을 쓴다', ()
   assert.equal(isFreshRoute({ ...route, encoded: '' }, 'a>b', now), false);
   assert.equal(isFreshRoute(null, 'a>b', now), false);
   assert.equal(isFreshRoute(undefined, 'a>b', now), false);
+});
+
+test('isKnownNoRoute: 같은 구간을 "경로 없음"으로 30일 안에 저장했으면 다시 묻지 않는다', () => {
+  const now = 1_800_000_000_000;
+  const none = { key: 'a>b', none: true, at: now - 24 * 3600 * 1000 };
+  assert.equal(isKnownNoRoute(none, 'a>b', now), true);
+  assert.equal(isKnownNoRoute(none, 'a>c', now), false); // 장소가 바뀌면 다시 묻는다
+  assert.equal(isKnownNoRoute({ ...none, at: now - ROUTE_TTL_MS }, 'a>b', now), false);
+  assert.equal(isKnownNoRoute({ key: 'a>b', encoded: '_p~iF~ps|U', at: now }, 'a>b', now), false); // 실제 경로
+  assert.equal(isKnownNoRoute(null, 'a>b', now), false);
+});
+
+test('isFreshRoute: "경로 없음" 저장본은 그릴 경로가 아니다', () => {
+  const now = 1_800_000_000_000;
+  assert.equal(isFreshRoute({ key: 'a>b', none: true, at: now }, 'a>b', now), false);
 });

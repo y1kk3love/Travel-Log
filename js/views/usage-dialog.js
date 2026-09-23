@@ -15,8 +15,8 @@ const BILLING = `https://console.cloud.google.com/billing?project=${PROJECT}&hl=
 const LIMITS = [
   ['지도 로드 (Maps JavaScript)', '320 / 일', '10,000 / 월'],
   ['장소 자동완성 (Places)', '320 / 일', '10,000 / 월'],
-  ['장소 상세 (위치·주소만)', '320 / 일', '10,000 / 월'],
-  ['도보 경로 (Routes)', '320 / 일', '10,000 / 월'],
+  ['장소 상세 (위치·주소만)', '32 / 일', '1,000 / 월 (최고 등급)'],
+  ['도보 경로 (Routes)', '32 / 일', '1,000 / 월 (최고 등급)'],
 ];
 
 // Firebase 저장 용량: 정확한 사용량은 콘솔에만 있어서, 우리 문서 크기를 직접 합산해 근사치를 보여 준다 (하루 1회 기억)
@@ -78,7 +78,7 @@ export function openUsageDialog() {
     el('h3', { class: 'usage-sub', text: 'Google 지도 API' }),
     el('div', { class: 'dialog-body' },
       status,
-      el('p', { class: 'muted ps-hint', text: '하루 한도를 월 무료 범위보다 훨씬 낮게 걸어 두어 넘어도 청구되지 않고 그 기능만 잠시 멈춰요. 오늘 얼마나 썼는지는 콘솔의 할당량 페이지에서 API를 고르면 "현재 사용량"에 나와요.' }),
+      el('p', { class: 'muted ps-hint', text: '하루 한도를 월 무료 범위보다 낮게 걸어 두어 넘어도 청구되지 않고 그 기능만 잠시 멈춰요. 장소 상세·도보 경로는 키가 악용돼 가장 비싼 등급으로 불려도 무료 범위를 넘지 않게 32건으로, 앱이 쓰지 않는 기능은 0으로 막았어요. 오늘 얼마나 썼는지는 콘솔의 할당량 페이지에서 API를 고르면 "현재 사용량"에 나와요.' }),
       el('table', { class: 'usage-table' },
         el('thead', {}, el('tr', {}, el('th', { text: 'API' }), el('th', { text: '하루 한도' }), el('th', { text: '무료 범위' }))),
         el('tbody', {}, ...LIMITS.map(([a, b, c]) => el('tr', {}, el('td', { text: a }), el('td', { text: b }), el('td', { text: c }))))),

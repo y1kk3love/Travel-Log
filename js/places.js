@@ -1,5 +1,5 @@
-// 장소 검색: Places API (New) 자동완성 + 상세(위치·주소만). 하루 한도(자동완성 300, 상세 100)를 넘으면 실패하고
-// 호출한 쪽이 Nominatim 으로 대체한다.
+// 장소 검색: Places API (New) 자동완성 + 상세(위치·주소만). 하루 한도(자동완성 320, 상세 32)를 넘으면 실패하고
+// 호출한 쪽이 Nominatim 으로 대체한다. 상세 한도 32 는 키가 악용돼 가장 비싼 필드로 불려도 월 무료 1,000건을 넘지 않게 한 값.
 // 요금 기준: 자동완성 → Essentials, 상세는 location·formattedAddress 만 요청해 Essentials 에 머문다
 // (displayName 은 Pro 등급이라 요청하지 않고 자동완성의 mainText 를 이름으로 쓴다).
 import { importLibrary } from './gmaps.js';

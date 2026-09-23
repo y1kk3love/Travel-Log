@@ -2,7 +2,7 @@ import { el, toast, confirmDialog, icon, photoPath, openLightbox, overlays, CATE
 import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
-import { notifyQuota } from '../quota.js';
+import { notifyQuota, isQuotaHit } from '../quota.js';
 import { extractLinks, shortLabel } from '../lib/text.js';
 import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl, parseMapsLink } from '../lib/coords.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
@@ -226,7 +226,10 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         catch (err) {
           console.error(err);
           btn.disabled = false; drawLocation();
-          if (!notifyQuota('details', err)) toast('위치를 가져오지 못했어요. 다시 골라 주세요', { kind: 'error' });
+          if (notifyQuota('details', err)) {
+            // 오늘 장소 상세 한도를 다 썼다: 같은 이름으로 OpenStreetMap 에서 다시 찾는다 (이후 검색도 OpenStreetMap)
+            search.value = r.name; lastQuery = null; runSearch(r.name);
+          } else toast('위치를 가져오지 못했어요. 다시 골라 주세요', { kind: 'error' });
         }
       },
     }, el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address }));
@@ -243,15 +246,17 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     if (query === lastQuery) { results.hidden = results.childElementCount === 0; return; }
     lastQuery = query;
     let items = null;
+    const osmItems = async () => (await searchPlaces(query)).map((r) => el('button', { type: 'button', class: 'search-result', onClick: () => pickResult(r) },
+      el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address })));
     try {
-      items = (await placeSearch.suggest(query, { near })).map(googleResult);
+      // 오늘 장소 상세 한도를 다 썼으면 Google 결과는 골라도 위치를 못 받으니 처음부터 OpenStreetMap 으로
+      items = isQuotaHit('details') ? await osmItems() : (await placeSearch.suggest(query, { near })).map(googleResult);
     } catch (err) {
       // Google 검색이 안 되면(하루 한도 초과, 네트워크) OpenStreetMap 으로 대신 찾는다
-      console.warn('places autocomplete', err);
+      console.warn('places search', err);
       notifyQuota('places', err);
       try {
-        items = (await searchPlaces(query)).map((r) => el('button', { type: 'button', class: 'search-result', onClick: () => pickResult(r) },
-          el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address })));
+        items = await osmItems();
       } catch (err2) {
         console.error(err2);
         if (seq === searchSeq) toast('검색에 실패했어요. 잠시 후 다시 시도해 주세요', { kind: 'error' });

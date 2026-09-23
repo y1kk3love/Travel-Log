@@ -32,6 +32,13 @@ export function isFreshRoute(route, key, now = Date.now()) {
     && typeof route.at === 'number' && now - route.at >= 0 && now - route.at < ROUTE_TTL_MS;
 }
 
+// 도보 경로가 없다는 답(바다 건너 등)도 같은 구간·30일 동안 저장해 다시 묻지 않는다. 하루 한도가 작아서
+// 지도를 다시 그릴 때마다(편집·Day 전환·기기마다) 같은 구간을 또 물으면 한도가 금방 바닥난다.
+export function isKnownNoRoute(route, key, now = Date.now()) {
+  return !!route && route.key === key && route.none === true
+    && typeof route.at === 'number' && now - route.at >= 0 && now - route.at < ROUTE_TTL_MS;
+}
+
 // 좌표가 있는 장소들을 순서대로 이어 구간 목록으로 만든다
 export function splitLegs(places) {
   const pts = places.filter(hasCoords);
