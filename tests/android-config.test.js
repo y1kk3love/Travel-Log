@@ -18,9 +18,12 @@ test('상태바·내비게이션 바 아이콘은 밝은 배경용(어두운 아
 });
 
 test('시스템 바 뒤 배경은 앱 배경색 #F2F2F7 (다크 모드 폰에서도 검게 나오지 않게)', () => {
+  // windowBackground 는 참조(reference)만 받는 속성이라 색 값을 바로 쓰면 aapt2 가 빌드를 멈춘다 → 색 자원으로
   const styles = read('android/app/src/main/res/values/styles.xml');
   const appTheme = styles.match(/<style name="AppTheme\.NoActionBar"[\s\S]*?<\/style>/)?.[0] ?? '';
-  assert.match(appTheme, /<item name="android:windowBackground">#F2F2F7<\/item>/);
+  assert.match(appTheme, /<item name="android:windowBackground">@color\/app_background<\/item>/);
+  const colors = read('android/app/src/main/res/values/colors.xml');
+  assert.match(colors, /<color name="app_background">#F2F2F7<\/color>/);
 });
 
 test('MainActivity 는 여백을 직접 주지 않는다 (Capacitor 와 겹치면 키보드 여백이 두 배가 된다)', () => {
