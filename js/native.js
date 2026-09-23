@@ -85,12 +85,20 @@ export async function exitApp() {
 }
 
 // ---- 로컬 알림 ----
+// 권한 요청 창은 설치 뒤 한 번만 띄운다. 거절하면 앱으로 돌아올 때마다(알림을 다시 잡을 때마다) 또 묻던 것을 막는다.
+// 나중에 켜려면 사용량 창의 안내대로 폰 설정에서 켠다.
+const NOTIF_ASKED = 'tl.notif.asked';
+const askedBefore = () => { try { return globalThis.localStorage?.getItem(NOTIF_ASKED) === '1'; } catch { return false; } };
+const markAsked = () => { try { globalThis.localStorage?.setItem(NOTIF_ASKED, '1'); } catch { /* 저장 못 해도 됨 */ } };
 export async function notificationPermission() {
   const ln = plugin('LocalNotifications');
   if (!ln) return 'unavailable';
   try {
     let { display } = await ln.checkPermissions();
-    if (display === 'prompt' || display === 'prompt-with-rationale') ({ display } = await ln.requestPermissions());
+    if ((display === 'prompt' || display === 'prompt-with-rationale') && !askedBefore()) {
+      markAsked();
+      ({ display } = await ln.requestPermissions());
+    }
     return display === 'granted' ? 'granted' : 'denied';
   } catch { return 'unavailable'; }
 }

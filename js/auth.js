@@ -1,5 +1,5 @@
-import { GoogleAuthProvider, signInWithPopup, signInWithCredential, signOut as firebaseSignOut, onAuthStateChanged } from './firebase-sdk.js';
-import { auth } from './firebase.js';
+import { GoogleAuthProvider, signInWithPopup, signInWithCredential, signOut as firebaseSignOut, onAuthStateChanged, terminate, clearIndexedDbPersistence } from './firebase-sdk.js';
+import { auth, db } from './firebase.js';
 import { OWNER_UID } from './firebase-config.js';
 import { isNative, googleIdToken, nativeSignOut } from './native.js';
 
@@ -31,7 +31,12 @@ export async function signIn() {
 
 export async function signOut() {
   await nativeSignOut();
-  return firebaseSignOut(auth);
+  await firebaseSignOut(auth);
+  // 공용 PC·빌린 폰에서 다음 사람이 이 기기에 남은 여행 데이터(오프라인 캐시)를 보지 못하게 지운다
+  try { await terminate(db); await clearIndexedDbPersistence(db); }
+  catch (err) { console.warn('기기 캐시를 지우지 못했어요 (다른 탭이 열려 있으면 그 탭을 닫은 뒤 다시)', err); }
+  try { for (const k of Object.keys(globalThis.localStorage ?? {})) if (k.startsWith('tl.')) localStorage.removeItem(k); } catch { /* 없어도 됨 */ }
+  location.reload(); // 끝낸(terminate) Firestore 는 다시 쓸 수 없으니 새로 시작한다
 }
 
 // 사이트 주인 (초대 목록·사용량을 관리하는 계정). 여행을 만든 사람은 lib/members.js 의 isTripOwner

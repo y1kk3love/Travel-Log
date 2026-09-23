@@ -133,3 +133,29 @@ test('native: onBackButton 은 App.backButton 리스너, exitApp 은 App.exitApp
   assert.equal(typeof w.onBackButton(() => {}), 'function');
   await w.exitApp();
 });
+
+test('native: 알림 권한은 한 번만 묻는다 (거절하면 앱으로 돌아올 때마다 다시 묻지 않게)', async () => {
+  const store = new Map();
+  globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  let asked = 0;
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, registerPlugin: (name) => ({
+    name, checkPermissions: async () => ({ display: 'prompt-with-rationale' }), requestPermissions: async () => { asked += 1; return { display: 'denied' }; },
+  }) } };
+  const m = await fresh();
+  assert.equal(await m.notificationPermission(), 'denied');
+  assert.equal(await m.notificationPermission(), 'denied');
+  assert.equal(asked, 1);
+  delete globalThis.window;
+  delete globalThis.localStorage;
+});
+
+test('native: 이미 허용돼 있으면 묻지 않고 granted', async () => {
+  let asked = 0;
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, registerPlugin: (name) => ({
+    name, checkPermissions: async () => ({ display: 'granted' }), requestPermissions: async () => { asked += 1; return { display: 'granted' }; },
+  }) } };
+  const m = await fresh();
+  assert.equal(await m.notificationPermission(), 'granted');
+  assert.equal(asked, 0);
+  delete globalThis.window;
+});

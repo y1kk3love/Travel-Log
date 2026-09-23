@@ -45,3 +45,20 @@ test('출발 알림을 제시간에 울리도록 USE_EXACT_ALARM 을 선언한�
   const manifest = read('android/app/src/main/AndroidManifest.xml');
   assert.match(manifest, /<uses-permission android:name="android\.permission\.USE_EXACT_ALARM"\s*\/>/);
 });
+
+test('오래된 WebView: 최소 버전보다 낮으면 안내 페이지를 띄운다 (빈 "불러오는 중…" 대신)', () => {
+  const config = JSON.parse(read('capacitor.config.json'));
+  assert.ok(config.android?.minWebViewVersion >= 85, '??= 같은 문법은 크롬 85 이상');
+  const errorPath = config.server?.errorPath;
+  assert.ok(errorPath && fs.existsSync(errorPath), 'server.errorPath 파일이 저장소에 있어야 한다');
+  assert.match(read('scripts/build-web.js'), new RegExp(`'${errorPath.replace('.', '\.')}'`), '앱 빌드(dist)에 복사돼야 한다');
+});
+
+test('앱 백업에 로그인 정보·기기 캐시가 들어가지 않게 allowBackup=false', () => {
+  assert.match(read('android/app/src/main/AndroidManifest.xml'), /android:allowBackup="false"/);
+});
+
+test('프로세스가 죽었다 살아나도 예전 공유가 다시 열리지 않는다', () => {
+  const main = read('android/app/src/main/java/io/github/y1kk3love/travellog/MainActivity.java');
+  assert.ok(main.includes('FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY') && main.includes('savedInstanceState != null'));
+});

@@ -3,11 +3,28 @@
   "appName": "여행 로그",
   "webDir": "dist",
   "backgroundColor": "#F2F2F7",
-  "server": { "androidScheme": "https", "hostname": "travellog.local" },
-  "android": { "allowMixedContent": false },
+  "server": {
+    "androidScheme": "https",
+    "hostname": "travellog.local",
+    "errorPath": "webview-error.html"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "minWebViewVersion": 90
+  },
   "plugins": {
-    "FirebaseAuthentication": { "skipNativeAuth": false, "providers": ["google.com"] },
-    "LocalNotifications": { "smallIcon": "ic_stat_icon", "iconColor": "#B4502B" },
-    "SystemBars": { "style": "LIGHT" }
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": [
+        "google.com"
+      ]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon",
+      "iconColor": "#B4502B"
+    },
+    "SystemBars": {
+      "style": "LIGHT"
+    }
   }
 }

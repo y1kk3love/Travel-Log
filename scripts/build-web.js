@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const WEB_FILES = ['index.html', 'manifest.webmanifest', 'favicon.svg', 'sw.js', 'css', 'js', 'icons'];
+export const WEB_FILES = ['index.html', 'manifest.webmanifest', 'favicon.svg', 'sw.js', 'css', 'js', 'icons', 'webview-error.html'];
 
 export function buildWeb(outDir = path.join(ROOT, 'dist')) {
   fs.rmSync(outDir, { recursive: true, force: true });

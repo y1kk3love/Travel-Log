@@ -13,6 +13,14 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SharePlugin.class); // 공유 글자 꺼내기 (ShareActivity 가 넘겨 준 인텐트)
+        // 시스템이 앱을 정리했다가 되살리거나(savedInstanceState) 최근 앱 목록에서 다시 열면, 처음 받은 공유 인텐트가
+        // 그대로 다시 들어와 예전 공유 화면이 또 열린다. 그럴 때는 평범한 시작으로 바꾼다.
+        Intent intent = getIntent();
+        boolean replayed = savedInstanceState != null
+            || (intent != null && (intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0);
+        if (replayed && intent != null && Intent.ACTION_SEND.equals(intent.getAction())) {
+            setIntent(new Intent(Intent.ACTION_MAIN));
+        }
         super.onCreate(savedInstanceState);
     }
 
