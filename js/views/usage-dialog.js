@@ -35,7 +35,7 @@ function storageSection(link) {
     status.classList.toggle('usage-status-hit', pct >= 80);
   };
   const cached = readStorageCache();
-  if (cached) show(cached); else status.textContent = '아직 계산하지 않았어요. 사진·서류를 넣은 문서를 전부 읽어 합산해요 (읽기 수백 건).';
+  if (cached) show(cached); else status.textContent = '아직 계산하지 않았어요. 일정·장소 같은 작은 문서는 읽어 합산하고, 사진·서류는 크기 합계만 물어봐요 (읽기 수백 건).';
   const calcBtn = el('button', {
     type: 'button', class: 'btn btn-sm', text: cached ? '다시 계산' : '저장 용량 계산',
     onClick: async () => {

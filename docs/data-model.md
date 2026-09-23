@@ -17,8 +17,8 @@
 | 모음 | 필드 | 메모 |
 |---|---|---|
 | `days` | `date`, `order` | 여행 기간과 함께 움직인다 |
-| `places` | `name`, `time`(HH:MM), `stayMinutes`, `category`, `memo`, `lat`, `lng`, `address`, `placeId`(Google), `dayId`(null 이면 보관함), `order`, `photoCount`, `photos`(예전 파일명), `routeToNext` | `category: 'note'` 는 메모 항목. `routeToNext` 는 다음 장소까지 도보 경로 `{ key, encoded, meters, seconds, at }` 또는 경로 없음 `{ key, none: true, at }` (30일) |
-| `photos` | `placeId`, `data`(Bytes, 720 KiB), `width`, `height`, `createdAt` | 긴 변 1280px JPEG |
+| `places` | `name`, `time`(HH:MM), `stayMinutes`, `category`, `memo`, `lat`, `lng`, `address`, `placeId`(Google), `dayId`(null 이거나 지워진 Day 면 보관함), `order`, `photoCount`, `photos`(예전 파일명), `routeToNext` | `category: 'note'` 는 메모 항목. `routeToNext` 는 다음 장소까지 도보 경로 `{ key, encoded, meters, seconds, at }` 또는 경로 없음 `{ key, none: true, at }` (30일) |
+| `photos` | `placeId`, `data`(Bytes, 720 KiB), `width`, `height`, `size`, `createdAt` | 긴 변 1280px JPEG. `size` 는 바이트 길이(규칙이 실제 길이와 같은지 검사) — 저장 용량을 사진을 내려받지 않고 서버 합계로 어림한다. 예전 사진엔 없고, 용량 계산 때 한 번 채운다 |
 | `checklist` | `group`, `groupOrder`, `order`, `text`, `done` | 그룹은 이름으로 묶는다 |
 | `reservations` | `type`(flight·stay·food·etc…), `title`, `datetime`, `arrival`(항공 도착), `checkout`(숙소), `code`, `note`, `flightNumber`, `fromAirport`, `toAirport`, `linkedPlaceIds`, `linkedPlaceId`, `files`(서류 메타 `{ id, name, type, size }`) | 연결의 기준은 `linkedPlaceIds`(숙소 여러 박이면 여러 개). `linkedPlaceId` 는 첫 연결과 같게 두는 예전 호환 필드 (`js/lib/reservation-links.js`) |
 | `expenses` | `title`, `amount`, `currency`, `category`, `date`, `paidBy`, `sharedWith`, `note`, `createdAt` | `sharedWith` 는 늘 명시해 저장한다. 비어 있는 예전 지출만 "지금 동행 전원"으로 계산 (`js/lib/expenses.js`) |

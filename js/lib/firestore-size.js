@@ -37,3 +37,20 @@ const trim = (x) => String(Math.round(x * 10) / 10);
 export function storagePercent(bytes, limit = STORAGE_LIMIT_BYTES) {
   return Math.round((bytes / limit) * 1000) / 10;
 }
+
+// 사진·서류: 바이트가 큰 문서라 내려받지 않고 서버에 개수·size 합계만 물어 어림한다.
+// 문서 하나의 "바이트를 뺀 나머지"는 앱이 만드는 모양(아이디 20자, 서류 이름은 30바이트쯤)으로 계산해 둔다.
+const ID = 'x'.repeat(20);
+const TS = { seconds: 0, nanoseconds: 0 };
+const BLOB_TEMPLATES = {
+  photos: { placeId: ID, data: new Uint8Array(0), width: 0, height: 0, createdAt: TS, size: 0 },
+  files: { reservationId: ID, name: 'x'.repeat(30), type: 'application/pdf', size: 0, data: new Uint8Array(0), createdAt: TS },
+};
+
+export function blobDocOverhead(col) {
+  return docSize(`trips/${ID}/${col}/${ID}`, BLOB_TEMPLATES[col]);
+}
+
+export function aggregateSize(col, { count, bytes }) {
+  return bytes + count * blobDocOverhead(col);
+}

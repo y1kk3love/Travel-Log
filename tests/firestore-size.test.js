@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { docSize, valueSize, formatBytes, STORAGE_LIMIT_BYTES, storagePercent } from '../js/lib/firestore-size.js';
+import { docSize, valueSize, formatBytes, STORAGE_LIMIT_BYTES, storagePercent, blobDocOverhead, aggregateSize } from '../js/lib/firestore-size.js';
 
 test('valueSize: Firestore 문서 크기 계산식 (문자열 UTF-8+1, 숫자 8, 불리언·null 1, 바이트 길이, 배열·맵 합)', () => {
   assert.equal(valueSize('Jeff'), 5);
@@ -27,4 +27,16 @@ test('formatBytes / storagePercent: 1 GiB 한도 기준', () => {
   assert.equal(formatBytes(138 * 1024 * 1024), '138 MB');
   assert.equal(formatBytes(512), '512 B');
   assert.equal(storagePercent(1024 ** 3 / 8), 12.5);
+});
+
+test('사진·서류는 내려받지 않고 어림: 서버가 준 개수·size 합계 + 문서마다 바이트 뺀 나머지', () => {
+  const id = 'x'.repeat(20);
+  const photo = (n) => ({ placeId: id, data: new Uint8Array(n), width: 1600, height: 1200, createdAt: { seconds: 1, nanoseconds: 0 }, size: n });
+  const path = `trips/${id}/photos/${id}`;
+  // 실제 사진 문서 크기 = 바이트 + 문서 하나의 나머지 (아이디가 20자인 앱 문서 기준)
+  assert.equal(docSize(path, photo(1000)), 1000 + blobDocOverhead('photos'));
+  assert.equal(docSize(path, photo(700 * 1024)), 700 * 1024 + blobDocOverhead('photos'));
+  assert.equal(aggregateSize('photos', { count: 3, bytes: 3000 }), 3000 + 3 * blobDocOverhead('photos'));
+  assert.equal(aggregateSize('files', { count: 0, bytes: 0 }), 0);
+  assert.ok(blobDocOverhead('files') > blobDocOverhead('photos') - 50); // 서류는 파일 이름·형식이 더 붙는다
 });

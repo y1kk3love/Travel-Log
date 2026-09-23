@@ -72,8 +72,10 @@ service cloud.firestore {
         && (!('routeToNext' in d) || d.routeToNext == null || d.routeToNext is map);
     }
     function photoOk(d) {
-      return d.keys().hasOnly(['placeId', 'data', 'width', 'height', 'createdAt'])
-        && d.placeId is string && d.data is bytes && d.data.size() <= 720 * 1024;
+      // size: 바이트 길이 (저장 용량을 사진을 내려받지 않고 합산하려고). 예전 사진엔 없고, 있으면 실제 길이와 같아야 한다
+      return d.keys().hasOnly(['placeId', 'data', 'width', 'height', 'createdAt', 'size'])
+        && d.placeId is string && d.data is bytes && d.data.size() <= 720 * 1024
+        && (!('size' in d) || d.size == d.data.size());
     }
     function checklistOk(d) {
       return d.keys().hasOnly(['group', 'groupOrder', 'order', 'text', 'done'])

@@ -1,6 +1,6 @@
 import {
   collection, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, getDocFromCache, getDocsFromCache, query, where, orderBy, limit,
-  onSnapshot, writeBatch, serverTimestamp, getCountFromServer, increment, arrayUnion, arrayRemove, Bytes,
+  onSnapshot, writeBatch, serverTimestamp, getCountFromServer, getAggregateFromServer, count, sum, increment, arrayUnion, arrayRemove, Bytes,
 } from './firebase-sdk.js';
 import { db, auth } from './firebase.js';
 import { dayList, addDays, toDateStr } from './lib/dates.js';
@@ -317,7 +317,7 @@ export function watchPhotos(tripId, placeId, cb, onError = logError) {
 export async function addPhoto(tripId, { placeId, bytes, width, height }) {
   const batch = writeBatch(db);
   const ref = doc(sub(tripId, 'photos'));
-  batch.set(ref, { placeId, data: Bytes.fromUint8Array(bytes), width, height, createdAt: serverTimestamp() });
+  batch.set(ref, { placeId, data: Bytes.fromUint8Array(bytes), width, height, size: bytes.length, createdAt: serverTimestamp() });
   batch.update(doc(sub(tripId, 'places'), placeId), { photoCount: increment(1) });
   await save(batch.commit());
   return ref.id;
@@ -461,17 +461,39 @@ export async function deleteReservationFile(tripId, reservationId, meta) {
   await save(batch.commit());
 }
 
-// 사이트 주인용: 내가 볼 수 있는 모든 여행의 문서 크기를 합산 (Firestore 저장 한도 1 GiB 대비). 문서 수만큼 읽기를 쓰므로 버튼으로만 부른다.
+// 사이트 주인용: 내가 볼 수 있는 모든 여행의 문서 크기를 합산 (Firestore 저장 한도 1 GiB 대비). 작은 문서 수만큼 읽기를 쓰므로 버튼으로만 부른다.
 export async function estimateStorage() {
-  const { docSize } = await import('./lib/firestore-size.js');
+  const { docSize, aggregateSize } = await import('./lib/firestore-size.js');
   const trips = await getDocs(query(tripsCol(), where('memberEmails', 'array-contains', me().email)));
   let bytes = 0, docs = 0;
   const add = (snap) => snap.docs.forEach((d) => { bytes += docSize(d.ref.path, d.data()); docs += 1; });
   add(trips);
-  for (const t of trips.docs) {
-    for (const name of ['days', 'places', 'photos', 'checklist', 'reservations', 'expenses', 'files']) add(await getDocs(sub(t.id, name)));
-  }
+  await Promise.all(trips.docs.map(async (t) => {
+    (await Promise.all(['days', 'places', 'checklist', 'reservations', 'expenses'].map((name) => getDocs(sub(t.id, name))))).forEach(add);
+    // 사진·서류: 바이트를 내려받지 않고 서버에 개수와 size 합계만 묻는다
+    await Promise.all(['photos', 'files'].map(async (name) => {
+      const [all, sized] = await Promise.all([
+        getCountFromServer(sub(t.id, name)),
+        getAggregateFromServer(query(sub(t.id, name), where('size', '>=', 0)), { count: count(), bytes: sum('size') }),
+      ]);
+      const agg = sized.data();
+      if (agg.count === all.data().count) { bytes += aggregateSize(name, agg); docs += agg.count; return; }
+      // size 가 없는 예전 문서가 섞여 있으면 이번만 내려받아 합산하고 size 를 채워 둔다 (다음부터는 가볍게)
+      const snap = await getDocs(sub(t.id, name));
+      add(snap);
+      fillSizes(snap);
+    }));
+  }));
   return { bytes, docs, trips: trips.size };
+}
+
+function fillSizes(snap) {
+  const missing = snap.docs.filter((d) => typeof d.data().size !== 'number' && d.data().data);
+  chunk(missing, 450).forEach((part) => {
+    const batch = writeBatch(db);
+    part.forEach((d) => batch.update(d.ref, { size: d.data().data.toUint8Array().length }));
+    batch.commit().catch(logError);
+  });
 }
 
 // ---------- 초대 목록 관리 (사이트 주인) ----------

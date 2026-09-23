@@ -4,7 +4,7 @@ import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch, Bytes, serverTimestamp, setLogLevel } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch, Bytes, serverTimestamp, setLogLevel, query, where, getCountFromServer, getAggregateFromServer, count, sum } from 'firebase/firestore';
 
 setLogLevel('silent'); // 막혀야 할 요청의 PERMISSION_DENIED 경고가 결과를 덮지 않게
 
@@ -138,6 +138,24 @@ test('사진은 720 KiB 까지', async () => {
   const photo = (size) => ({ placeId: 'P1', data: bytes(size), width: 1, height: 1, createdAt: serverTimestamp() });
   await assertSucceeds(setDoc(doc(friend(), 'trips', 'T1', 'photos', 'PH1'), photo(700 * 1024)));
   await assertFails(setDoc(doc(friend(), 'trips', 'T1', 'photos', 'PH2'), photo(720 * 1024 + 1)));
+});
+
+test('사진 size 는 실제 바이트 길이와 같아야 하고, size 없는 예전 사진에 나중에 채울 수 있다', async () => {
+  const db = friend();
+  const photo = (n, size) => ({ placeId: 'P1', data: bytes(n), width: 1, height: 1, createdAt: serverTimestamp(), size });
+  await assertSucceeds(setDoc(doc(db, 'trips', 'T1', 'photos', 'PH1'), photo(1000, 1000)));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'photos', 'PH2'), photo(1000, 10)));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'photos', 'PH3'), photo(1000, '1000')));
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'trips', 'T1', 'photos', 'OLD'), { placeId: 'P1', data: bytes(500), width: 1, height: 1, createdAt: 1 }));
+  await assertFails(updateDoc(doc(db, 'trips', 'T1', 'photos', 'OLD'), { size: 1 }));
+  await assertSucceeds(updateDoc(doc(db, 'trips', 'T1', 'photos', 'OLD'), { size: 500 }));
+  // 용량 어림 (db.estimateStorage): 동행은 사진 개수·size 합계를 서버에 물을 수 있고, 모르는 사람은 못 한다
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'trips', 'T1', 'photos', 'OLD2'), { placeId: 'P1', data: bytes(300), width: 1, height: 1, createdAt: 1 }));
+  const photos = (d) => collection(d, 'trips', 'T1', 'photos');
+  const sized = await assertSucceeds(getAggregateFromServer(query(photos(db), where('size', '>=', 0)), { count: count(), bytes: sum('size') }));
+  assert.deepEqual(sized.data(), { count: 2, bytes: 1500 }); // size 없는 OLD2 는 빠진다
+  assert.equal((await getCountFromServer(photos(db))).data().count, 3); // 그래서 개수가 다르면 내려받아 채운다
+  await assertFails(getAggregateFromServer(query(photos(stranger()), where('size', '>=', 0)), { bytes: sum('size') }));
 });
 
 test('초대 목록: 여행 만들기 켜진 계정은 동행을 초대할 수 있지만 여행 만들기를 켤 수 없고, 목록은 사이트 주인만 본다', async () => {
