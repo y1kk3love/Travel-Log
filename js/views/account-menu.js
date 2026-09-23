@@ -9,7 +9,7 @@ import { openInvitesDialog } from './invites-dialog.js';
 // 상단 아바타를 누르면 여는 내 계정 메뉴. 폰에서는 아래에서 올라오는 시트, 넓은 화면에서는 오른쪽 위 메뉴.
 // 사이트 주인만 초대 관리·사용량이 보이고, 앱에서는 앱 버전이 보인다. 로그아웃은 한 번 확인한다.
 export function openAccountMenu({ profile, email, isSiteOwner, onSignOut }) {
-  const dialog = el('dialog', { class: 'account-menu', 'aria-label': '내 계정' });
+  const dialog = el('dialog', { class: 'sheet-menu account-menu', 'aria-label': '내 계정' });
   // 메뉴 항목을 누르면 메뉴를 닫고 그 창을 연다 (창이 겹쳐 뜨지 않게)
   const then = (open) => () => { dialog.close(); open(); };
   const row = (iconName, label, onClick, extra = null) => el('button', { type: 'button', class: 'menu-row', onClick }, icon(iconName), el('span', { text: label }), extra);
@@ -24,7 +24,7 @@ export function openAccountMenu({ profile, email, isSiteOwner, onSignOut }) {
     isNative() ? el('div', { class: 'menu-row menu-row-static' }, icon('phone'), el('span', { text: '앱 버전' }), version) : null,
   ].filter(Boolean);
 
-  dialog.append(el('div', { class: 'account-menu-inner' },
+  dialog.append(el('div', { class: 'sheet-menu-inner' },
     el('div', { class: 'account-head' },
       avatar(profile, email, 44),
       el('div', { class: 'account-head-text' },

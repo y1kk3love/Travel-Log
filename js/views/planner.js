@@ -6,6 +6,7 @@ import { googleMapsDirectionsUrl } from '../lib/coords.js';
 import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
 import { openPlaceSheet } from './place-sheet.js';
+import { openActionMenu } from './action-menu.js';
 import { takeShareTarget } from './share.js';
 import { refreshAlarms } from '../alarms.js';
 import { estimateTimes, routeBetween, pickNext } from '../lib/timeline.js';
@@ -151,14 +152,21 @@ export function mount(content, ctx) {
       el('span', { class: 'day-title' }, `Day ${dayIndex + 1} · ${formatShort(day.date)}`, weatherEl),
       el('div', { class: 'day-head-right' },
         el('span', { class: 'muted', text: `장소 ${placeCount}곳` }),
+        // 날짜 삭제처럼 되돌릴 수 없는 동작은 늘 보이지 않게 "더 보기" 메뉴 안에 둔다
         el('button', {
-          class: 'btn btn-sm btn-danger', disabled: state.days.length <= 1,
-          onClick: async () => {
-            if (!(await confirmDialog(`Day ${dayIndex + 1}과 그 날의 장소 ${places.length}곳을 삭제할까요?`))) return;
-            try { await deleteDay(tripId, day.id); toast('날짜를 삭제했어요'); }
-            catch (err) { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); }
-          },
-        }, '이 날 삭제'))));
+          class: 'btn btn-icon day-more', 'aria-label': `Day ${dayIndex + 1} 메뉴`, 'aria-haspopup': 'dialog',
+          onClick: (e) => openActionMenu({
+            title: `Day ${dayIndex + 1} · ${formatShort(day.date)}`, anchor: e.currentTarget,
+            items: [{
+              icon: 'trash', label: state.days.length <= 1 ? '이 날 삭제 (마지막 날은 지울 수 없어요)' : '이 날 삭제', danger: true, disabled: state.days.length <= 1,
+              onClick: async () => {
+                if (!(await confirmDialog(`Day ${dayIndex + 1}과 그 날의 장소 ${places.length}곳을 삭제할까요?`))) return;
+                try { await deleteDay(tripId, day.id); toast('날짜를 삭제했어요'); }
+                catch (err) { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); }
+              },
+            }],
+          }),
+        }, icon('more')))));
 
     const list = el('div', { class: 'timeline' });
     const labeled = numbered(places);

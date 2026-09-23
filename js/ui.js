@@ -23,6 +23,14 @@ const ICONS = {
   chart: '<line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="18" y1="20" x2="18" y2="14"/>',
   phone: '<rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.3 3-5.5 6.5-5.5s6.5 2.2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14.8c2.1.6 3.5 2.4 3.5 5.2"/>',
+  plane: '<path d="M21 15.5v-2l-8-5V3.8a1.5 1.5 0 0 0-3 0v4.7l-8 5v2l8-2.5v4.5l-2 1.5V20l3.5-1 3.5 1v-1.5l-2-1.5V13z"/>',
+  bed: '<path d="M3 18V6"/><path d="M3 13h18v5"/><path d="M21 13v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="10" r="2"/>',
+  navigation: '<polygon points="3 11 21 3 13 21 11 13 3 11"/>',
+  crosshair: '<circle cx="12" cy="12" r="7"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><circle cx="12" cy="12" r="2"/>',
+  map: '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><polyline points="21 16 15 10 5 20"/>',
 };
 
 export const CATEGORY_LABELS = { sight: '관광', food: '식사', cafe: '카페', shop: '쇼핑', stay: '숙소', move: '이동', etc: '기타', note: '메모' };
@@ -135,7 +143,7 @@ export function onSubmit(form, handler) {
   form.addEventListener('submit', (e) => { e.preventDefault(); run(e).catch((err) => console.error(err)); });
 }
 
-export function confirmDialog(message, { okText = '삭제', cancelText = '취소', danger = false } = {}) {
+export function confirmDialog(message, { okText = '삭제', cancelText = '취소', danger = ['삭제', '빼기'].includes(okText) } = {}) {
   return new Promise((resolve) => {
     const dialog = el('dialog', {},
       el('p', { text: message }),

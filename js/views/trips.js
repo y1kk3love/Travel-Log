@@ -1,9 +1,9 @@
-import { el, clear, toast, confirmDialog, openModal, icon, photoPath, onSubmit } from '../ui.js';
+import { el, clear, toast, openModal, icon, photoPath, onSubmit } from '../ui.js';
 import { topbar } from './topbar.js';
-import { watchTrips, createTrip, deleteTrip, tripStats, coverBytes, myAllowedEntry } from '../db.js';
+import { watchTrips, createTrip, tripStats, coverBytes, myAllowedEntry } from '../db.js';
 import { bytesToObjectUrl } from '../photo.js';
 import { tripStatus, formatStatus, formatRange, toDateStr, dayList } from '../lib/dates.js';
-import { isTripOwner, canCreateTrips, canEditTripInfo } from '../lib/members.js';
+import { canCreateTrips, canEditTripInfo } from '../lib/members.js';
 import { auth } from '../firebase.js';
 import { isOwner } from '../auth.js';
 import { navigate } from '../router.js';
@@ -71,19 +71,7 @@ function membersTag(trip) {
   return n > 1 ? el('span', { class: 'tag', text: `동행 ${n}명` }) : null;
 }
 
-function deleteButton(trip) {
-  if (!isTripOwner(trip, auth.currentUser)) return null; // 동행은 여행을 지울 수 없다
-  return el('button', {
-    class: 'btn btn-icon card-delete', 'aria-label': '여행 삭제',
-    onClick: async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!(await confirmDialog(`'${trip.title}' 여행과 모든 일정을 삭제할까요?`))) return;
-      try { await deleteTrip(trip.id); toast('여행을 삭제했어요'); }
-      catch (err) { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); }
-    },
-  }, icon('trash'));
-}
+// 여행 삭제는 여행 화면의 "더 보기" 메뉴에 있다 (홈 카드마다 휴지통이 있으면 어수선하고 잘못 누르기 쉽다)
 
 function featureCard(trip) {
   const stats = el('div', { class: 'trip-stats' });
@@ -107,8 +95,7 @@ function featureCard(trip) {
           membersTag(trip)),
         el('h2', { class: 'trip-title', text: trip.title }),
         el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) }))),
-    el('div', { class: 'trip-feature-body' }, stats, bar),
-    deleteButton(trip));
+    el('div', { class: 'trip-feature-body' }, stats, bar));
 }
 
 function stat(label, value) {
@@ -129,8 +116,7 @@ function smallCard(trip) {
     el('div', { class: 'trip-small-body' },
       passportStamp(trip),
       el('h3', { text: trip.title }),
-      el('p', { class: 'muted' }, formatRange(trip.startDate, trip.endDate), ' ', membersTag(trip))),
-    deleteButton(trip));
+      el('p', { class: 'muted trip-small-sub' }, formatRange(trip.startDate, trip.endDate), ' ', membersTag(trip))));
 }
 
 function openNewTripDialog() {
