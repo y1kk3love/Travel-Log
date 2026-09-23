@@ -1,0 +1,17 @@
+name: Test
+# main 에 올리면 웹(GitHub Pages)에 바로 배포되므로, 올릴 때마다 테스트를 돌려 깨진 걸 바로 알 수 있게 한다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npm test

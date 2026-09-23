@@ -36,8 +36,11 @@ jobs:
             exit 1
           fi
       - name: Decode keystore
+        # 비밀값은 스크립트에 직접 넣지 않고 환경 변수로 넘긴다 (명령 줄·로그에 풀려 나오지 않게)
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/release.keystore"
+          printf '%s' "$KS" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/release.keystore"
           [ -s "$RUNNER_TEMP/release.keystore" ] || { echo "::error::키 저장소 복호화 결과가 비어 있어요 (ANDROID_KEYSTORE_BASE64 값 확인)"; exit 1; }
       - name: Build signed APK
         working-directory: android
@@ -47,9 +50,15 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk "travel-log-${GITHUB_REF_NAME#v}.apk"
-      - uses: softprops/action-gh-release@v2
+      - name: Rename APK and checksum
+        run: |
+          apk="travel-log-${GITHUB_REF_NAME#v}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$apk"
+          sha256sum "$apk" > "$apk.sha256" # 받은 APK 가 그대로인지 확인할 수 있게
+      # 쓰기 권한을 가진 외부 액션은 태그가 바뀌어도 같은 코드가 돌도록 커밋으로 고정 (v2)
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
-          files: travel-log-*.apk
+          files: |
+            travel-log-*.apk
+            travel-log-*.apk.sha256
           generate_release_notes: true
