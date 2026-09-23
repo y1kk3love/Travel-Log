@@ -65,7 +65,8 @@ export function parseRoute(title) {
 // zones: { from, to } 시간대 (airportTimeZone). 없으면 두 시각을 같은 시간대로 본다
 export function flightDuration(departure, arrival, zones = {}) {
   if (!departure || !arrival) return null;
-  const a = toEpoch(departure, zones.from), b = toEpoch(arrival, zones.to);
+  const z = bothZones(zones);
+  const a = toEpoch(departure, z.from), b = toEpoch(arrival, z.to);
   if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
   const min = Math.round((b - a) / 60000);
   const h = Math.floor(min / 60), m = min % 60;
@@ -135,6 +136,8 @@ export function zonedToEpoch(local, tz) {
 }
 // 시간대를 알면 그 현지 시각으로, 모르면 예전처럼 기기 시각으로
 const toEpoch = (local, tz) => (tz ? zonedToEpoch(local, tz) : Date.parse(local ?? ''));
+// 한쪽 공항만 알면 그 시간대를 양쪽에 쓴다 (모르는 쪽만 기기 시각으로 두면 두 시간대가 섞인다)
+const bothZones = (zones = {}) => ({ from: zones.from ?? zones.to, to: zones.to ?? zones.from });
 
 // 도시·코드 → { code, city, lat, lng }. 모르는 공항이면 null. city 는 표의 첫 이름(오사카·간사이 → 오사카).
 export function airportInfo(text) {
@@ -148,7 +151,8 @@ export function airportInfo(text) {
 // 비행 중이면 { ratio(0~1), minutesLeft }, 아니면 null. 탑승권의 비행기 위치와 "착륙까지" 표시에 쓴다.
 export function flightProgress(departure, arrival, now = new Date(), zones = {}) {
   if (!departure || !arrival) return null;
-  const a = toEpoch(departure, zones.from), b = toEpoch(arrival, zones.to), t = now.getTime();
+  const z = bothZones(zones);
+  const a = toEpoch(departure, z.from), b = toEpoch(arrival, z.to), t = now.getTime();
   if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a || t < a || t > b) return null;
   return { ratio: Math.round(((t - a) / (b - a)) * 100) / 100, minutesLeft: Math.ceil((b - t) / 60000) };
 }

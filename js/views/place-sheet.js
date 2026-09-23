@@ -102,14 +102,19 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   // 하나씩 올리고, 올라간 사진은 대기 목록에서 뺀다 (중간에 실패해 다시 저장하면 남은 것만 올린다)
   async function uploadPhotos(placeId, items) {
     const list = [...items];
-    for (let i = 0; i < list.length; i++) {
-      photoStatus.textContent = `사진 올리는 중 ${i + 1} / ${list.length}`;
-      await addPhoto(tripId, { placeId, bytes: list[i].bytes, width: list[i].width, height: list[i].height });
-      pendingPhotos = pendingPhotos.filter((x) => x !== list[i]);
+    try {
+      for (let i = 0; i < list.length; i++) {
+        photoStatus.textContent = `사진 올리는 중 ${i + 1} / ${list.length}`;
+        await addPhoto(tripId, { placeId, bytes: list[i].bytes, width: list[i].width, height: list[i].height });
+        pendingPhotos = pendingPhotos.filter((x) => x !== list[i]);
+      }
+    } finally {
+      drawPhotos(); // 중간에 실패해도 올라간 사진은 대기 칩에서 빼고, 남은 장수를 다시 보여 준다
     }
-    photoStatus.textContent = '';
   }
-  let createdId = null; // 새 장소를 만든 뒤 사진 올리기가 실패하면, 다시 저장할 때 또 만들지 않고 이 장소를 고친다
+  // 새 장소를 만든 뒤 사진 올리기가 실패하면, 다시 저장할 때 또 만들지 않고 이 장소를 고친다 (그 사이 날짜를 바꾸면 그 날 끝으로 옮긴다)
+  let createdId = null;
+  let createdDayId = null;
 
   async function handleFiles(files) {
     if (!files.length) return;
@@ -338,10 +343,12 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         await updatePlace(tripId, place.id, data);
         if (moved) await movePlaceToDay(tripId, place.id, target);
       } else if (createdId) {
-        await updatePlace(tripId, createdId, { ...data, dayId: target });
+        await updatePlace(tripId, createdId, data);
+        if (target !== createdDayId) { await movePlaceToDay(tripId, createdId, target); createdDayId = target; }
         if (pendingPhotos.length) await uploadPhotos(createdId, pendingPhotos);
       } else {
         createdId = await addPlace(tripId, { dayId: target, ...data });
+        createdDayId = target;
         if (pendingPhotos.length) await uploadPhotos(createdId, pendingPhotos);
       }
       toast(place ? (moved ? (target ? '다른 날로 옮겼어요' : '보관함으로 옮겼어요') : '저장했어요')

@@ -1,6 +1,7 @@
 import { el, icon, openModal, confirmDialog } from '../ui.js';
 import { displayNameFor } from '../lib/profile.js';
 import { isNative, appVersion } from '../native.js';
+import { hasUnsyncedWrites } from '../db.js';
 import { avatar } from './avatar.js';
 import { openProfileDialog } from './profile-dialog.js';
 import { openUsageDialog } from './usage-dialog.js';
@@ -37,7 +38,12 @@ export function openAccountMenu({ profile, email, isSiteOwner, onSignOut }) {
         type: 'button', class: 'menu-row menu-row-danger',
         onClick: async () => {
           dialog.close();
-          if (await confirmDialog('로그아웃할까요?', { okText: '로그아웃', danger: true })) onSignOut();
+          // 로그아웃은 이 기기의 캐시를 지우므로, 아직 올라가지 않은 변경은 함께 사라진다
+          const unsynced = await hasUnsyncedWrites();
+          const message = unsynced
+            ? '아직 서버에 올라가지 않은 변경이 있어요. 지금 로그아웃하면 그 변경은 사라져요. 인터넷에 연결된 뒤 로그아웃하면 안전해요.'
+            : '로그아웃할까요?';
+          if (await confirmDialog(message, { okText: unsynced ? '그래도 로그아웃' : '로그아웃', danger: true })) onSignOut();
         },
       }, icon('logout'), el('span', { text: '로그아웃' })))));
   // 바깥(배경)을 누르면 닫힌다. 대화상자 여백이 0 이라 배경을 누를 때만 target 이 dialog 자신이다.

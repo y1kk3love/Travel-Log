@@ -1,6 +1,6 @@
 import {
   collection, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, getDocFromCache, getDocsFromCache, query, where, orderBy, limit,
-  onSnapshot, writeBatch, serverTimestamp, getCountFromServer, getAggregateFromServer, count, sum, increment, arrayUnion, arrayRemove, Bytes,
+  onSnapshot, writeBatch, serverTimestamp, waitForPendingWrites, getCountFromServer, getAggregateFromServer, count, sum, increment, arrayUnion, arrayRemove, Bytes,
 } from './firebase-sdk.js';
 import { db, auth } from './firebase.js';
 import { dayList, addDays, toDateStr } from './lib/dates.js';
@@ -38,6 +38,12 @@ const WRITE_WAIT_MS = 1000;
 const READ_WAIT_MS = 2500;
 let lateWriteError = logError;
 export function onLateWriteError(handler) { lateWriteError = handler; }
+
+// 아직 서버에 올라가지 않은 쓰기(오프라인에서 저장한 것)가 있는가. 없으면 바로, 있으면 ms 동안 올라가길 기다려 본다.
+// 로그아웃은 기기 캐시를 지우므로, 남은 쓰기가 있으면 먼저 알려 준다.
+export function hasUnsyncedWrites(ms = 3000) {
+  return preferWithin(waitForPendingWrites(db).then(() => false), () => true, ms);
+}
 const save = (write) => settleSoon(write, { ms: WRITE_WAIT_MS, onLateError: (err) => lateWriteError(err) });
 // 쓰기 전에 필요한 읽기(순서 계산·함께 지울 문서 찾기): 서버가 늦거나 안 되면 기기 캐시로
 const readDocs = (q) => preferWithin(getDocs(q), () => getDocsFromCache(q), READ_WAIT_MS);
@@ -304,7 +310,7 @@ export async function movePlaceToDay(tripId, placeId, dayId) {
 
 // ---------- photos ----------
 // 사진은 긴 변 1280px JPEG 바이트를 Firestore 문서에 직접 저장한다 (Storage는 카드 등록이 필요해서 쓰지 않는다).
-// trips/{tripId}/photos/{photoId}: { placeId, data: Bytes, width, height, createdAt }
+// trips/{tripId}/photos/{photoId}: { placeId, data: Bytes, width, height, size, createdAt } (size 는 바이트 길이, 예전 사진엔 없음)
 export function watchPhotos(tripId, placeId, cb, onError = logError) {
   return onSnapshot(query(sub(tripId, 'photos'), where('placeId', '==', placeId)), (s) => {
     const photos = docsOf(s)

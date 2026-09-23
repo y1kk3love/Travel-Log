@@ -121,3 +121,12 @@ test('좌표가 있는 공항은 모두 시간대도 있다 (공항을 더하면
   assert.deepEqual(missing, []);
   for (const tz of new Set(Object.values(AIRPORT_TZ))) assert.doesNotThrow(() => new Intl.DateTimeFormat('en-US', { timeZone: tz }), tz);
 });
+
+test('한쪽 공항 시간대만 알면 그 시간대를 양쪽에 쓴다 (모르는 쪽만 기기 시각이면 두 시간대가 섞인다)', () => {
+  // 로마 → 베네치아(표에 없는 공항) 10:00 → 11:05: 기기가 서울이어도 1시간 5분
+  assert.equal(flightDuration('2027-03-01T10:00', '2027-03-01T11:05', { from: 'Europe/Rome', to: undefined }), '1시간 5분');
+  // 홍콩 → 청두(표에 없음) 둘 다 UTC+8: 2시간 30분
+  assert.equal(flightDuration('2027-03-01T10:00', '2027-03-01T12:30', { from: undefined, to: 'Asia/Hong_Kong' }), '2시간 30분');
+  // 비행 중 진행률도 아는 시간대 기준 (로마 10:00~12:00, 지금 로마 11:00 = 10:00Z)
+  assert.deepEqual(flightProgress('2027-03-01T10:00', '2027-03-01T12:00', new Date('2027-03-01T10:00:00Z'), { from: 'Europe/Rome' }), { ratio: 0.5, minutesLeft: 60 });
+});
