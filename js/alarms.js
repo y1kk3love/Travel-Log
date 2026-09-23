@@ -6,6 +6,14 @@ import { planAlarms, tripsForAlarms } from './lib/alarms.js';
 let status = 'unavailable';
 export function alarmsStatus() { return status; }
 
+// 내 계정 메뉴의 "출발 알림 켜기": 한 번 거절했어도 다시 묻고, 켜지면 알림을 다시 잡는다.
+// 폰이 더 묻지 않는 상태(두 번 거절 등)면 그대로 denied 라, 부른 쪽이 폰 설정을 안내한다.
+export async function enableAlarms() {
+  status = await notificationPermission({ ask: true });
+  if (status === 'granted') refreshAlarms();
+  return status;
+}
+
 // 구독을 한 번만 받고 끊는다. 캐시도 서버도 응답이 없으면(오프라인 첫 실행 등) 15초 뒤 포기한다.
 // finally 는 executor 가 끝난 뒤 실행되므로 stop 이 항상 채워져 있다.
 const once = (fn, ms = 15000) => {

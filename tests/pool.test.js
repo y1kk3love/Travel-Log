@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPooled, chunk } from '../js/lib/pool.js';
+import { isPooled, poolPlaces, chunk } from '../js/lib/pool.js';
 
 test('isPooled: 날짜가 없는 장소는 보관함', () => {
   assert.equal(isPooled({ dayId: null }, new Set(['D1'])), true);
@@ -20,4 +20,16 @@ test('chunk: 배치 한도(500) 아래로 나눈다', () => {
   assert.deepEqual(chunk([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
   assert.deepEqual(chunk([], 450), []);
   assert.equal(chunk(Array.from({ length: 1001 }, (_, i) => i), 450).length, 3);
+});
+
+test('poolPlaces: 날짜 미정 장소와 지워진 Day 의 장소·메모 (날짜 미정 메모는 원래 없고, 있는 Day 의 메모는 그 Day 에)', () => {
+  const dayIds = new Set(['D1']);
+  const places = [
+    { id: 'a', dayId: null, category: 'sight' },
+    { id: 'b', dayId: 'D1', category: 'sight' },
+    { id: 'c', dayId: 'GONE', category: 'food' },
+    { id: 'm1', dayId: 'D1', category: 'note' },
+    { id: 'm2', dayId: 'GONE', category: 'note' },
+  ];
+  assert.deepEqual(poolPlaces(places, dayIds).map((p) => p.id), ['a', 'c', 'm2']);
 });

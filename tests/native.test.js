@@ -159,3 +159,34 @@ test('native: 이미 허용돼 있으면 묻지 않고 granted', async () => {
   assert.equal(asked, 0);
   delete globalThis.window;
 });
+
+test('native: 권한 요청이 실패하면 물어본 것으로 치지 않는다 (다음에 다시 묻는다)', async () => {
+  const store = new Map();
+  globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  let asked = 0;
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, registerPlugin: (name) => ({
+    name, checkPermissions: async () => ({ display: 'prompt' }),
+    requestPermissions: async () => { asked += 1; if (asked === 1) throw new Error('activity gone'); return { display: 'granted' }; },
+  }) } };
+  const m = await fresh();
+  assert.equal(await m.notificationPermission(), 'unavailable');
+  assert.equal(await m.notificationPermission(), 'granted');
+  assert.equal(asked, 2);
+  delete globalThis.window;
+  delete globalThis.localStorage;
+});
+
+test('native: 메뉴의 "알림 켜기"(ask) 는 한 번 물은 뒤에도 다시 묻는다', async () => {
+  const store = new Map([['tl.notif.asked', '1']]);
+  globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  let asked = 0;
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, registerPlugin: (name) => ({
+    name, checkPermissions: async () => ({ display: 'prompt-with-rationale' }), requestPermissions: async () => { asked += 1; return { display: 'granted' }; },
+  }) } };
+  const m = await fresh();
+  assert.equal(await m.notificationPermission(), 'denied'); // 앱이 알아서 다시 묻지는 않는다
+  assert.equal(await m.notificationPermission({ ask: true }), 'granted');
+  assert.equal(asked, 1);
+  delete globalThis.window;
+  delete globalThis.localStorage;
+});

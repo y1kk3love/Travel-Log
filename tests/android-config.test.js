@@ -72,3 +72,12 @@ test('프로세스가 죽었다 살아나도 예전 공유가 다시 열리지 �
   const main = read('android/app/src/main/java/io/github/y1kk3love/travellog/MainActivity.java');
   assert.ok(main.includes('FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY') && main.includes('savedInstanceState != null'));
 });
+
+test('WebView 안내 페이지: WebView 가 새것인데 뜬 경우(불러오기 오류)는 다시 열기를 안내한다. 스크립트는 옛 문법만', () => {
+  const page = read('webview-error.html');
+  const script = page.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? '';
+  assert.match(script, /Chrome\\\/\(\\d\+\)/, 'Chrome 버전을 읽는다');
+  assert.match(script, /90/, 'minWebViewVersion 과 같은 기준');
+  assert.ok(!/=>|\blet\b|\bconst\b|\?\.|\?\?|`/.test(script), '오래된 WebView 에서도 도는 문법만');
+  assert.match(page, /다시 열어/);
+});

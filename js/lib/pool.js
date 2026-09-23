@@ -9,6 +9,12 @@ export function isPooled(place, dayIds) {
   return !dayIds.has(place.dayId);
 }
 
+// 보관함 목록: 날짜 미정 장소와, 지워진 Day 를 가리키는 장소·메모. 있는 Day 의 메모는 그 Day 에 보이고,
+// 날짜 없는 메모는 만들지 않으므로 메모는 Day 가 지워졌을 때만 여기로 온다.
+export function poolPlaces(places, dayIds) {
+  return places.filter((p) => isPooled(p, dayIds) && (p.category !== 'note' || p.dayId != null));
+}
+
 // Firestore 배치는 한 번에 500개까지라 그 아래로 나눈다
 export function chunk(items, size) {
   const out = [];

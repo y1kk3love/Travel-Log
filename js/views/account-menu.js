@@ -1,7 +1,8 @@
-import { el, icon, openModal, confirmDialog } from '../ui.js';
+import { el, icon, openModal, confirmDialog, toast } from '../ui.js';
 import { displayNameFor } from '../lib/profile.js';
 import { isNative, appVersion } from '../native.js';
 import { hasUnsyncedWrites } from '../db.js';
+import { alarmsStatus, enableAlarms } from '../alarms.js';
 import { avatar } from './avatar.js';
 import { openProfileDialog } from './profile-dialog.js';
 import { openUsageDialog } from './usage-dialog.js';
@@ -22,6 +23,12 @@ export function openAccountMenu({ profile, email, isSiteOwner, onSignOut }) {
     row('user', '닉네임 바꾸기', then(() => openProfileDialog(profile?.nickname ?? ''))),
     isSiteOwner ? row('mail', '초대 관리', then(openInvitesDialog)) : null,
     isSiteOwner ? row('chart', '사용량과 한도', then(openUsageDialog)) : null,
+    // 출발 알림이 꺼져 있으면 누구에게나 보인다 (처음 묻는 창을 닫았으면 앱은 다시 묻지 않으므로)
+    isNative() && alarmsStatus() === 'denied' ? row('bell', '출발 알림 켜기', async () => {
+      const status = await enableAlarms();
+      if (status === 'granted') { dialog.close(); toast('출발 알림을 켰어요'); }
+      else toast('폰 설정 → 앱 → 여행 로그 → 알림에서 켜 주세요');
+    }, el('span', { class: 'menu-row-value', text: '꺼짐' })) : null,
     isNative() ? el('div', { class: 'menu-row menu-row-static' }, icon('phone'), el('span', { text: '앱 버전' }), version) : null,
   ].filter(Boolean);
 

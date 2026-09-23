@@ -14,7 +14,7 @@ import { weatherLabel, pickDayLocation, forecastWindow } from '../lib/weather.js
 import { fetchDailyForecast } from '../weather.js';
 import { toDateStr } from '../lib/dates.js';
 import { linkedIds } from '../lib/reservation-links.js';
-import { isPooled } from '../lib/pool.js';
+import { poolPlaces as pooledOf } from '../lib/pool.js';
 
 const isNote = (p) => p.category === 'note';
 // 메모 항목은 번호를 차지하지 않는다: 장소에만 1, 2, 3… 을 붙인다
@@ -105,7 +105,7 @@ export function mount(content, ctx) {
     return state.places.filter((p) => p.dayId === dayId);
   }
   // 보관함: 날짜를 정하지 않은 장소, 그리고 지워진 Day 를 가리키는 장소 (어디에도 안 보이지 않게)
-  const poolPlaces = () => { const dayIds = new Set(state.days.map((d) => d.id)); return state.places.filter((p) => isPooled(p, dayIds) && !isNote(p)); };
+  const poolPlaces = () => pooledOf(state.places, new Set(state.days.map((d) => d.id)));
 
   function redraw() {
     if (state.dragging) { state.pending = true; return; }
@@ -227,7 +227,7 @@ export function mount(content, ctx) {
       });
       return el('div', { class: 'pool-item', dataset: { id: p.id } },
         el('button', { class: 'tl-body', onClick: () => { map.focus(p.id); openSheet({ dayId: null, place: p }); } },
-          el('div', { class: 'tl-meta' }, el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }), !hasCoords(p) && el('span', { class: 'muted', text: '위치 없음' })),
+          el('div', { class: 'tl-meta' }, el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }), !hasCoords(p) && !isNote(p) && el('span', { class: 'muted', text: '위치 없음' })),
           el('div', { class: 'tl-name', text: p.name || '(이름 없음)' }),
           p.memo && el('div', { class: 'muted tl-memo' }, linkedText(p.memo, { firstLineOnly: true }))),
         move);

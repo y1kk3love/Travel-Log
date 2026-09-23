@@ -85,19 +85,19 @@ export async function exitApp() {
 }
 
 // ---- 로컬 알림 ----
-// 권한 요청 창은 설치 뒤 한 번만 띄운다. 거절하면 앱으로 돌아올 때마다(알림을 다시 잡을 때마다) 또 묻던 것을 막는다.
-// 나중에 켜려면 사용량 창의 안내대로 폰 설정에서 켠다.
+// 권한 요청 창은 앱이 알아서는 설치 뒤 한 번만 띄운다. 거절하면 앱으로 돌아올 때마다(알림을 다시 잡을 때마다) 또 묻던 것을 막는다.
+// 나중에 켜려면 내 계정 메뉴의 "알림 켜기"(ask: true, 폰이 더 묻지 않으면 설정 안내)로.
 const NOTIF_ASKED = 'tl.notif.asked';
 const askedBefore = () => { try { return globalThis.localStorage?.getItem(NOTIF_ASKED) === '1'; } catch { return false; } };
 const markAsked = () => { try { globalThis.localStorage?.setItem(NOTIF_ASKED, '1'); } catch { /* 저장 못 해도 됨 */ } };
-export async function notificationPermission() {
+export async function notificationPermission({ ask = false } = {}) {
   const ln = plugin('LocalNotifications');
   if (!ln) return 'unavailable';
   try {
     let { display } = await ln.checkPermissions();
-    if ((display === 'prompt' || display === 'prompt-with-rationale') && !askedBefore()) {
-      markAsked();
+    if ((display === 'prompt' || display === 'prompt-with-rationale') && (ask || !askedBefore())) {
       ({ display } = await ln.requestPermissions());
+      markAsked(); // 요청이 실패(throw)하면 물어본 것으로 치지 않는다
     }
     return display === 'granted' ? 'granted' : 'denied';
   } catch { return 'unavailable'; }

@@ -1,5 +1,5 @@
 import {
-  collection, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, getDocFromCache, getDocsFromCache, query, where, orderBy, limit,
+  collection, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, getDocsFromServer, getDocFromCache, getDocsFromCache, query, where, orderBy, limit,
   onSnapshot, writeBatch, serverTimestamp, waitForPendingWrites, getCountFromServer, getAggregateFromServer, count, sum, increment, arrayUnion, arrayRemove, Bytes,
 } from './firebase-sdk.js';
 import { db, auth } from './firebase.js';
@@ -180,8 +180,10 @@ export function coverBytes(trip) {
 
 // 여행 안 문서를 모두 지우고 여행을 지운다. 배치는 500개까지라 450개씩 나누고, 여행 문서는 맨 마지막에
 // (규칙이 하위 문서를 지울 때 여행 문서로 멤버인지 보므로 먼저 지우면 나머지가 막힌다).
+// 지울 문서 목록은 서버에서만 읽는다 (느린 망에서 기기 캐시로 넘어가면 캐시에 없던 사진·서류가 지워지지 않고 남는다).
+// 오프라인이면 code 'unavailable' 로 실패한다.
 export async function deleteTrip(tripId) {
-  const snaps = await Promise.all(['days', 'places', 'photos', 'checklist', 'reservations', 'expenses', 'files'].map((name) => readDocs(sub(tripId, name))));
+  const snaps = await Promise.all(['days', 'places', 'photos', 'checklist', 'reservations', 'expenses', 'files'].map((name) => getDocsFromServer(sub(tripId, name))));
   const refs = snaps.flatMap((s) => s.docs.map((d) => d.ref));
   const groups = chunk(refs, 450);
   for (const [i, group] of groups.entries()) {

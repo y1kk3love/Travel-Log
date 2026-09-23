@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>여행 로그 · 업데이트가 필요해요</title>
 <!-- 안드로이드 앱 전용: 기기의 Android System WebView 가 너무 오래돼 앱 코드를 실행할 수 없을 때 Capacitor 가 대신 여는 페이지
-     (capacitor.config.json 의 android.minWebViewVersion·server.errorPath). 오래된 WebView 에서도 돌도록 스크립트 없이 쓴다 -->
+     (capacitor.config.json 의 android.minWebViewVersion·server.errorPath). 앱 화면을 불러오지 못한 때에도 뜨므로, WebView 가 충분히 새것이면
+     아래 스크립트가 "다시 열기" 안내로 바꾼다. 오래된 WebView 에서도 돌도록 스크립트는 옛 문법(var·function)만 쓴다 -->
 <style>
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box;
     background: #F2F2F7; color: #111; font-family: -apple-system, Roboto, 'Noto Sans KR', sans-serif; text-align: center; }
@@ -17,9 +18,20 @@
 </head>
 <body>
   <div class="card">
-    <h1>시스템 구성요소를 업데이트해 주세요</h1>
-    <p>이 폰의 "Android System WebView"가 오래돼서 여행 로그를 열 수 없어요. Play 스토어에서 업데이트한 뒤 앱을 다시 열어 주세요.</p>
-    <a href="market://details?id=com.google.android.webview">Play 스토어에서 업데이트</a>
+    <h1 id="title">시스템 구성요소를 업데이트해 주세요</h1>
+    <p id="msg">이 폰의 "Android System WebView"가 오래돼서 여행 로그를 열 수 없어요. Play 스토어에서 업데이트한 뒤 앱을 다시 열어 주세요.</p>
+    <a id="action" href="market://details?id=com.google.android.webview">Play 스토어에서 업데이트</a>
   </div>
+  <script>
+    (function () {
+      var m = navigator.userAgent.match(/Chrome\/(\d+)/);
+      if (!m || Number(m[1]) < 90) return; // capacitor.config.json 의 minWebViewVersion 과 같은 기준
+      document.getElementById('title').textContent = '앱 화면을 불러오지 못했어요';
+      document.getElementById('msg').textContent = '앱을 완전히 닫았다가 다시 열어 주세요. 계속 이러면 앱을 최신 버전으로 업데이트해 주세요.';
+      var action = document.getElementById('action');
+      action.textContent = '다시 불러오기';
+      action.href = '/';
+    })();
+  </script>
 </body>
 </html>

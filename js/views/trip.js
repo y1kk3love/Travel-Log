@@ -68,7 +68,10 @@ async function confirmDeleteTrip(trip) {
   if (!(await confirmDialog(`'${trip.title}' 여행과 모든 일정을 삭제할까요?`))) return;
   navigate('/'); // 먼저 홈으로 (지우는 사이 이 화면이 "여행을 찾을 수 없어요"를 띄우지 않게)
   try { await deleteTrip(trip.id); toast('여행을 삭제했어요'); }
-  catch (err) { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); }
+  catch (err) {
+    console.error(err);
+    toast(err?.code === 'unavailable' ? '인터넷에 연결된 뒤 다시 삭제해 주세요' : '삭제하지 못했어요', { kind: 'error' });
+  }
 }
 
 // 제목 줄(오른쪽 끝 "더 보기"), 날짜·D-day·동행 얼굴 줄, 그 아래 탭. 관리 기능은 "더 보기" 메뉴로 모아 내용이 먼저 보이게.

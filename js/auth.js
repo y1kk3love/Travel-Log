@@ -3,8 +3,17 @@ import { auth, db } from './firebase.js';
 import { OWNER_UID } from './firebase-config.js';
 import { isNative, googleIdToken, nativeSignOut } from './native.js';
 
+let signingOut = false; // 이 탭에서 로그아웃 중 (캐시를 지우고 스스로 새로 시작한다)
+
+// 다른 탭에서 로그아웃하면 그 탭이 기기 캐시를 지우면서 이 탭의 Firestore 도 멈춘다 → 이 탭도 새로 시작한다
+// (그대로 두면 다시 로그인해도 "권한 확인 중…"에서 멈춘다)
 export function watchAuth(cb) {
-  return onAuthStateChanged(auth, cb);
+  let signedIn = false;
+  return onAuthStateChanged(auth, (user) => {
+    if (signedIn && !user && !signingOut) { location.reload(); return; }
+    signedIn = !!user;
+    cb(user);
+  });
 }
 
 // 웹: 팝업 (리디렉트는 authDomain 불일치로 결과를 잃는다). 앱: 네이티브 구글 로그인 → 같은 Firebase 계정으로 signInWithCredential.
@@ -30,6 +39,7 @@ export async function signIn() {
 }
 
 export async function signOut() {
+  signingOut = true;
   await nativeSignOut();
   await firebaseSignOut(auth);
   // 공용 PC·빌린 폰에서 다음 사람이 이 기기에 남은 여행 데이터(오프라인 캐시)를 보지 못하게 지운다
