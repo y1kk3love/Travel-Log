@@ -8,6 +8,7 @@ import { placesFromReservation } from '../lib/reservation-place.js';
 import { orderForTime } from '../lib/order.js';
 import { compressImage } from '../photo.js';
 import { diffDays } from '../lib/dates.js';
+import { safeFileType } from '../lib/file-type.js';
 
 const FILE_ACCEPT = 'image/*,application/pdf';
 const formatSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
@@ -233,7 +234,7 @@ async function openFile(tripId, meta) {
     if (!url) {
       const f = await getReservationFile(tripId, meta.id);
       if (!f) { toast('서류를 찾을 수 없어요', { kind: 'error' }); return; }
-      url = URL.createObjectURL(new Blob([f.bytes], { type: f.type }));
+      url = URL.createObjectURL(new Blob([f.bytes], { type: safeFileType(meta.type, f.type) })); // 적힌 형식을 그대로 믿지 않는다 (HTML 을 PDF 로 꾸민 파일 등)
       objectUrls.set(meta.id, url);
     }
     if (meta.type === 'application/pdf') {
