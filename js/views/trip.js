@@ -90,12 +90,14 @@ function drawHeader(header, tabsBar, trip, tab) {
   }, icon('more'));
   clear(header);
   header.append(
-    el('div', { class: 'trip-title-row' }, el('h1', { text: trip.title }), more),
+    el('div', { class: 'trip-title-row' },
+      el('h1', { text: trip.title }),
+      el('button', { type: 'button', class: 'trip-people', 'aria-label': `동행 ${members.length}명 보기`, onClick: () => openMembersDialog(trip) },
+        avatarStack(members), el('span', { text: `${members.length}명` })),
+      more),
     el('div', { class: 'trip-sub' },
       el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) }),
-      el('span', { class: 'badge', text: formatStatus(tripStatus(trip.startDate, trip.endDate, toDateStr(new Date()))) }),
-      el('button', { type: 'button', class: 'trip-people', 'aria-label': `동행 ${members.length}명 보기`, onClick: () => openMembersDialog(trip) },
-        avatarStack(members), el('span', { text: `${members.length}명` }))));
+      el('span', { class: 'badge', text: formatStatus(tripStatus(trip.startDate, trip.endDate, toDateStr(new Date()))) })));
   clear(tabsBar);
   tabsBar.append(el('nav', { class: 'tabs', 'aria-label': '여행 탭' },
     ...Object.entries(TAB_LABELS).map(([key, label]) => el('a', {
