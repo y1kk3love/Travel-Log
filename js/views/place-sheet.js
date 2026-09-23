@@ -54,6 +54,8 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   // 저장된 사진(Firestore)과 아직 저장 전인 사진(새 장소일 때 대기열)
   let savedPhotos = [];
   let pendingPhotos = [];
+  let dirty = false; // 저장하지 않은 편집이 있나 (닫을 때 물어본다)
+  const markDirty = () => { dirty = true; };
   const objectUrls = new Set();
   let unsubPhotos = null;
   const urlFor = (bytes) => { const u = bytesToObjectUrl(bytes); objectUrls.add(u); return u; };
@@ -70,7 +72,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   function drawCategories() {
     categoryRow.replaceChildren(...CATEGORY_ORDER.map((key) => el('button', {
       type: 'button', class: `chip${draft.category === key ? ' active' : ''}`,
-      onClick: () => { draft.category = key; drawCategories(); },
+      onClick: () => { draft.category = key; markDirty(); drawCategories(); },
     }, CATEGORY_LABELS[key])));
   }
 
@@ -87,7 +89,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       await deletePhoto(tripId, p.id, place.id).catch((err) => { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); });
     }));
     const pending = pendingPhotos.map((p, i) => photoChip(urlFor(p.bytes), `대기 중 사진 ${i + 1}`, () => {
-      pendingPhotos = pendingPhotos.filter((x) => x !== p); drawPhotos();
+      pendingPhotos = pendingPhotos.filter((x) => x !== p); markDirty(); drawPhotos();
     }));
     // 예전 방식(GitHub photos 폴더 파일명)으로 남아 있는 사진은 그대로 보여 준다.
     const legacy = draft.photos.map((file) => el('div', { class: 'photo-chip' },
@@ -118,7 +120,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       try { await uploadPhotos(place.id, compressed); toast(`사진 ${compressed.length}장을 올렸어요`); }
       catch (err) { console.error(err); photoStatus.textContent = ''; toast('사진을 올리지 못했어요', { kind: 'error' }); }
     } else {
-      pendingPhotos = [...pendingPhotos, ...compressed];
+      pendingPhotos = [...pendingPhotos, ...compressed]; markDirty();
       drawPhotos();
     }
   }
@@ -172,7 +174,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     if (link && (link.lat != null || link.placeId)) {
       if (link.name && !name.value.trim()) name.value = link.name;
       if (link.lat != null) {
-        draft.lat = link.lat; draft.lng = link.lng; draft.placeId = link.placeId;
+        draft.lat = link.lat; draft.lng = link.lng; draft.placeId = link.placeId; markDirty();
         draft.address = link.name ? `구글 지도 링크 · ${link.name}` : `붙여넣은 좌표 ${link.lat.toFixed(5)}, ${link.lng.toFixed(5)}`;
         results.hidden = true; search.value = '';
         drawLocation();
@@ -186,7 +188,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     }
     const coords = parseCoordsInput(text);
     if (coords) {
-      draft.lat = coords.lat; draft.lng = coords.lng; draft.placeId = null;
+      draft.lat = coords.lat; draft.lng = coords.lng; draft.placeId = null; markDirty();
       draft.address = `붙여넣은 좌표 ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
       results.hidden = true; search.value = '';
       drawLocation();
@@ -209,7 +211,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   }
 
   function pickResult(r) {
-    draft.lat = r.lat; draft.lng = r.lng; draft.address = r.address; draft.placeId = r.placeId ?? null;
+    draft.lat = r.lat; draft.lng = r.lng; draft.address = r.address; draft.placeId = r.placeId ?? null; markDirty();
     if (!name.value.trim()) name.value = r.name;
     results.hidden = true; search.value = '';
     drawLocation();
@@ -282,18 +284,36 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   const directionsBtn = el('a', { class: 'btn btn-sm', target: '_blank', rel: 'noopener', href: '#', hidden: true, title: '현재 위치에서 여기까지' }, '여기로 길찾기');
   const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도 앱에서 "공유"로 복사한 내용을 붙여넣으면 그 이름으로 검색해요. 주소창의 긴 링크나 "위도, 경도"는 바로 핀이 찍혀요.' });
   const overlay = el('div', { class: 'sheet-overlay' });
+  let sheetHead = null;
   const form = el('form', { class: 'sheet' });
-  const onKey = (e) => { if (e.key === 'Escape' && sheetEntry.isTop()) close(); }; // 위에 확인 창·사진이 떠 있으면 그것만 닫힌다
+  const onKey = (e) => { if (e.key === 'Escape' && sheetEntry.isTop()) requestClose(); }; // 위에 확인 창·사진이 떠 있으면 그것만 닫힌다
+  form.addEventListener('input', (e) => { if (e.target !== search) markDirty(); }); // 검색어 입력은 편집이 아니다
+  form.addEventListener('change', (e) => { if (e.target !== search && e.target !== fileInput) markDirty(); });
+  let closed = false;
+  // 바로 닫기 (저장 뒤, 다른 장소를 열 때, 화면을 떠날 때). 아래로 내려가며 사라진다
   function close() {
+    if (closed) return;
+    closed = true;
     sheetEntry.release();
-    overlay.remove();
     document.removeEventListener('keydown', onKey);
     document.removeEventListener('paste', onPaste);
     if (unsubPhotos) unsubPhotos();
-    revokeAll();
+    overlay.classList.remove('open');
+    overlay.classList.add('closing');
+    setTimeout(() => { overlay.remove(); revokeAll(); }, 320);
   }
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-  const sheetEntry = overlays.push(close); // 안드로이드 뒤로가기로 닫힌다
+  // 사용자가 닫을 때 (바깥·닫기·취소·Esc·뒤로가기·아래로 쓸기): 저장 안 한 편집이 있으면 한 번 묻는다
+  async function requestClose() {
+    if (closed) return;
+    if (dirty && !(await confirmDialog('고친 내용을 저장하지 않고 닫을까요?', { okText: '닫기', cancelText: '계속 편집', danger: true }))) {
+      if (!closed) { sheetEntry.release(); sheetEntry = overlays.push(() => requestClose()); } // 뒤로가기로 또 닫을 수 있게 다시 쌓는다
+      form.style.transform = '';
+      return;
+    }
+    close();
+  }
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) requestClose(); });
+  let sheetEntry = overlays.push(() => requestClose()); // 안드로이드 뒤로가기로 닫힌다
   document.addEventListener('keydown', onKey);
 
   onSubmit(form, async (e) => { // 저장 중 연타 막기
@@ -351,9 +371,9 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         photoList, fileInput, photoStatus,
         el('p', { class: 'muted ps-hint', text: isTouchDevice() ? '긴 변 1280px로 줄여서 저장돼요.' : '긴 변 1280px로 줄여서 저장돼요. 복사한 사진은 Ctrl+V로도 붙여넣을 수 있어요.' })));
   form.append(
-    el('div', { class: 'sheet-head' },
+    sheetHead = el('div', { class: 'sheet-head' },
       el('h2', { text: title }),
-      el('button', { type: 'button', class: 'btn btn-icon', 'aria-label': '닫기', onClick: close }, icon('close'))),
+      el('button', { type: 'button', class: 'btn btn-icon', 'aria-label': '닫기', onClick: () => requestClose() }, icon('close'))),
     body,
     el('div', { class: 'sheet-foot' },
       place ? el('button', {
@@ -365,14 +385,44 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         },
       }, '삭제') : el('span'),
       el('div', { class: 'sheet-foot-right' },
-        el('button', { type: 'button', class: 'btn', onClick: close }, '취소'),
+        el('button', { type: 'button', class: 'btn', onClick: () => requestClose() }, '취소'),
         el('button', { type: 'submit', class: 'btn btn-primary' }, place ? '저장' : (noteMode ? '메모 추가' : '추가')))));
 
   drawLocation(); drawCategories(); drawPhotos();
   overlay.append(form);
   document.body.append(overlay);
   requestAnimationFrame(() => overlay.classList.add('open'));
-  (place || noteMode ? name : search).focus();
+  enableSwipeClose(sheetHead);
+  // 새로 추가할 때만 입력칸에 커서 (있는 장소를 보려고 열었을 때 키보드가 화면 절반을 가리지 않게)
+  if (!place) (noteMode ? name : search).focus();
+
+  // 폰(아래 시트): 머리 부분을 아래로 끌어 닫는다. 조금만 끌면 제자리로
+  function enableSwipeClose(handle) {
+    let startY = null;
+    let dy = 0;
+    handle.addEventListener('pointerdown', (e) => {
+      if (!globalThis.matchMedia?.('(max-width: 900px)').matches || e.target.closest('button')) return;
+      startY = e.clientY; dy = 0;
+      form.style.transition = 'none';
+      try { handle.setPointerCapture(e.pointerId); } catch { /* 합성 이벤트면 무시 */ }
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (startY == null) return;
+      dy = Math.max(0, e.clientY - startY);
+      form.style.transform = `translateY(${dy}px)`;
+    });
+    const end = () => {
+      if (startY == null) return;
+      startY = null;
+      form.style.transition = '';
+      if (dy < 90) { form.style.transform = ''; return; }
+      if (dirty) { requestClose(); return; } // 물어보는 동안은 끌던 자리에, 계속 편집하면 제자리로
+      form.style.transform = 'translateY(100%)';
+      close();
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
   // 공유로 받은 텍스트: 좌표·짧은 링크면 그대로 처리, 아니면(그냥 장소 이름 등) 그 텍스트로 검색
   if (sharedText && !noteMode) { search.value = sharedText; setTimeout(() => { if (!applyPastedCoords(sharedText)) runSearch(sharedText); }, 0); }
   return close;

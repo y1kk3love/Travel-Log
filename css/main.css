@@ -628,3 +628,7 @@ dialog.sheet-menu[open] { animation: menu-in .28s var(--spring); }
 .toast-with-action { pointer-events: auto; display: flex; align-items: center; gap: 12px; text-align: left; padding: 6px 8px 6px 16px; }
 .toast-action { border: 0; background: none; color: #8FC1FF; font: inherit; font-weight: 700; padding: 8px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
 .toast-action:active { background: rgba(255, 255, 255, .12); }
+
+/* ---- 장소 창: 닫힐 때 내려가며 사라지고, 폰에서는 머리를 아래로 끌어 닫는다 ---- */
+.sheet-overlay.closing { pointer-events: none; }
+@media (max-width: 900px) { .sheet-head { touch-action: none; cursor: grab; } }
