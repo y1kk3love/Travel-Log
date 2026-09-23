@@ -32,3 +32,25 @@ test('테마 색: index.html 과 manifest 의 theme_color 가 강조색과 같�
   assert.ok(html.includes('name="theme-color" content="#0A6CFF"'));
   assert.ok(manifest.includes('"theme_color": "#0A6CFF"'));
 });
+
+test('다크 모드: 시스템 설정을 따라 색 토큰만 바꾼다', () => {
+  assert.match(css, /color-scheme:\s*light dark/);
+  const dark = css.match(/@media \(prefers-color-scheme: dark\) \{\s*:root \{([\s\S]*?)\}/)?.[1] ?? '';
+  for (const t of ['--bg', '--sf', '--ink', '--muted', '--line', '--accent-text', '--inverse', '--on-inverse', '--field', '--bar-bg', '--toast-bg']) {
+    assert.match(dark, new RegExp(`${t}:`), `다크 모드에 ${t} 가 없음`);
+  }
+  // 토큰 밖에 박힌 밝은 화면 전용 색이 없어야 다크 모드에서 흰 면·안 보이는 글자가 안 생긴다
+  const rules = css.replace(/:root \{[\s\S]*?\}/g, '');
+  for (const hard of ['#E3E3E8', '#3A3A3C', 'rgba(242, 242, 247', '#FFECEB', '#D9E7FF', '#DDE7F7', 'rgba(255, 255, 255, .88)', 'rgba(17, 17, 17', 'rgba(43, 60, 110', '#F6F8FF', '#1C1C1E']) {
+    assert.ok(!rules.includes(hard), `${hard} 가 토큰 밖에 박혀 있음`);
+  }
+  // 진한 면(흰 글자)은 --ink 가 아니라 --inverse: 다크 모드에서 --ink 는 밝은 글자색이다
+  assert.ok(!/background:\s*var\(--ink\)/.test(css), 'background: var(--ink) 대신 var(--inverse)');
+});
+
+test('다크 모드: Google 지도도 시스템 설정을 따르고, 웹 앱 바탕색은 지금 배경색', () => {
+  assert.match(mapJs, /colorScheme:\s*g\.ColorScheme\?\.FOLLOW_SYSTEM/);
+  // Google 지도 말풍선(InfoWindow)은 다크 모드에서도 흰 바탕이라, 안의 글자는 토큰(--ink)이 아닌 어두운 색으로 고정
+  assert.match(css, /\.map-popup \{[^}]*color: #111111/);
+  assert.ok(manifest.includes('"background_color": "#F2F2F7"'));
+});

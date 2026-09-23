@@ -37,6 +37,7 @@ async function acquireMap(container) {
   // 화면을 어지럽히는 컨트롤은 끈다. Google 로고와 지도 데이터 저작권·약관 표시는 약관상 남겨야 한다.
   const map = new Map(div, {
     center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom, tilt: 0, mapId: MAPS_MAP_ID, // 지도 ID 가 있어야 새 방식 핀을 쓸 수 있다
+    colorScheme: g.ColorScheme?.FOLLOW_SYSTEM, // 다크 모드 폰에서는 어두운 지도 (처음 만들 때만 정할 수 있다)
     mapTypeControl: false, streetViewControl: false, fullscreenControl: false, rotateControl: false,
     cameraControl: false, zoomControl: true, keyboardShortcuts: false, clickableIcons: false,
     // 폰: 한 손가락은 페이지 스크롤, 지도는 두 손가락 (지도 위에서 페이지가 안 내려가던 것). 마우스는 그대로
