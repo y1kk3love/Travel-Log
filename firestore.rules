@@ -26,12 +26,91 @@ service cloud.firestore {
     function isInvited() {
       return isSiteOwner() || exists(/databases/$(database)/documents/allowedUsers/$(myEmail()));
     }
-    // 프로필(닉네임·사진): 본인 것은 누구나, 남의 것은 초대받은 계정만 단건 조회. 목록 조회는 막는다.
-    // (Google 계정만 있으면 누구나 로그인 자체는 되므로, 로그인만으로 모든 프로필을 긁어가지 못하게)
+
+    // ---------- 형식 검사 ----------
+    // 앱이 쓰는 필드만, 글자 수·파일 크기에 상한을 둔다. 버그나 실수로 저장 공간(무료 1 GiB)을 채우거나
+    // 다른 사람 화면을 깨뜨리는 문서가 들어오지 않게. 필드를 새로 쓰게 되면 여기에도 더해야 저장된다.
+    // 선택 필드: 없거나 null 이거나, n 자 이하 문자열
+    function optStr(d, k, n) {
+      return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= n);
+    }
+    function isDate(v) {
+      return v is string && v.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
+    function optList(d, k, n) {
+      return !(k in d) || d[k] == null || (d[k] is list && d[k].size() <= n);
+    }
+    function profileOk(d) {
+      return d.keys().hasOnly(['uid', 'nickname', 'photoURL', 'updatedAt'])
+        && d.uid == request.auth.uid
+        && optStr(d, 'nickname', 20)
+        && (!('photoURL' in d) || d.photoURL == null
+          || (d.photoURL is string && d.photoURL.size() <= 1000
+            && d.photoURL.matches('https://[a-z0-9-]+[.]googleusercontent[.]com/.*')));
+    }
+    function allowedOk(d) {
+      return d.keys().hasOnly(['invitedAt', 'invitedBy', 'canCreate'])
+        && (!('canCreate' in d) || d.canCreate is bool);
+    }
+    function tripOk(d) {
+      return d.keys().hasOnly(['title', 'startDate', 'endDate', 'coverPhoto', 'cover', 'createdAt', 'ownerUid', 'ownerEmail', 'memberEmails', 'rates'])
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 100
+        && isDate(d.startDate) && isDate(d.endDate)
+        && d.memberEmails is list && d.memberEmails.size() <= 30
+        && (!('cover' in d) || d.cover == null || (d.cover is bytes && d.cover.size() <= 210 * 1024))
+        && (!('rates' in d) || d.rates == null || d.rates is map)
+        && optStr(d, 'coverPhoto', 300);
+    }
+    function dayOk(d) {
+      return d.keys().hasOnly(['date', 'order']) && isDate(d.date) && d.order is number;
+    }
+    function placeOk(d) {
+      return d.keys().hasOnly(['name', 'time', 'stayMinutes', 'category', 'memo', 'lat', 'lng', 'address', 'photos', 'placeId', 'dayId', 'order', 'photoCount', 'routeToNext'])
+        && optStr(d, 'name', 200) && optStr(d, 'memo', 10000) && optStr(d, 'address', 500)
+        && optStr(d, 'placeId', 500) && optStr(d, 'time', 5) && optStr(d, 'category', 20) && optStr(d, 'dayId', 100)
+        && optList(d, 'photos', 30)
+        && (!('routeToNext' in d) || d.routeToNext == null || d.routeToNext is map);
+    }
+    function photoOk(d) {
+      return d.keys().hasOnly(['placeId', 'data', 'width', 'height', 'createdAt'])
+        && d.placeId is string && d.data is bytes && d.data.size() <= 720 * 1024;
+    }
+    function checklistOk(d) {
+      return d.keys().hasOnly(['group', 'groupOrder', 'order', 'text', 'done'])
+        && optStr(d, 'text', 500) && optStr(d, 'group', 100) && d.done is bool;
+    }
+    function reservationOk(d) {
+      return d.keys().hasOnly(['type', 'title', 'datetime', 'arrival', 'checkout', 'code', 'note', 'linkedPlaceId', 'linkedPlaceIds', 'flightNumber', 'fromAirport', 'toAirport', 'files'])
+        && optStr(d, 'title', 200) && optStr(d, 'note', 10000) && optStr(d, 'code', 100) && optStr(d, 'type', 20)
+        && optList(d, 'files', 20) && optList(d, 'linkedPlaceIds', 60);
+    }
+    function expenseOk(d) {
+      return d.keys().hasOnly(['title', 'amount', 'currency', 'category', 'date', 'paidBy', 'sharedWith', 'note', 'createdAt'])
+        && optStr(d, 'title', 200) && optStr(d, 'note', 5000) && d.amount is number
+        && optList(d, 'sharedWith', 30);
+    }
+    // 예약 서류: 앱이 올리는 PDF·JPEG 만, Firestore 문서 한도 아래(950 KiB)
+    function fileOk(d) {
+      return d.keys().hasOnly(['reservationId', 'name', 'type', 'size', 'data', 'createdAt'])
+        && d.type in ['application/pdf', 'image/jpeg'] && optStr(d, 'name', 300)
+        && d.data is bytes && d.data.size() <= 950 * 1024;
+    }
+    function subDocOk(col, d) {
+      return (col == 'days' && dayOk(d))
+        || (col == 'places' && placeOk(d))
+        || (col == 'photos' && photoOk(d))
+        || (col == 'checklist' && checklistOk(d))
+        || (col == 'reservations' && reservationOk(d))
+        || (col == 'expenses' && expenseOk(d))
+        || (col == 'files' && fileOk(d));
+    }
+
+    // 프로필(닉네임·사진): 본인 것은 누구나 읽고, 남의 것은 초대받은 계정만 단건 조회. 목록 조회는 막는다.
+    // 쓰기는 초대받은 계정만 (Google 계정만 있으면 누구나 로그인은 되므로, 초대 없이 문서를 만들어 쓰기 한도를 쓰지 못하게)
     match /profiles/{email} {
       allow get: if signedIn() && (email == myEmail() || isInvited());
       allow list: if false;
-      allow write: if signedIn() && email == myEmail() && request.resource.data.uid == request.auth.uid;
+      allow create, update: if signedIn() && email == myEmail() && isInvited() && profileOk(request.resource.data);
     }
 
     // 새 여행을 만들 수 있는 계정: 사이트 주인이거나 초대 목록 항목에 canCreate 가 켜진 계정
@@ -45,8 +124,11 @@ service cloud.firestore {
     match /allowedUsers/{email} {
       allow get: if signedIn() && (email == myEmail() || isSiteOwner());
       allow list: if isSiteOwner();
-      allow create: if isSiteOwner() || (canCreateTrips() && request.resource.data.get('canCreate', false) == false);
-      allow update: if isSiteOwner() || (canCreateTrips() && request.resource.data.get('canCreate', false) == resource.data.get('canCreate', false));
+      allow create: if email.matches('[^@ ]+@[^@ ]+')
+        && (isSiteOwner() || (canCreateTrips() && request.resource.data.get('canCreate', false) == false))
+        && allowedOk(request.resource.data);
+      allow update: if (isSiteOwner() || (canCreateTrips() && request.resource.data.get('canCreate', false) == resource.data.get('canCreate', false)))
+        && allowedOk(request.resource.data);
       allow delete: if isSiteOwner();
     }
 
@@ -57,16 +139,20 @@ service cloud.firestore {
       // 새 여행은 사이트 주인 또는 "여행 만들기"가 켜진 초대 계정이 만든다. 만든 사람이 그 여행의 주인.
       allow create: if canCreateTrips()
         && request.resource.data.ownerUid == request.auth.uid
-        && myEmail() in request.resource.data.memberEmails;
-      // 멤버는 내용을 고칠 수 있지만 소유자는 못 바꾸고, 동행 목록은 소유자만 바꾼다
+        && myEmail() in request.resource.data.memberEmails
+        && tripOk(request.resource.data);
+      // 멤버는 내용을 고칠 수 있지만 소유자·만든 날은 못 바꾸고, 동행 목록은 소유자만 바꾼다
       allow update: if isMemberOf(resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
-        && (request.resource.data.memberEmails == resource.data.memberEmails || resource.data.ownerUid == request.auth.uid);
+        && (request.resource.data.memberEmails == resource.data.memberEmails || resource.data.ownerUid == request.auth.uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'startDate', 'endDate', 'coverPhoto', 'cover', 'memberEmails', 'rates'])
+        && tripOk(request.resource.data);
       allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
 
-      match /{sub=**} {
+      // 여행 안의 문서: 앱이 쓰는 7가지 모음만, 각자 형식 검사
+      match /{col}/{docId} {
         allow read, delete: if isMemberOf(tripData(tripId));
-        allow create, update: if isMemberOf(tripDataAfter(tripId));
+        allow create, update: if isMemberOf(tripDataAfter(tripId)) && subDocOk(col, request.resource.data);
       }
     }
   }
