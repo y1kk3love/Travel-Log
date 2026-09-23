@@ -105,9 +105,12 @@ export function photoPath(tripId, filename) {
   return `photos/${encodeURIComponent(tripId)}/${encodeURIComponent(filename)}`;
 }
 
-export function toast(message, { kind = 'info', ms = 2800 } = {}) {
+// action: { label, onClick } 을 주면 알림 안에 버튼 하나(예: 되돌리기)를 둔다
+export function toast(message, { kind = 'info', ms = 2800, action = null } = {}) {
   const root = document.getElementById('toast-root');
-  const node = el('div', { class: `toast${kind === 'error' ? ' toast-error' : ''}`, role: kind === 'error' ? 'alert' : 'status', text: message });
+  const node = el('div', { class: `toast${kind === 'error' ? ' toast-error' : ''}${action ? ' toast-with-action' : ''}`, role: kind === 'error' ? 'alert' : 'status' },
+    el('span', { text: message }),
+    action && el('button', { type: 'button', class: 'toast-action', onClick: () => { node.remove(); action.onClick(); } }, action.label));
   root.append(node);
   raiseToasts(root);
   setTimeout(() => {

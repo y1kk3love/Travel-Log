@@ -340,10 +340,11 @@ export function watchChecklist(tripId, cb, onError = logError) {
   return onSnapshot(sub(tripId, 'checklist'), (s) => cb(docsOf(s)), onError);
 }
 
-export async function addChecklistItem(tripId, { group, groupOrder, text }) {
-  const inGroup = docsOf(await readDocs(query(sub(tripId, 'checklist'), where('group', '==', group))));
+// order·done 을 주면 그대로 (지운 항목 되돌리기), 아니면 그룹 맨 끝에 체크 안 된 채로
+export async function addChecklistItem(tripId, { group, groupOrder, text, order = null, done = false }) {
+  const inGroup = order == null ? docsOf(await readDocs(query(sub(tripId, 'checklist'), where('group', '==', group)))) : [];
   const ref = doc(sub(tripId, 'checklist'));
-  await save(setDoc(ref, { group, groupOrder, order: nextOrder(inGroup), text, done: false }));
+  await save(setDoc(ref, { group, groupOrder, order: order ?? nextOrder(inGroup), text, done: !!done }));
   return ref.id;
 }
 

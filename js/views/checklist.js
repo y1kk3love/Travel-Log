@@ -22,6 +22,10 @@ function groupItems(items) {
 }
 
 function draw(main, tripId, items) {
+  // 동행이 고쳐서 목록이 다시 그려져도, 쓰던 "항목 추가" 칸의 글자·커서·키보드는 그대로 둔다
+  const active = document.activeElement;
+  const keep = active?.classList?.contains('inline-input') && main.contains(active)
+    ? { group: active.dataset.group, value: active.value, start: active.selectionStart, end: active.selectionEnd } : null;
   clear(main);
   const done = items.filter((i) => i.done).length;
   const groups = groupItems(items);
@@ -34,11 +38,16 @@ function draw(main, tripId, items) {
     el('div', { class: 'progress' }, el('div', { style: { width: items.length ? `${Math.round((done / items.length) * 100)}%` : '0%' } })),
     el('div', { class: 'checklist-groups' }, ...groups.map((g) => groupCard(tripId, g, fail))),
     ...(groups.length === 0 ? [el('p', { class: 'muted', text: '그룹을 추가해서 준비물을 적어 보세요.' })] : []));
+  if (keep) {
+    const next = [...main.querySelectorAll('.inline-input')].find((i) => i.dataset.group === keep.group);
+    if (next) { next.value = keep.value; next.focus({ preventScroll: true }); try { next.setSelectionRange(keep.start, keep.end); } catch { /* 커서 위치 못 옮겨도 됨 */ } }
+  }
 }
 
 function groupCard(tripId, group, fail) {
-  const input = el('input', { class: 'inline-input', placeholder: '항목 추가', 'aria-label': `${group.name}에 항목 추가` });
+  const input = el('input', { class: 'inline-input', placeholder: '항목 추가', enterkeyhint: 'done', 'aria-label': `${group.name}에 항목 추가`, dataset: { group: group.name } });
   input.addEventListener('keydown', async (e) => {
+    if (e.isComposing || e.keyCode === 229) return; // 한글 조합 중 Enter 는 글자 확정용 (마지막 글자가 두 번 들어가지 않게)
     if (e.key !== 'Enter' || !input.value.trim()) return;
     e.preventDefault();
     const text = input.value.trim();
@@ -77,7 +86,15 @@ function checkRow(tripId, item, fail) {
     }, icon('edit')),
     el('button', {
       class: 'btn btn-icon btn-sm check-delete', 'aria-label': `${item.text} 삭제`,
-      onClick: () => deleteChecklistItem(tripId, item.id).catch(fail('삭제하지 못했어요')),
+      onClick: async () => {
+        try { await deleteChecklistItem(tripId, item.id); }
+        catch (err) { fail('삭제하지 못했어요')(err); return; }
+        // 확인 창 대신 되돌리기: 자주 쓰는 동작이라 매번 묻지 않고, 실수는 바로 되살린다
+        toast(`'${item.text}' 항목을 지웠어요`, {
+          ms: 5000,
+          action: { label: '되돌리기', onClick: () => addChecklistItem(tripId, { group: item.group, groupOrder: item.groupOrder, text: item.text, order: item.order, done: item.done }).catch(fail('되돌리지 못했어요')) },
+        });
+      },
     }, icon('close')));
 }
 
