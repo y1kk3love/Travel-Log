@@ -24,3 +24,6 @@ export function canEditTripInfo(trip, user, isSiteOwner) {
 export function canCreateTrips({ isSiteOwner, allowed }) {
   return !!isSiteOwner || allowed?.canCreate === true;
 }
+
+// 초대 관리에서 새로 추가한 계정의 기본값: 동행으로만 참여하고, 여행 만들기는 사이트 주인이 따로 켠다
+export const NEW_INVITE = Object.freeze({ canCreate: false });

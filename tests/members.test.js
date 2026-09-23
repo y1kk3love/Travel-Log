@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeEmail, sortTripsByStart, isTripOwner, canCreateTrips, canEditTripInfo } from '../js/lib/members.js';
+import { normalizeEmail, sortTripsByStart, isTripOwner, canCreateTrips, canEditTripInfo, NEW_INVITE } from '../js/lib/members.js';
 
 test('normalizeEmail: 공백 제거·소문자, 형식이 아니면 null', () => {
   assert.equal(normalizeEmail('  Friend@Gmail.com '), 'friend@gmail.com');
@@ -39,4 +39,9 @@ test('canEditTripInfo: 여행을 만든 사람과 사이트 주인은 대표 사
   assert.equal(canEditTripInfo(trip, { uid: 'site-owner' }, true), true);
   assert.equal(canEditTripInfo(trip, { uid: 'companion' }, false), false);
   assert.equal(canEditTripInfo(trip, null, false), false);
+});
+
+test('NEW_INVITE: 새로 초대한 계정은 동행으로만 참여한다 (여행 만들기는 사이트 주인이 따로 켠다)', () => {
+  assert.deepEqual(NEW_INVITE, { canCreate: false });
+  assert.equal(canCreateTrips({ isSiteOwner: false, allowed: NEW_INVITE }), false);
 });
