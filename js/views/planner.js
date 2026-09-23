@@ -34,8 +34,8 @@ export function mount(content, ctx) {
   const panel = el('section', { class: 'planner-panel' });
   const mapArea = el('section', { class: 'planner-map' });
   const mapBox = el('div', { class: 'map-box' });
-  const toggleDay = el('button', { class: 'btn btn-sm map-toggle active', onClick: () => setShowAll(false) }, '이 날만');
-  const toggleAll = el('button', { class: 'btn btn-sm map-toggle', onClick: () => setShowAll(true) }, '전체 일정');
+  const toggleDay = el('button', { class: 'btn btn-sm map-toggle active', 'aria-pressed': 'true', onClick: () => setShowAll(false) }, '이 날만');
+  const toggleAll = el('button', { class: 'btn btn-sm map-toggle', 'aria-pressed': 'false', onClick: () => setShowAll(true) }, '전체 일정');
   const locateBtn = el('button', { class: 'btn btn-sm map-toggle map-locate', 'aria-label': '내 위치 보기', onClick: () => toggleLocate() }, icon('crosshair'), '내 위치');
   mapArea.append(mapBox, el('div', { class: 'map-controls' }, toggleDay, toggleAll, locateBtn));
   content.append(el('div', { class: 'planner' }, panel, mapArea));
@@ -90,6 +90,8 @@ export function mount(content, ctx) {
     state.showAll = value;
     toggleDay.classList.toggle('active', !value);
     toggleAll.classList.toggle('active', value);
+    toggleDay.setAttribute('aria-pressed', String(!value));
+    toggleAll.setAttribute('aria-pressed', String(value));
     drawMap();
   }
 
@@ -136,6 +138,7 @@ export function mount(content, ctx) {
       ...state.days.map((d, i) => el('button', {
         // 지나간 날은 여권 도장처럼 작은 체크 도장
         class: `day-tab${d.id === state.selectedDayId ? ' active' : ''}${d.date < toDateStr(new Date()) ? ' stamped' : ''}`, onClick: () => selectDay(d.id),
+        'aria-pressed': String(d.id === state.selectedDayId),
       }, el('strong', { text: `Day ${i + 1}` }), el('span', { text: formatShort(d.date) }))),
       el('button', {
         class: 'day-tab day-tab-add', 'aria-label': '날짜 추가',
@@ -277,7 +280,24 @@ export function mount(content, ctx) {
   }
 
   function enableDrag(list, places) {
+    // 옮긴 항목의 손잡이에 포커스를 되돌린다 (키보드로 여러 칸 연달아 옮길 수 있게)
+    if (state.refocusId) {
+      const again = list.querySelector(`.tl-item[data-id="${state.refocusId}"] .drag-handle`);
+      state.refocusId = null;
+      if (again) requestAnimationFrame(() => again.focus({ preventScroll: false }));
+    }
     list.querySelectorAll('.drag-handle').forEach((handle) => {
+      // 끌기 대신 위아래 화살표로도 순서를 바꾼다 (키보드·화면 낭독기)
+      handle.addEventListener('keydown', async (e) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        const from = Number(handle.closest('.tl-item').dataset.index);
+        const to = e.key === 'ArrowUp' ? from - 1 : from + 1;
+        if (to < 0 || to >= places.length) return;
+        state.refocusId = places[from].id;
+        try { await reorderPlaces(tripId, reorderUpdates(places, from, to)); }
+        catch (err) { console.error(err); toast('순서를 바꾸지 못했어요', { kind: 'error' }); }
+      });
       handle.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         const item = handle.closest('.tl-item');
@@ -319,17 +339,20 @@ export function mount(content, ctx) {
     if (isNote(p)) {
       return el('div', { class: `tl-item tl-note${p.id === state.highlightId ? ' active' : ''}`, dataset: { id: p.id, index: String(index) } },
         el('div', { class: 'tl-num tl-num-note' }, icon('edit')),
-        el('button', { class: 'tl-body', onClick: () => { highlight(p.id); openSheet({ dayId: p.dayId, place: p, kind: 'note' }); } },
+        el('div', { class: 'tl-body' },
+          // 항목 전체를 누르는 투명 버튼 + 그 위의 링크 (버튼 안에 링크를 넣으면 잘못된 중첩이라 화면 낭독기·키보드가 헷갈린다)
+          el('button', { type: 'button', class: 'tl-open', 'aria-label': `메모 ${p.name || '(내용 없음)'} 열기`, onClick: () => { highlight(p.id); openSheet({ dayId: p.dayId, place: p, kind: 'note' }); } }),
           el('div', { class: 'tl-meta' }, p.time && el('span', { class: 'muted', text: p.time }), el('span', { class: 'tag', text: '메모' })),
           el('div', { class: 'tl-name tl-note-text', text: p.name || '(내용 없음)' }),
           p.memo && el('div', { class: 'muted tl-memo' }, linkedText(p.memo, { firstLineOnly: true }))),
-        el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));
+        el('button', { class: 'btn btn-icon drag-handle', 'aria-label': `${p.name || '메모'} 순서 옮기기, 위아래 화살표` }, icon('drag')));
     }
     const timeEl = p.time ? el('span', { class: 'muted', text: p.time })
       : est?.estimated ? el('span', { class: 'muted tl-est', title: '앞 장소의 시간·머무는 시간·도보 시간으로 추정', text: `도착 ~${est.time}` }) : null;
     return el('div', { class: `tl-item${p.id === state.highlightId ? ' active' : ''}`, dataset: { id: p.id, index: String(index) } },
       el('div', { class: 'tl-num', text: p.label }),
-      el('button', { class: 'tl-body', onClick: () => { map.focus(p.id); highlight(p.id); openSheet({ dayId: p.dayId, place: p }); } },
+      el('div', { class: 'tl-body' },
+        el('button', { type: 'button', class: 'tl-open', 'aria-label': `${p.name || '(이름 없음)'} 열기`, onClick: () => { map.focus(p.id); highlight(p.id); openSheet({ dayId: p.dayId, place: p }); } }),
         el('div', { class: 'tl-meta' },
           timeEl,
           el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }),
@@ -337,11 +360,10 @@ export function mount(content, ctx) {
           p.photoCount > 0 ? el('span', { class: 'tag', text: `사진 ${p.photoCount}` }) : null,
           ...state.reservations.filter((r) => linkedIds(r).includes(p.id)).map((r) => el('a', {
             class: 'badge badge-link', href: `#/trip/${tripId}/reservations/${r.id}`, title: r.title, text: '예약 ›',
-            onClick: (e) => e.stopPropagation(), // 장소 창 대신 그 예약 카드로
           }))),
         el('div', { class: 'tl-name', text: p.name || '(이름 없음)' }),
         p.memo && el('div', { class: 'muted tl-memo' }, linkedText(p.memo, { firstLineOnly: true }))),
-      el('button', { class: 'btn btn-icon drag-handle', 'aria-label': '순서 이동' }, icon('drag')));
+      el('button', { class: 'btn btn-icon drag-handle', 'aria-label': `${p.name || '장소'} 순서 옮기기, 위아래 화살표` }, icon('drag')));
   }
 
   // 검색 결과를 그 날 마지막 장소(없으면 여행의 아무 장소) 근처로 우선 보여준다

@@ -71,7 +71,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
 
   function drawCategories() {
     categoryRow.replaceChildren(...CATEGORY_ORDER.map((key) => el('button', {
-      type: 'button', class: `chip${draft.category === key ? ' active' : ''}`,
+      type: 'button', class: `chip${draft.category === key ? ' active' : ''}`, 'aria-pressed': String(draft.category === key),
       onClick: () => { draft.category = key; markDirty(); drawCategories(); },
     }, CATEGORY_LABELS[key])));
   }

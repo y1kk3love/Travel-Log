@@ -632,3 +632,8 @@ dialog.sheet-menu[open] { animation: menu-in .28s var(--spring); }
 /* ---- 장소 창: 닫힐 때 내려가며 사라지고, 폰에서는 머리를 아래로 끌어 닫는다 ---- */
 .sheet-overlay.closing { pointer-events: none; }
 @media (max-width: 900px) { .sheet-head { touch-action: none; cursor: grab; } }
+
+/* ---- 일정 항목: 전체를 누르는 투명 버튼 위에 링크(예약 배지·메모 링크)를 올린다 ---- */
+.tl-item .tl-body { position: relative; cursor: default; }
+.tl-open { position: absolute; inset: -6px; border: 0; background: transparent; padding: 0; cursor: pointer; border-radius: 12px; }
+.tl-item .tl-body a { position: relative; z-index: 1; }

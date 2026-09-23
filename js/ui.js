@@ -131,7 +131,13 @@ function raiseToasts(root) {
 
 // 모달 <dialog>를 열고, 닫히면 DOM에서 제거한다. 라우트가 바뀌면(뒤로가기 등) 자동으로 닫힌다.
 // 모달은 top layer에 있어서 해시가 바뀌어도 저절로 사라지지 않기 때문이다.
+let dialogSeq = 0;
 export function openModal(dialog) {
+  // 화면 낭독기가 대화상자 이름을 읽도록 제목(h2)이나 첫 문장(확인 창)을 이름으로 잇는다
+  if (!dialog.hasAttribute('aria-label') && !dialog.hasAttribute('aria-labelledby')) {
+    const title = dialog.querySelector('h2') ?? dialog.querySelector(':scope > p, form > p');
+    if (title) { title.id ||= `dlg-title-${++dialogSeq}`; dialog.setAttribute('aria-labelledby', title.id); }
+  }
   const onRoute = () => dialog.close();
   const entry = overlays.push(() => dialog.close());
   window.addEventListener('hashchange', onRoute);

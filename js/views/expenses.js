@@ -173,7 +173,7 @@ function openDialog(tripId, state, existing = null) {
   let category = existing?.category ?? 'food';
   const chips = el('div', { class: 'chips' });
   const drawChips = () => chips.replaceChildren(...Object.entries(EXPENSE_CATEGORIES).map(([k, v]) => el('button', {
-    type: 'button', class: `chip${category === k ? ' active' : ''}`, onClick: () => { category = k; drawChips(); },
+    type: 'button', class: `chip${category === k ? ' active' : ''}`, 'aria-pressed': String(category === k), onClick: () => { category = k; drawChips(); },
   }, v)));
   drawChips();
   const shareBoxes = people.map((m) => {

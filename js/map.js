@@ -39,7 +39,8 @@ async function acquireMap(container) {
     center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom, tilt: 0,
     mapTypeControl: false, streetViewControl: false, fullscreenControl: false, rotateControl: false,
     cameraControl: false, zoomControl: true, keyboardShortcuts: false, clickableIcons: false,
-    gestureHandling: 'greedy', zoomControlOptions: { position: g.ControlPosition.RIGHT_TOP },
+    // 폰: 한 손가락은 페이지 스크롤, 지도는 두 손가락 (지도 위에서 페이지가 안 내려가던 것). 마우스는 그대로
+    gestureHandling: globalThis.matchMedia?.('(pointer: coarse)').matches ? 'cooperative' : 'greedy', zoomControlOptions: { position: g.ControlPosition.RIGHT_TOP },
   });
   const infoWindow = new InfoWindow({ headerDisabled: true });
   shared = { div, map, g, Marker, infoWindow };
