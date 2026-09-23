@@ -637,3 +637,6 @@ dialog.sheet-menu[open] { animation: menu-in .28s var(--spring); }
 .tl-item .tl-body { position: relative; cursor: default; }
 .tl-open { position: absolute; inset: -6px; border: 0; background: transparent; padding: 0; cursor: pointer; border-radius: 12px; }
 .tl-item .tl-body a { position: relative; z-index: 1; }
+
+/* ---- 지도 핀 (AdvancedMarkerElement 의 내용). 원의 가운데가 좌표에 오게 반만큼 내린다 ---- */
+.map-pin { box-sizing: border-box; display: grid; place-items: center; border-radius: 50%; background: var(--pin); border: 3px solid #fff; color: #fff; font-weight: 700; line-height: 1; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); transform: translateY(50%); cursor: pointer; font-family: var(--sans); }

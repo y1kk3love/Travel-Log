@@ -11,17 +11,17 @@ import { walkingRoute, storedRoute } from './walk-routes.js';
 import { isKnownNoRoute } from './lib/polyline.js';
 import { escapeHtml, toast } from './ui.js';
 import { notifyQuota } from './quota.js';
+import { MAPS_MAP_ID } from './firebase-config.js';
 
 const ROUTE_COLOR = '#0A6CFF'; // css --accent 와 같은 파랑
 const ME_COLOR = '#34C759';
 const POOL_COLOR = '#8E8E93'; // 보관함(날짜 미정) 핀
-const PIN_STROKE = '#FFFFFF';
 const DEFAULT_VIEW = { center: { lat: 36.5, lng: 127.8 }, zoom: 6 };
 const MAX_FIT_ZOOM = 15;
 const WALK_ROUTE_KM = 3; // 이보다 먼 구간은 (대중교통일 테니) 경로를 묻지 않고 직선으로
 
 // 페이지 전체에서 공유하는 지도 인스턴스 (탭을 오가도 다시 만들지 않는다)
-let shared = null; // { div, map, g, Marker }
+let shared = null; // { div, map, g, AdvancedMarkerElement, infoWindow }
 
 async function acquireMap(container) {
   if (shared) {
@@ -29,21 +29,21 @@ async function acquireMap(container) {
     shared.g.event.trigger(shared.map, 'resize');
     return shared;
   }
-  const [{ Map, InfoWindow }, { Marker }] = await Promise.all([importLibrary('maps'), importLibrary('marker')]);
+  const [{ Map, InfoWindow }, { AdvancedMarkerElement }] = await Promise.all([importLibrary('maps'), importLibrary('marker')]);
   const g = globalThis.google.maps;
   const div = document.createElement('div');
   div.className = 'map-canvas';
   container.replaceChildren(div);
   // 화면을 어지럽히는 컨트롤은 끈다. Google 로고와 지도 데이터 저작권·약관 표시는 약관상 남겨야 한다.
   const map = new Map(div, {
-    center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom, tilt: 0,
+    center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom, tilt: 0, mapId: MAPS_MAP_ID, // 지도 ID 가 있어야 새 방식 핀을 쓸 수 있다
     mapTypeControl: false, streetViewControl: false, fullscreenControl: false, rotateControl: false,
     cameraControl: false, zoomControl: true, keyboardShortcuts: false, clickableIcons: false,
     // 폰: 한 손가락은 페이지 스크롤, 지도는 두 손가락 (지도 위에서 페이지가 안 내려가던 것). 마우스는 그대로
     gestureHandling: globalThis.matchMedia?.('(pointer: coarse)').matches ? 'cooperative' : 'greedy', zoomControlOptions: { position: g.ControlPosition.RIGHT_TOP },
   });
   const infoWindow = new InfoWindow({ headerDisabled: true });
-  shared = { div, map, g, Marker, infoWindow };
+  shared = { div, map, g, AdvancedMarkerElement, infoWindow };
   watchMapErrors(div);
   return shared;
 }
@@ -66,7 +66,7 @@ function watchMapErrors(div) {
 export function createMap(container) {
   let map = null;
   let g = null;
-  let Marker = null;
+  let AdvancedMarkerElement = null;
   let infoWindow = null;
   let destroyed = false;
   const pending = [];
@@ -81,7 +81,7 @@ export function createMap(container) {
   const ready = acquireMap(container)
     .then((s) => {
       if (destroyed) return;
-      ({ map, g, Marker, infoWindow } = s);
+      ({ map, g, AdvancedMarkerElement, infoWindow } = s);
       infoWindow.close();
       closeListener = infoWindow.addListener('closeclick', () => { openPopupId = null; });
       while (pending.length) pending.shift()();
@@ -90,10 +90,20 @@ export function createMap(container) {
 
   const whenReady = (fn) => { if (map) fn(); else pending.push(fn); };
 
-  function pinIcon(label) {
-    const scale = label.length <= 2 ? 14 : label.length <= 4 ? 18 : 22;
-    return { path: g.SymbolPath.CIRCLE, scale, fillColor: ROUTE_COLOR, fillOpacity: 1, strokeColor: PIN_STROKE, strokeWeight: 3 };
+  // 핀: 폐지 예정인 google.maps.Marker 대신 AdvancedMarkerElement 에 넣을 동그라미 요소 (예전 원형 기호와 같은 모양)
+  // 새 방식 핀은 요소의 아래 가운데가 좌표에 오므로, 원의 가운데가 좌표에 오게 반만큼 내린다 (.map-pin CSS)
+  function pinEl({ label = '', color = ROUTE_COLOR, diameter, border = 3 }) {
+    const d = document.createElement('div');
+    d.className = 'map-pin';
+    d.style.cssText = `--pin:${color}; width:${diameter}px; height:${diameter}px; border-width:${border}px; font-size:${label.length > 4 ? 10 : 12}px`;
+    d.textContent = label;
+    return d;
   }
+  function numberPin(label) {
+    const radius = label.length <= 2 ? 14 : label.length <= 4 ? 18 : 22;
+    return pinEl({ label, diameter: radius * 2 + 3 }); // 예전 원형 기호(반지름+테두리)와 같은 크기
+  }
+  const onPinClick = (marker, fn) => marker.addListener('gmp-click', fn);
 
   // 한 핀에 묶인 장소들을 모두 보여주고, 방금 고른 장소를 굵게
   function popupHtml(items, highlightId) {
@@ -151,32 +161,33 @@ export function createMap(container) {
     whenReady(() => {
       const gen = ++routeGen;
       const keepPopup = openPopupId;
-      markers.forEach((m) => m.marker.setMap(null));
+      markers.forEach((m) => { m.marker.map = null; });
       markers = new Map();
       clearLines();
       const bounds = new g.LatLngBounds();
       for (const p of groupOverlapping(extras)) {
-        const marker = new Marker({
-          map, position: { lat: p.lat, lng: p.lng }, title: p.items.map((x) => x.name).join(', '), zIndex: 1,
-          icon: { path: g.SymbolPath.CIRCLE, scale: 9, fillColor: POOL_COLOR, fillOpacity: 1, strokeColor: PIN_STROKE, strokeWeight: 2 },
+        const position = { lat: p.lat, lng: p.lng };
+        const marker = new AdvancedMarkerElement({
+          map, position, title: p.items.map((x) => x.name).join(', '), zIndex: 1, gmpClickable: true,
+          content: pinEl({ color: POOL_COLOR, diameter: 20, border: 2 }),
         });
-        const entry = { marker, items: p.items.map((x) => ({ ...x, label: '보관' })) };
-        marker.addListener('click', () => { openPopup(entry); selectCb && selectCb(p.items[0].id); });
+        const entry = { marker, position, items: p.items.map((x) => ({ ...x, label: '보관' })) };
+        onPinClick(marker, () => { openPopup(entry); selectCb && selectCb(p.items[0].id); });
         for (const x of p.items) markers.set(x.id, entry);
-        bounds.extend(marker.getPosition());
+        bounds.extend(position);
       }
       // 같은 자리의 장소(여러 날 묵는 호텔 등)는 핀 하나에 "3·6" 처럼 번호를 모아 쓴다
       const spots = groupOverlapping(groups.flat());
       for (const spot of spots) {
         const label = spot.items.map((p) => p.label).filter(Boolean).join('·');
-        const marker = new Marker({
-          map, position: { lat: spot.lat, lng: spot.lng }, icon: pinIcon(label), title: spot.items.map((p) => p.name).join(', '),
-          label: { text: label, color: PIN_STROKE, fontSize: label.length > 4 ? '10px' : '12px', fontWeight: '700', fontFamily: 'inherit' },
+        const position = { lat: spot.lat, lng: spot.lng };
+        const marker = new AdvancedMarkerElement({
+          map, position, title: spot.items.map((p) => p.name).join(', '), gmpClickable: true, content: numberPin(label),
         });
-        const entry = { marker, items: spot.items };
-        marker.addListener('click', () => { openPopup(entry); selectCb && selectCb(spot.items[0].id); });
+        const entry = { marker, position, items: spot.items };
+        onPinClick(marker, () => { openPopup(entry); selectCb && selectCb(spot.items[0].id); });
         for (const p of spot.items) markers.set(p.id, entry);
-        bounds.extend(marker.getPosition());
+        bounds.extend(position);
       }
       drawLegs(groups, gen);
       if (fit && (spots.length || extras.length)) {
@@ -192,7 +203,7 @@ export function createMap(container) {
     whenReady(() => {
       const entry = markers.get(placeId);
       if (!entry) return;
-      map.panTo(entry.marker.getPosition());
+      map.panTo(entry.position);
       openPopup(entry, placeId);
     });
   }
@@ -204,12 +215,12 @@ export function createMap(container) {
   function drawMe(lat, lng, { center }) {
     whenReady(() => {
       if (!meMarker) {
-        meMarker = new Marker({
-          map, position: { lat, lng }, clickable: false, zIndex: 1000,
-          icon: { path: g.SymbolPath.CIRCLE, scale: 8, fillColor: ME_COLOR, fillOpacity: 1, strokeColor: PIN_STROKE, strokeWeight: 3 },
+        meMarker = new AdvancedMarkerElement({
+          map, position: { lat, lng }, zIndex: 1000, title: '내 위치',
+          content: pinEl({ color: ME_COLOR, diameter: 19, border: 3 }),
         });
       } else {
-        meMarker.setPosition({ lat, lng });
+        meMarker.position = { lat, lng };
       }
       if (center) { map.panTo({ lat, lng }); if (map.getZoom() < 15) map.setZoom(15); }
     });
@@ -230,7 +241,7 @@ export function createMap(container) {
   function locateStop() {
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
-    if (meMarker) { meMarker.setMap(null); meMarker = null; }
+    if (meMarker) { meMarker.map = null; meMarker = null; }
   }
 
   return {
@@ -248,7 +259,7 @@ export function createMap(container) {
       destroyed = true;
       locateStop();
       if (map) {
-        markers.forEach((m) => m.marker.setMap(null));
+        markers.forEach((m) => { m.marker.map = null; });
         markers = new Map();
         clearLines();
         infoWindow.close();
