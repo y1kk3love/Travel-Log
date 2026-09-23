@@ -1,4 +1,4 @@
-import { GoogleAuthProvider, signInWithPopup, signInWithCredential, signOut as firebaseSignOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { GoogleAuthProvider, signInWithPopup, signInWithCredential, signOut as firebaseSignOut, onAuthStateChanged } from './firebase-sdk.js';
 import { auth } from './firebase.js';
 import { OWNER_UID } from './firebase-config.js';
 import { isNative, googleIdToken, nativeSignOut } from './native.js';
@@ -34,6 +34,7 @@ export async function signOut() {
   return firebaseSignOut(auth);
 }
 
-export function isOwner(user) {
+// 사이트 주인 (초대 목록·사용량을 관리하는 계정). 여행을 만든 사람은 lib/members.js 의 isTripOwner
+export function isSiteOwner(user) {
   return !!user && OWNER_UID !== '' && user.uid === OWNER_UID;
 }

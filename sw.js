@@ -22,6 +22,7 @@ const PRECACHE = [
   "js/auth.js",
   "js/db.js",
   "js/firebase-config.js",
+  "js/firebase-sdk.js",
   "js/firebase.js",
   "js/geocode.js",
   "js/gmaps.js",
@@ -60,7 +61,6 @@ const PRECACHE = [
   "js/quota.js",
   "js/rates.js",
   "js/router.js",
-  "js/routes.js",
   "js/ui.js",
   "js/update-check.js",
   "js/views/account-menu.js",
@@ -82,6 +82,7 @@ const PRECACHE = [
   "js/views/trip.js",
   "js/views/trips.js",
   "js/views/usage-dialog.js",
+  "js/walk-routes.js",
   "js/weather.js"
 ];
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'www.gstatic.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];

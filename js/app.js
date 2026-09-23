@@ -1,4 +1,4 @@
-import { watchAuth, signIn, signOut, isOwner } from './auth.js';
+import { watchAuth, signIn, signOut, isSiteOwner } from './auth.js';
 import { el, clear, toast, confirmDialog, closeTopOverlay } from './ui.js';
 import { startRouter } from './router.js';
 import { canUseApp, ensureProfile, onLateWriteError } from './db.js';
@@ -102,7 +102,7 @@ watchAuth(async (user) => {
   stopApp();
   if (!user) return renderLogin();
   renderChecking();
-  const allowed = await canUseApp(isOwner(user));
+  const allowed = await canUseApp(isSiteOwner(user));
   if (seq !== authSeq) return; // 확인하는 사이 로그인 상태가 바뀜
   if (!allowed) return renderNoAccess(user);
   await ensureProfile(user); // 첫 로그인이면 Google 이름을 기본 닉네임으로

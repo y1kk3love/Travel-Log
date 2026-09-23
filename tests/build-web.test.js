@@ -32,16 +32,19 @@ import 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
     'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js',
   ]);
   assert.deepEqual([...files].sort(), ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js']);
+  const sdk = fs.readFileSync(path.join(out, 'js', 'firebase-sdk.js'), 'utf8');
+  assert.ok(!sdk.includes('gstatic.com'), 'firebase-sdk.js 에 CDN 주소가 남음');
+  assert.ok(sdk.includes("'../vendor/firebase/firebase-"), 'firebase-sdk.js 가 vendor 를 가리키지 않음');
   for (const f of ['firebase.js', 'auth.js', 'db.js']) {
     const s = fs.readFileSync(path.join(out, 'js', f), 'utf8');
     assert.ok(!s.includes('gstatic.com'), `${f} 에 CDN 주소가 남음`);
-    assert.ok(s.includes("'../vendor/firebase/firebase-"), `${f} 가 vendor 를 가리키지 않음`);
+    assert.ok(s.includes("'./firebase-sdk.js'"), `${f} 가 firebase-sdk.js 를 쓰지 않음`);
   }
   const vendored = fs.readFileSync(path.join(out, 'vendor', 'firebase', 'firebase-auth.js'), 'utf8');
   assert.ok(vendored.includes("import './firebase-app.js'"));
   assert.ok(!vendored.includes('gstatic.com'));
   // 원본 소스는 그대로 (웹은 계속 CDN)
-  assert.ok(fs.readFileSync(new URL('../js/firebase.js', import.meta.url), 'utf8').includes('gstatic.com'));
+  assert.ok(fs.readFileSync(new URL('../js/firebase-sdk.js', import.meta.url), 'utf8').includes('gstatic.com'));
   fs.rmSync(out, { recursive: true, force: true });
 });
 

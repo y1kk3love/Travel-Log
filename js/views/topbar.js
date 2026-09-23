@@ -1,6 +1,6 @@
 import { el } from '../ui.js';
 import { auth } from '../firebase.js';
-import { signOut, isOwner } from '../auth.js';
+import { signOut, isSiteOwner } from '../auth.js';
 import { watchMyProfile } from '../db.js';
 import { displayNameFor } from '../lib/profile.js';
 import { openAccountMenu } from './account-menu.js';
@@ -46,6 +46,6 @@ export function topbar({ backHref = null } = {}) {
       // 아바타 하나로 내 계정 메뉴(닉네임·초대 관리·사용량·앱 버전·로그아웃)를 연다. 폰에서도 모든 항목에 닿는다.
       el('button', {
         class: 'btn btn-sm btn-ghost topbar-me', title: email, 'aria-label': '내 계정 메뉴', 'aria-haspopup': 'dialog',
-        onClick: () => openAccountMenu({ profile: myProfile, email, isSiteOwner: isOwner(auth.currentUser), onSignOut }),
+        onClick: () => openAccountMenu({ profile: myProfile, email, isSiteOwner: isSiteOwner(auth.currentUser), onSignOut }),
       }, avatar(myProfile, email, 28), el('span', { class: 'topbar-me-name', text: displayNameFor(myProfile, email) }))));
 }

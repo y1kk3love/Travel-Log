@@ -5,7 +5,7 @@ import { bytesToObjectUrl } from '../photo.js';
 import { tripStatus, formatStatus, formatRange, toDateStr, dayList } from '../lib/dates.js';
 import { canCreateTrips, canEditTripInfo } from '../lib/members.js';
 import { auth } from '../firebase.js';
-import { isOwner } from '../auth.js';
+import { isSiteOwner } from '../auth.js';
 import { navigate } from '../router.js';
 import { appDownloadCard } from './app-download.js';
 import { stampLabel } from '../lib/stamp.js';
@@ -15,7 +15,7 @@ export function render(container) {
   container.append(topbar(), main);
   // 새 여행 버튼: 사이트 주인은 바로, 초대 계정은 "여행 만들기"가 켜져 있으면 (초대 목록 항목을 한 번 읽는다)
   let trips = null;
-  const perm = { canCreate: isOwner(auth.currentUser) };
+  const perm = { canCreate: isSiteOwner(auth.currentUser) };
   if (!perm.canCreate) myAllowedEntry().then((allowed) => { perm.canCreate = canCreateTrips({ isSiteOwner: false, allowed }); if (trips) draw(main, trips, perm); });
   const unsub = watchTrips(
     (t) => { trips = t; draw(main, trips, perm); },
@@ -34,15 +34,15 @@ function draw(main, trips, perm) {
   const withStatus = trips.map((t) => ({ ...t, status: tripStatus(t.startDate, t.endDate, today) }));
   const upcoming = withStatus.filter((t) => t.status.kind !== 'after').sort((a, b) => a.startDate.localeCompare(b.startDate));
   const past = withStatus.filter((t) => t.status.kind === 'after');
-  const siteOwner = perm.canCreate; // 새 여행: 사이트 주인 또는 "여행 만들기"가 켜진 초대 계정
+  const canCreate = perm.canCreate; // 새 여행: 사이트 주인 또는 "여행 만들기"가 켜진 초대 계정
 
   main.append(
     el('div', { class: 'page-head' },
       el('div', {},
         el('h1', { text: '내 여행' }),
         el('p', { class: 'muted', text: `다가오는 여행 ${upcoming.length}개 · 지난 여행 ${past.length}개` })),
-      siteOwner ? el('button', { class: 'btn btn-primary', onClick: openNewTripDialog }, icon('plus'), '새 여행') : null),
-    section('다가오는 여행', upcoming.map(featureCard), siteOwner ? '아직 계획한 여행이 없어요. 새 여행을 만들어 보세요.' : '초대받은 여행이 여기에 보여요.'),
+      canCreate ? el('button', { class: 'btn btn-primary', onClick: openNewTripDialog }, icon('plus'), '새 여행') : null),
+    section('다가오는 여행', upcoming.map(featureCard), canCreate ? '아직 계획한 여행이 없어요. 새 여행을 만들어 보세요.' : '초대받은 여행이 여기에 보여요.'),
     section('지난 여행', past.map(smallCard), '지난 여행이 없어요.'),
   );
   const download = appDownloadCard(); // 웹에서만: 최신 APK 링크 (앱 안에서는 null → append 하면 글자 "null" 이 찍히므로 걸러 낸다)
@@ -63,7 +63,7 @@ function cover(trip, className) {
     return el('img', { class: className, src: url, alt: '', onLoad: () => URL.revokeObjectURL(url) });
   }
   if (trip.coverPhoto) return el('img', { class: className, src: photoPath(trip.id, trip.coverPhoto), alt: '' });
-  return el('div', { class: `${className} cover-empty`, text: canEditTripInfo(trip, auth.currentUser, isOwner(auth.currentUser)) ? '대표 사진 없음 · 여행 화면에서 추가' : '대표 사진 없음' });
+  return el('div', { class: `${className} cover-empty`, text: canEditTripInfo(trip, auth.currentUser, isSiteOwner(auth.currentUser)) ? '대표 사진 없음 · 여행 화면에서 추가' : '대표 사진 없음' });
 }
 
 function membersTag(trip) {

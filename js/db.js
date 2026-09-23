@@ -1,7 +1,7 @@
 import {
   collection, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, getDocFromCache, getDocsFromCache, query, where, orderBy, limit,
   onSnapshot, writeBatch, serverTimestamp, getCountFromServer, increment, arrayUnion, arrayRemove, Bytes,
-} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+} from './firebase-sdk.js';
 import { db, auth } from './firebase.js';
 import { dayList, addDays, toDateStr } from './lib/dates.js';
 import { nextOrder } from './lib/order.js';

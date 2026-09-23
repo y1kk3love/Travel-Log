@@ -20,13 +20,14 @@ export function buildWeb(outDir = path.join(ROOT, 'dist')) {
 
 const CDN_RE = /https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/([\w-]+\.js)/g;
 
-// outDir/js/*.js 가 가리키는 gstatic 모듈을 전부 받아 outDir/vendor/firebase/ 에 두고, import 를 상대 경로로 바꾼다.
+// outDir/js/**/*.js 가 가리키는 gstatic 모듈을 전부 받아 outDir/vendor/firebase/ 에 두고, import 를 상대 경로로 바꾼다.
 // fetchText(url) → Promise<string>. 받은 모듈끼리의 import(firebase-app.js)도 './' 로 바꾼다. 받은 파일 이름 배열을 돌려준다.
 export async function vendorFirebase(outDir, fetchText) {
   const jsDir = path.join(outDir, 'js');
   const vendorDir = path.join(outDir, 'vendor', 'firebase');
   const urls = new Map(); // 파일 이름 → URL
-  const sources = fs.readdirSync(jsDir).filter((f) => f.endsWith('.js')).map((f) => path.join(jsDir, f));
+  // 하위 폴더(views·lib)까지 본다 (나중에 거기서 CDN 을 불러도 앱이 CDN 에 남지 않게)
+  const sources = fs.readdirSync(jsDir, { recursive: true }).filter((f) => String(f).endsWith('.js')).map((f) => path.join(jsDir, String(f)));
   for (const file of sources) {
     for (const m of fs.readFileSync(file, 'utf8').matchAll(CDN_RE)) urls.set(m[1], m[0]);
   }
@@ -39,7 +40,8 @@ export async function vendorFirebase(outDir, fetchText) {
   }
   for (const file of sources) {
     const s = fs.readFileSync(file, 'utf8');
-    const r = s.replace(CDN_RE, '../vendor/firebase/$1');
+    const depth = path.relative(jsDir, path.dirname(file)).split(path.sep).filter(Boolean).length;
+    const r = s.replace(CDN_RE, `${'../'.repeat(depth + 1)}vendor/firebase/$1`);
     if (r !== s) fs.writeFileSync(file, r);
   }
   return [...urls.keys()];

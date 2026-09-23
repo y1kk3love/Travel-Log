@@ -10,7 +10,7 @@ import * as expenses from './expenses.js';
 import { openMembersDialog } from './members-dialog.js';
 import { openCoverDialog } from './cover-dialog.js';
 import { openTripEditDialog } from './trip-edit-dialog.js';
-import { isOwner } from '../auth.js';
+import { isSiteOwner } from '../auth.js';
 import { auth } from '../firebase.js';
 import { canEditTripInfo, isTripOwner } from '../lib/members.js';
 import { openActionMenu } from './action-menu.js';
@@ -74,7 +74,7 @@ async function confirmDeleteTrip(trip) {
 // 제목 줄(오른쪽 끝 "더 보기"), 날짜·D-day·동행 얼굴 줄, 그 아래 탭. 관리 기능은 "더 보기" 메뉴로 모아 내용이 먼저 보이게.
 function drawHeader(header, tabsBar, trip, tab) {
   const user = auth.currentUser;
-  const canEdit = canEditTripInfo(trip, user, isOwner(user)); // 대표 사진·여행 정보: 만든 사람과 사이트 주인
+  const canEdit = canEditTripInfo(trip, user, isSiteOwner(user)); // 대표 사진·여행 정보: 만든 사람과 사이트 주인
   const members = trip.memberEmails ?? [];
   const more = el('button', {
     class: 'btn btn-icon trip-more', 'aria-label': '여행 메뉴', 'aria-haspopup': 'dialog',

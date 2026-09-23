@@ -7,7 +7,7 @@
 import { importLibrary } from './gmaps.js';
 import { distanceKm, groupOverlapping } from './lib/geo.js';
 import { splitLegs } from './lib/polyline.js';
-import { walkingRoute, storedRoute } from './routes.js';
+import { walkingRoute, storedRoute } from './walk-routes.js';
 import { isKnownNoRoute } from './lib/polyline.js';
 import { escapeHtml, toast } from './ui.js';
 import { notifyQuota } from './quota.js';
