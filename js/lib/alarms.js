@@ -17,6 +17,13 @@ function atLocal(dateStr, hhmm) {
   return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
 }
 
+// 알림은 오늘·내일 일정만 쓰므로, 그 이틀에 걸친 여행만 고른다 (지난 여행까지 장소를 다 읽으면 무료 읽기 한도를 쓴다)
+export function tripsForAlarms(trips, now = new Date()) {
+  const today = toDateStr(now);
+  const tomorrow = addDays(today, 1);
+  return trips.filter((t) => t.startDate && t.endDate && t.startDate <= tomorrow && t.endDate >= today);
+}
+
 export function planAlarms({ trips, placesByTrip, daysByTrip }, now = new Date()) {
   const today = toDateStr(now);
   const tomorrow = addDays(today, 1);
