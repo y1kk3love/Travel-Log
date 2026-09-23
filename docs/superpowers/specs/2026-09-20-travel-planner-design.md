@@ -1,6 +1,13 @@
 # 여행 플래너 설계 스펙
 
 작성일: 2026-09-20
+
+> **2026-09-23 현재 구현과 다른 점** (이 문서는 첫 설계 기록으로 둔다)
+> - 사용자: 혼자 쓰는 앱에서 사이트 주인 + 초대한 동행이 함께 쓰는 앱으로 바뀜 (초대 목록, 여행마다 동행, 지출 정산)
+> - 지도·검색: Leaflet·Nominatim 대신 Google Maps Platform (검색이 막히면 OpenStreetMap 으로 대체)
+> - 사진: GitHub `photos/` 폴더 대신 Firestore 문서에 직접 저장
+> - 안드로이드 앱(Capacitor), 예약(탑승권·키카드), 지출 탭이 더해짐
+> - 최신 구조는 `README.md`, 데이터는 `docs/data-model.md`
 디자인 목업: https://claude.ai/artifact/W9VUB6ZCs6ahqEx3Zhfz4k
 
 ## 1. 목적
