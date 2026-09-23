@@ -41,3 +41,30 @@ test('invertRates / format', () => {
   assert.equal(formatAmount(12.5, 'USD'), '$12.5');
   assert.equal(formatAmount(1500, 'KRW'), '1,500원');
 });
+
+test('summarize: 동행에서 빠진 사람이 낸 돈도 정산에 남는다 (합이 0 이 되게)', () => {
+  const members = ['a@x.com', 'b@x.com']; // c 는 여행에서 빠짐
+  const expenses = [
+    { amount: 30000, currency: 'KRW', paidBy: 'c@x.com', sharedWith: ['a@x.com', 'b@x.com', 'c@x.com'] },
+  ];
+  const s = summarize(expenses, members, {});
+  assert.deepEqual(s.participants, ['a@x.com', 'b@x.com', 'c@x.com']);
+  assert.deepEqual(s.former, ['c@x.com']);
+  assert.deepEqual(s.perPerson['c@x.com'], { paid: 30000, share: 10000, net: 20000 });
+  assert.deepEqual(s.perPerson['a@x.com'], { paid: 0, share: 10000, net: -10000 });
+  const sum = Object.values(s.perPerson).reduce((t, p) => t + p.net, 0);
+  assert.equal(Math.round(sum), 0);
+  assert.equal(settle(s.perPerson).length, 2); // a·b 가 c 에게 보낸다
+});
+
+test('summarize: 나누는 사람이 비어 있는 예전 지출은 지금 동행 전원이 나눈다', () => {
+  const s = summarize([{ amount: 9000, currency: 'KRW', paidBy: 'a@x.com', sharedWith: [] }], ['a@x.com', 'b@x.com', 'c@x.com'], {});
+  assert.equal(s.perPerson['b@x.com'].share, 3000);
+  assert.deepEqual(s.former, []);
+});
+
+test('summarize: 동행이 아닌 사람이 나누는 사람에만 있어도 부담액을 받는다', () => {
+  const s = summarize([{ amount: 10000, currency: 'KRW', paidBy: 'a@x.com', sharedWith: ['a@x.com', 'gone@x.com'] }], ['a@x.com'], {});
+  assert.deepEqual(s.perPerson['gone@x.com'], { paid: 0, share: 5000, net: -5000 });
+  assert.deepEqual(s.former, ['gone@x.com']);
+});

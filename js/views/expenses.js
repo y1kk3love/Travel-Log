@@ -13,16 +13,24 @@ export function mount(content, ctx) {
   const main = el('main', { class: 'container expenses-page' });
   content.append(main);
   const redraw = () => draw(main, tripId, state);
+  // 닉네임: 지금 동행과, 지출에 낸 사람·나눈 사람으로 남은 나간 동행까지 (없는 사람만 한 번 더 읽는다)
+  const asked = new Set();
+  const loadProfiles = () => {
+    const emails = [...(state.trip?.memberEmails ?? []), ...state.expenses.flatMap((e) => [e.paidBy, ...(e.sharedWith ?? [])])]
+      .filter((m) => m && !asked.has(m));
+    if (!emails.length) return;
+    emails.forEach((m) => asked.add(m));
+    getProfiles([...new Set(emails)]).then((p) => { Object.assign(state.profiles, p); redraw(); });
+  };
   const unsubs = [
     watchTrip(tripId, (trip) => {
       if (!trip) return;
       state.trip = trip;
-      const members = trip.memberEmails ?? [];
-      if (Object.keys(state.profiles).length !== members.length) getProfiles(members).then((p) => { state.profiles = p; redraw(); });
+      loadProfiles();
       redraw();
       ensureRates(tripId, state);
     }),
-    watchExpenses(tripId, (list) => { state.expenses = list; redraw(); ensureRates(tripId, state); },
+    watchExpenses(tripId, (list) => { state.expenses = list; loadProfiles(); redraw(); ensureRates(tripId, state); },
       (err) => { console.error(err); toast('지출을 불러오지 못했어요', { kind: 'error' }); }),
   ];
   return () => unsubs.forEach((u) => u());
@@ -86,8 +94,9 @@ function draw(main, tripId, state) {
   }
 
   // 정산: 영수증 종이 모양 (위아래 뜯긴 자국, 점선 이음줄, 고정폭 금액)
-  if (members.length > 1) {
+  if (members.length > 1 || s.former.length) {
     const transfers = settle(s.perPerson);
+    const who = (m) => `${nameOf(state, m)}${s.former.includes(m) ? ' (나간 동행)' : ''}`;
     const row = (label, value, cls = '') => el('div', { class: `receipt-row ${cls}` },
       el('span', { class: 'receipt-label', text: label }), el('span', { class: 'receipt-dots' }), el('span', { class: 'receipt-amount', text: value }));
     main.append(el('section', { class: 'card receipt' },
@@ -95,11 +104,11 @@ function draw(main, tripId, state) {
         el('div', { class: 'receipt-title', text: '정산 영수증' }),
         el('div', { class: 'muted', text: `${state.trip?.title ?? ''} · ${members.length}명` })),
       el('div', { class: 'receipt-section' },
-        ...members.map((m) => row(nameOf(state, m), `낸 돈 ${formatKRW(s.perPerson[m].paid)} · 부담 ${formatKRW(s.perPerson[m].share)}`))),
+        ...s.participants.map((m) => row(who(m), `낸 돈 ${formatKRW(s.perPerson[m].paid)} · 부담 ${formatKRW(s.perPerson[m].share)}`))),
       el('div', { class: 'receipt-sep' }),
       el('div', { class: 'receipt-section' },
         ...(transfers.length
-          ? transfers.map((t) => row(`${nameOf(state, t.from)} → ${nameOf(state, t.to)}`, formatKRW(t.amountKRW), 'receipt-transfer'))
+          ? transfers.map((t) => row(`${who(t.from)} → ${who(t.to)}`, formatKRW(t.amountKRW), 'receipt-transfer'))
           : [el('p', { class: 'muted receipt-note', text: state.expenses.length ? '정산할 금액이 없어요' : '지출을 적으면 누가 누구에게 얼마를 보내면 되는지 나와요' })])),
       el('div', { class: 'receipt-sep' }),
       el('div', { class: 'receipt-section' },
@@ -155,8 +164,10 @@ function openDialog(tripId, state, existing = null) {
     ...CURRENCIES.map((c) => el('option', { value: c, selected: (existing?.currency ?? lastCurrency) === c, text: c })));
   const inTrip = toDateStr(new Date()) >= trip.startDate && toDateStr(new Date()) <= trip.endDate;
   const date = el('input', { class: 'input', id: 'ex-date', type: 'date', value: existing?.date ?? (inTrip ? toDateStr(new Date()) : trip.startDate) });
+  // 이 지출에 낸 사람·나눈 사람으로 남은 나간 동행도 목록에 둔다 (편집하다가 조용히 빠지지 않게)
+  const people = [...new Set([...members, ...(existing?.paidBy ? [existing.paidBy] : []), ...(existing?.sharedWith ?? [])])];
   const paidBy = el('select', { class: 'input', id: 'ex-paidby' },
-    ...members.map((m) => el('option', { value: m, selected: (existing?.paidBy ?? me) === m, text: displayNameFor(state.profiles[m], m) })));
+    ...people.map((m) => el('option', { value: m, selected: (existing?.paidBy ?? me) === m, text: displayNameFor(state.profiles[m], m) })));
   const note = el('textarea', { class: 'input', id: 'ex-note', rows: '2', placeholder: '메모 (선택)' });
   note.value = existing?.note ?? '';
   let category = existing?.category ?? 'food';
@@ -165,8 +176,8 @@ function openDialog(tripId, state, existing = null) {
     type: 'button', class: `chip${category === k ? ' active' : ''}`, onClick: () => { category = k; drawChips(); },
   }, v)));
   drawChips();
-  const shareBoxes = members.map((m) => {
-    const box = el('input', { type: 'checkbox', value: m, checked: !existing?.sharedWith?.length || existing.sharedWith.includes(m) });
+  const shareBoxes = people.map((m) => {
+    const box = el('input', { type: 'checkbox', value: m, checked: existing?.sharedWith?.length ? existing.sharedWith.includes(m) : members.includes(m) });
     return el('label', {}, box, displayNameFor(state.profiles[m], m));
   });
 
@@ -181,8 +192,8 @@ function openDialog(tripId, state, existing = null) {
       el('div', { class: 'field' }, el('label', { text: '분류' }), chips),
       el('div', { class: 'form-grid' },
         el('div', { class: 'field' }, el('label', { for: 'ex-date', text: '날짜' }), date),
-        members.length > 1 ? el('div', { class: 'field' }, el('label', { for: 'ex-paidby', text: '낸 사람' }), paidBy) : null),
-      members.length > 1 ? el('div', { class: 'field' }, el('label', { text: '나누는 사람' }), el('div', { class: 'share-list' }, ...shareBoxes)) : null,
+        people.length > 1 ? el('div', { class: 'field' }, el('label', { for: 'ex-paidby', text: '낸 사람' }), paidBy) : null),
+      people.length > 1 ? el('div', { class: 'field' }, el('label', { text: '나누는 사람' }), el('div', { class: 'share-list' }, ...shareBoxes)) : null,
       el('div', { class: 'field' }, el('label', { for: 'ex-note', text: '메모' }), note)),
     el('div', { class: 'dialog-actions' },
       existing ? el('button', {
@@ -199,12 +210,12 @@ function openDialog(tripId, state, existing = null) {
     const sharedWith = shareBoxes.map((l) => l.querySelector('input')).filter((b) => b.checked).map((b) => b.value);
     const data = {
       title: title.value.trim(), amount: Number(amount.value), currency: currency.value, category,
-      date: date.value || null, paidBy: members.length > 1 ? paidBy.value : (members[0] ?? me),
-      sharedWith: sharedWith.length === members.length ? [] : sharedWith, note: note.value,
+      date: date.value || null, paidBy: people.length > 1 ? paidBy.value : (members[0] ?? me),
+      sharedWith, note: note.value, // 항상 명시해 둔다 (비워 두면 '그때 동행 전원'이 아니라 '지금 동행 전원'이 되어 나중에 합류한 사람까지 나눠 낸다)
     };
     if (!data.title) { toast('내용을 입력해 주세요', { kind: 'error' }); title.focus(); return; }
     if (!(data.amount > 0)) { toast('금액을 입력해 주세요', { kind: 'error' }); amount.focus(); return; }
-    if (members.length > 1 && !sharedWith.length) { toast('나누는 사람을 한 명 이상 골라 주세요', { kind: 'error' }); return; }
+    if (people.length > 1 && !sharedWith.length) { toast('나누는 사람을 한 명 이상 골라 주세요', { kind: 'error' }); return; }
     try {
       if (existing) await updateExpense(tripId, existing.id, data); else await addExpense(tripId, data);
       dialog.close();

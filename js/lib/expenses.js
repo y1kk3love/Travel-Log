@@ -28,11 +28,20 @@ export function formatAmount(amount, currency) {
 }
 
 // 합계와 사람별 낸 돈·부담액. 환율이 없는 통화는 원화 합계에서 빠지고 missingRates 에 적힌다.
+// 정산에는 지금 동행뿐 아니라 지출에 낸 사람·나눈 사람으로 남아 있는 사람(여행에서 빠진 동행)도 들어간다.
+// 그래야 모두의 net 합이 0 이 되어 정산이 맞는다. 빠진 사람은 former 에 적힌다.
+// 나누는 사람이 비어 있는 예전 지출은 지금 동행 전원이 나눈 것으로 본다.
 export function summarize(expenses, members, rates = {}) {
   const byCurrency = {};
   const byCategory = {};
   const byDate = {};
-  const perPerson = Object.fromEntries(members.map((m) => [m, { paid: 0, share: 0, net: 0 }]));
+  const participants = [...members];
+  const seen = new Set(members);
+  for (const e of expenses) {
+    for (const m of [e.paidBy, ...(e.sharedWith ?? [])]) if (m && !seen.has(m)) { seen.add(m); participants.push(m); }
+  }
+  const former = participants.filter((m) => !members.includes(m));
+  const perPerson = Object.fromEntries(participants.map((m) => [m, { paid: 0, share: 0, net: 0 }]));
   const missing = new Set();
   let totalKRW = 0;
   for (const e of expenses) {
@@ -46,8 +55,8 @@ export function summarize(expenses, members, rates = {}) {
     if (e.paidBy && e.paidBy in perPerson) perPerson[e.paidBy].paid += krw;
     if (sharers.length) { const each = krw / sharers.length; for (const m of sharers) perPerson[m].share += each; }
   }
-  for (const m of members) perPerson[m].net = perPerson[m].paid - perPerson[m].share;
-  return { totalKRW, byCurrency, byCategory, byDate, perPerson, missingRates: [...missing] };
+  for (const m of participants) perPerson[m].net = perPerson[m].paid - perPerson[m].share;
+  return { totalKRW, byCurrency, byCategory, byDate, perPerson, participants, former, missingRates: [...missing] };
 }
 
 // 정산: 덜 낸 사람(net<0)이 더 낸 사람(net>0)에게 보내는 최소 송금 목록
