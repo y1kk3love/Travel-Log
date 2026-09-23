@@ -12,6 +12,7 @@ import { estimateTimes, routeBetween, pickNext } from '../lib/timeline.js';
 import { weatherLabel, pickDayLocation, forecastWindow } from '../lib/weather.js';
 import { fetchDailyForecast } from '../weather.js';
 import { toDateStr } from '../lib/dates.js';
+import { linkedIds } from '../lib/reservation-links.js';
 
 const isNote = (p) => p.category === 'note';
 // 메모 항목은 번호를 차지하지 않는다: 장소에만 1, 2, 3… 을 붙인다
@@ -326,7 +327,7 @@ export function mount(content, ctx) {
           el('span', { class: 'tag', text: CATEGORY_LABELS[p.category] ?? '기타' }),
           p.stayMinutes ? el('span', { class: 'muted', text: `${p.stayMinutes}분` }) : null,
           p.photoCount > 0 ? el('span', { class: 'tag', text: `사진 ${p.photoCount}` }) : null,
-          ...state.reservations.filter((r) => r.linkedPlaceId === p.id || (r.linkedPlaceIds ?? []).includes(p.id)).map((r) => el('a', {
+          ...state.reservations.filter((r) => linkedIds(r).includes(p.id)).map((r) => el('a', {
             class: 'badge badge-link', href: `#/trip/${tripId}/reservations/${r.id}`, title: r.title, text: '예약 ›',
             onClick: (e) => e.stopPropagation(), // 장소 창 대신 그 예약 카드로
           }))),

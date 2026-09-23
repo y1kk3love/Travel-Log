@@ -9,6 +9,7 @@ import { orderForTime } from '../lib/order.js';
 import { compressImage } from '../photo.js';
 import { diffDays } from '../lib/dates.js';
 import { safeFileType } from '../lib/file-type.js';
+import { linkedIds, chooseLink, linkFields } from '../lib/reservation-links.js';
 
 const FILE_ACCEPT = 'image/*,application/pdf';
 const formatSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
@@ -66,8 +67,7 @@ function draw(main, tripId, state) {
 
 function card(tripId, state, r) {
   // 연결된 일정: 여러 개(숙소 기간)면 전부, 하나면 그것
-  const linkedIds = [...new Set([...(r.linkedPlaceIds ?? []), ...(r.linkedPlaceId ? [r.linkedPlaceId] : [])])];
-  const linkedEls = linkedIds.map((id) => ({ id, label: placeLabel(state, id) })).filter((x) => x.label)
+  const linkedEls = linkedIds(r).map((id) => ({ id, label: placeLabel(state, id) })).filter((x) => x.label)
     .map((x, i) => [i ? ' · ' : null, el('a', { href: `#/trip/${tripId}/planner/${x.id}`, class: 'link-accent', text: x.label })]);
   const linked = linkedEls.length ? el('span', {}, ...linkedEls.flat()) : null;
   const actions = () => [
@@ -290,11 +290,13 @@ function openDialog(tripId, state, existing = null) {
   const code = el('input', { class: 'input', id: 'rs-code', value: existing?.code ?? '', placeholder: '예약번호' });
   const note = el('textarea', { class: 'input', id: 'rs-note', rows: '3', placeholder: '좌석, 체크인 시간, 주소 등' });
   note.value = existing?.note ?? '';
+  // 지금 연결(숙소 여러 박이면 여러 개). 목록에는 첫 연결이 선택돼 보이고, 그대로 두면 여러 박 연결을 지킨다
+  const currentLinks = existing ? linkedIds(existing).filter((id) => state.places.some((p) => p.id === id)) : [];
   const linked = el('select', { class: 'input', id: 'rs-linked' },
     el('option', { value: '', text: '연결 안 함' }),
-    ...state.places.map((p) => el('option', { value: p.id, selected: existing?.linkedPlaceId === p.id, text: placeLabel(state, p.id) })));
-  // 일시가 있고 연결한 일정이 없으면, 저장할 때 그 날 일정에 장소를 만들어 연결한다 (기본 켜짐)
-  const autoAdd = el('input', { type: 'checkbox', id: 'rs-auto', checked: !existing?.linkedPlaceId });
+    ...state.places.map((p) => el('option', { value: p.id, selected: currentLinks[0] === p.id, text: placeLabel(state, p.id) })));
+  // 일시가 있고 연결한 일정이 없으면, 저장할 때 그 날 일정에 장소를 만들어 연결한다 (처음 만들 때만 기본 켜짐)
+  const autoAdd = el('input', { type: 'checkbox', id: 'rs-auto', checked: !currentLinks.length });
   const autoField = el('label', { class: 'check-inline', for: 'rs-auto' }, autoAdd, '일정에 자동 추가 (일시의 날짜 Day 에 시각 순서로)');
   const syncAuto = () => { autoField.hidden = !datetime.value || !!linked.value; };
   datetime.addEventListener('input', syncAuto); linked.addEventListener('change', syncAuto); syncAuto();
@@ -326,13 +328,12 @@ function openDialog(tripId, state, existing = null) {
       fromAirport: from, toAirport: to,
       checkout: type.value === 'stay' && checkout.value ? checkout.value : null,
       arrival: type.value === 'flight' && arrival.value ? arrival.value : null,
-      linkedPlaceId: linked.value || null, linkedPlaceIds: existing?.linkedPlaceIds ?? [], flightNumber: parsedFlight ? parsedFlight.iata : null,
+      ...linkFields(chooseLink(currentLinks, linked.value)), flightNumber: parsedFlight ? parsedFlight.iata : null,
     };
     if (!data.title) { toast('제목을 입력해 주세요', { kind: 'error' }); return; }
     try {
       const specs = placesFromReservation(data, state.days, { places: state.places }); // 항공은 여행 장소들과 가까운 공항 좌표를 붙인다
-      const alreadyLinked = data.linkedPlaceId || data.linkedPlaceIds.length;
-      if (!alreadyLinked && data.datetime && autoAdd.checked) {
+      if (!data.linkedPlaceIds.length && data.datetime && autoAdd.checked) {
         // 새로 연결: 해당 Day 마다 시각 순서로 장소를 만들고 전부 연결 (숙소는 기간만큼 여러 개)
         if (!specs.length) toast('그 날짜의 Day 가 없어 일정에는 넣지 않았어요', { ms: 4000 });
         else {
@@ -341,12 +342,11 @@ function openDialog(tripId, state, existing = null) {
             const sameDay = state.places.filter((p) => p.dayId === spec.dayId);
             ids.push(await addPlace(tripId, { ...spec, order: orderForTime(sameDay, spec.time) }));
           }
-          data.linkedPlaceId = ids[0];
-          data.linkedPlaceIds = ids;
+          Object.assign(data, linkFields(ids));
           const dayNums = specs.map((s) => state.days.findIndex((d) => d.id === s.dayId) + 1);
           toast(ids.length === 1 ? `Day ${dayNums[0]} 일정에 넣었어요` : `Day ${dayNums[0]}~${dayNums[dayNums.length - 1]} 일정에 ${ids.length}개 넣었어요`);
         }
-      } else if (existing?.linkedPlaceId && data.linkedPlaceIds.length <= 1 && data.linkedPlaceId === existing.linkedPlaceId && data.datetime !== existing.datetime && specs[0]) {
+      } else if (currentLinks.length === 1 && data.linkedPlaceIds.length === 1 && data.linkedPlaceId === currentLinks[0] && data.datetime !== existing.datetime && specs[0]) {
         // 하나짜리 연결에서 일시를 고쳤으면 연결된 일정의 시각(날짜가 바뀌면 Day 도)을 따라 옮긴다. 여러 개짜리는 손대지 않는다
         await updatePlace(tripId, data.linkedPlaceId, { time: specs[0].time, dayId: specs[0].dayId });
       }

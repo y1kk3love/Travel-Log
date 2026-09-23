@@ -8,6 +8,7 @@ import { nextOrder } from './lib/order.js';
 import { sortTripsByStart } from './lib/members.js';
 import { planScheduleChange } from './lib/schedule.js';
 import { settleSoon, preferWithin } from './lib/settle.js';
+import { withoutPlaces, linkedIds, linkFields } from './lib/reservation-links.js';
 
 // 현재 로그인 사용자 (여행 소유자·동행 판정에 쓴다)
 function me() {
@@ -213,13 +214,15 @@ export async function tripStats(tripId) {
   }
 }
 
-// 장소가 지워질 때 그 장소에 연결된 예약의 연결을 푼다 (배치에 추가)
+// 장소가 지워질 때 그 장소를 예약 연결에서 뺀다 (배치에 추가). 예약은 여행마다 몇십 개라 전부 읽어 거른다.
+// 예전에는 한 개 연결(linkedPlaceId)만 풀어서 숙소 여러 박 연결(linkedPlaceIds)에 지운 장소가 남았다.
 async function unlinkReservations(batch, tripId, placeIds) {
-  for (let i = 0; i < placeIds.length; i += 30) {
-    const chunk = placeIds.slice(i, i + 30);
-    const snap = await readDocs(query(sub(tripId, 'reservations'), where('linkedPlaceId', 'in', chunk)));
-    snap.docs.forEach((d) => batch.update(d.ref, { linkedPlaceId: null }));
-  }
+  const gone = new Set(placeIds);
+  const snap = await readDocs(sub(tripId, 'reservations'));
+  snap.docs.forEach((d) => {
+    const r = d.data();
+    if (linkedIds(r).some((id) => gone.has(id))) batch.update(d.ref, linkFields(withoutPlaces(r, placeIds)));
+  });
 }
 
 // ---------- days ----------
