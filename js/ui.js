@@ -54,6 +54,11 @@ export function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+// 손가락으로 쓰는 기기(폰·태블릿)인가. 안내 문구를 "Ctrl+V" 대신 기기에 맞게 고를 때 쓴다.
+export function isTouchDevice() {
+  return !!globalThis.matchMedia?.('(pointer: coarse)').matches;
+}
+
 export function clear(node) {
   while (node.firstChild) node.removeChild(node.firstChild);
 }

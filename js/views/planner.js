@@ -36,7 +36,7 @@ export function mount(content, ctx) {
   const mapBox = el('div', { class: 'map-box' });
   const toggleDay = el('button', { class: 'btn btn-sm map-toggle active', onClick: () => setShowAll(false) }, '이 날만');
   const toggleAll = el('button', { class: 'btn btn-sm map-toggle', onClick: () => setShowAll(true) }, '전체 일정');
-  const locateBtn = el('button', { class: 'btn btn-sm map-toggle map-locate', 'aria-label': '내 위치 보기', onClick: () => toggleLocate() }, icon('pin'), '내 위치');
+  const locateBtn = el('button', { class: 'btn btn-sm map-toggle map-locate', 'aria-label': '내 위치 보기', onClick: () => toggleLocate() }, icon('crosshair'), '내 위치');
   mapArea.append(mapBox, el('div', { class: 'map-controls' }, toggleDay, toggleAll, locateBtn));
   content.append(el('div', { class: 'planner' }, panel, mapArea));
 
@@ -184,7 +184,7 @@ export function mount(content, ctx) {
           const dir = hasCoords(prevPlace) && hasCoords(p) ? el('a', {
             class: 'btn tl-leg-btn', target: '_blank', rel: 'noopener', title: `${prevPlace.name} → ${p.name} 길찾기`,
             href: googleMapsDirectionsUrl({ from: prevPlace, to: p, mode: distanceKm(prevPlace, p) <= 3 ? 'walking' : 'transit' }),
-          }, icon('pin'), '길찾기') : null;
+          }, icon('navigation'), '길찾기') : null;
           list.append(el('div', { class: 'tl-leg' }, el('span', { class: 'tl-leg-line' }), el('span', { class: 'muted', text: label ?? '' }), dir));
         }
         prevPlace = p;
@@ -254,7 +254,7 @@ export function mount(content, ctx) {
       hasCoords(p) ? el('a', {
         class: 'btn btn-sm btn-primary', target: '_blank', rel: 'noopener',
         href: googleMapsDirectionsUrl({ to: { lat: p.lat, lng: p.lng, placeId: p.placeId } }),
-      }, icon('pin'), '여기서 길찾기') : null);
+      }, icon('navigation'), '여기서 길찾기') : null);
   }
 
   // 오늘 Day 를 보고 있으면 1분마다 배너·다음 표시를 갱신한다

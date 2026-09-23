@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog, openModal, icon } from '../ui.js';
+import { el, toast, confirmDialog, openModal, icon, isTouchDevice } from '../ui.js';
 import { setTripCover, coverBytes } from '../db.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
@@ -49,7 +49,7 @@ export function openCoverDialog(trip) {
           },
         }, '제거') : null),
       fileInput, status,
-      el('p', { class: 'muted ps-hint', text: '긴 변 800px로 줄여 저장돼요. 복사한 사진은 Ctrl+V로도 넣을 수 있어요.' })),
+      el('p', { class: 'muted ps-hint', text: isTouchDevice() ? '긴 변 800px로 줄여 저장돼요.' : '긴 변 800px로 줄여 저장돼요. 복사한 사진은 Ctrl+V로도 넣을 수 있어요.' })),
     el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '닫기'))));
   openModal(dialog);
 }

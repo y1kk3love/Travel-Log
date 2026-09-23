@@ -21,7 +21,7 @@ export function render(container) {
     (t) => { trips = t; draw(main, trips, perm); },
     (err) => {
       console.error(err);
-      if (err.code === 'permission-denied') toast('접근 권한이 없어요. firestore.rules의 UID를 확인해 주세요', { kind: 'error', ms: 6000 });
+      if (err.code === 'permission-denied') toast('여행 목록을 볼 권한이 없어요. 잠시 뒤 다시 열어 보세요', { kind: 'error', ms: 6000 });
       else toast('여행 목록을 불러오지 못했어요', { kind: 'error' });
     },
   );

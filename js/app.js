@@ -44,7 +44,6 @@ function renderNoAccess(user) {
   app.append(el('div', { class: 'screen-center' },
     el('h1', { text: '초대받은 계정이 아니에요' }),
     el('p', { class: 'muted', text: `${user.email} 계정은 아직 어느 여행에도 초대되지 않았어요. 여행 주인에게 이 이메일로 초대해 달라고 해 주세요.` }),
-    el('p', { class: 'muted' }, '사이트 주인이라면 UID ', el('code', { text: user.uid }), ' 를 js/firebase-config.js의 OWNER_UID와 firestore.rules에 넣으세요.'),
     el('button', { class: 'btn', onClick: () => signOut() }, '로그아웃')));
 }
 

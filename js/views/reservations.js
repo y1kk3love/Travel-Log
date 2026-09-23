@@ -119,7 +119,7 @@ function ticketCard(tripId, r, linked, actions) {
   return el('section', { class: 'card reservation ticket', dataset: { id: r.id } },
     el('div', { class: 'ticket-main' },
       el('div', { class: 'ticket-band' },
-        el('span', { class: 'ticket-band-title' }, icon('pin'), '탑승권'),
+        el('span', { class: 'ticket-band-title' }, icon('plane'), '탑승권'),
         el('span', { class: 'ticket-band-right' },
           el('span', { text: flight ? `${airline ?? ''} ${flight.iata}`.trim() : (r.title || '(제목 없음)') }),
           ...actions())),
@@ -161,7 +161,7 @@ function keyCard(tripId, r, linked, actions) {
     el('div', { class: 'keycard-stripe' }, el('span', { class: 'keycard-stripe-text', text: 'ROOM KEY' })),
     el('div', { class: 'keycard-body' },
       el('div', { class: 'keycard-top' },
-        el('span', { class: 'keycard-brand' }, icon('pin'), '숙소'),
+        el('span', { class: 'keycard-brand' }, icon('bed'), '숙소'),
         el('span', { class: 'keycard-actions' }, ...actions())),
       el('div', { class: 'keycard-name', text: r.title || '(제목 없음)' }),
       el('div', { class: 'keycard-dates' },
@@ -201,7 +201,7 @@ function filesField(tripId, r) {
     el('div', { class: 'file-chips' },
       ...files.map((f) => el('span', { class: 'file-chip' },
         el('button', { type: 'button', class: 'file-open', title: `${f.name} 열기`, onClick: () => openFile(tripId, f) },
-          icon(f.type === 'application/pdf' ? 'calendar' : 'expand'), el('span', { class: 'file-name', text: f.name }), el('span', { class: 'muted', text: formatSize(f.size) })),
+          icon(f.type === 'application/pdf' ? 'file' : 'image'), el('span', { class: 'file-name', text: f.name }), el('span', { class: 'muted', text: formatSize(f.size) })),
         el('button', {
           type: 'button', class: 'btn btn-icon btn-sm', 'aria-label': `${f.name} 삭제`,
           onClick: async () => {

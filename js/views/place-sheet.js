@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog, icon, photoPath, openLightbox, overlays, CATEGORY_LABELS, CATEGORY_ORDER, onSubmit } from '../ui.js';
+import { el, toast, confirmDialog, icon, photoPath, openLightbox, overlays, CATEGORY_LABELS, CATEGORY_ORDER, onSubmit, isTouchDevice } from '../ui.js';
 import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
@@ -61,7 +61,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
 
   function drawLocation() {
     location.textContent = draft.lat != null ? `위치 설정됨 · ${draft.address ?? `${draft.lat.toFixed(4)}, ${draft.lng.toFixed(4)}`}` : '위치 없음 · 검색해서 고르면 지도에 표시돼요';
-    googleBtn.replaceChildren(icon('pin'), draft.placeId || draft.lat != null ? 'Google 지도에서 보기' : 'Google 지도에서 찾기');
+    googleBtn.replaceChildren(icon('map'), draft.placeId || draft.lat != null ? 'Google 지도에서 보기' : 'Google 지도에서 찾기');
     // 위치가 있으면 현재 위치에서 이 장소까지 길찾기 (Google 지도 앱이 열린다)
     directionsBtn.hidden = draft.lat == null;
     if (draft.lat != null) directionsBtn.href = googleMapsDirectionsUrl({ to: { lat: draft.lat, lng: draft.lng, placeId: draft.placeId } });
@@ -142,7 +142,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   const clipboardBtn = el('button', {
     type: 'button', class: 'btn btn-sm',
     onClick: async () => {
-      if (!navigator.clipboard?.read) { toast('이 브라우저는 클립보드 읽기를 지원하지 않아요. Ctrl+V로 붙여넣어 보세요', { kind: 'error', ms: 4000 }); return; }
+      if (!navigator.clipboard?.read) { toast(isTouchDevice() ? '이 기기에서는 복사한 사진을 읽을 수 없어요. 사진 추가로 골라 주세요' : '이 브라우저는 클립보드 읽기를 지원하지 않아요. Ctrl+V로 붙여넣어 보세요', { kind: 'error', ms: 4000 }); return; }
       try {
         const items = await navigator.clipboard.read();
         const files = [];
@@ -154,7 +154,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         await handleFiles(files);
       } catch (err) {
         console.error(err);
-        toast(err?.name === 'NotAllowedError' ? '클립보드 접근이 거부됐어요. Ctrl+V로 붙여넣어 보세요' : '클립보드를 읽지 못했어요', { kind: 'error', ms: 4000 });
+        toast(err?.name === 'NotAllowedError' ? (isTouchDevice() ? '복사한 사진에 접근할 수 없어요. 사진 추가로 골라 주세요' : '클립보드 접근이 거부됐어요. Ctrl+V로 붙여넣어 보세요') : '클립보드를 읽지 못했어요', { kind: 'error', ms: 4000 });
       }
     },
   }, '클립보드에서 붙여넣기');
@@ -278,7 +278,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         ? googleMapsPlaceUrl({ placeId: draft.placeId, name: q, lat: draft.lat, lng: draft.lng })
         : googleMapsSearchUrl(search.value.trim() || q);
     },
-  }, icon('pin'), 'Google 지도에서 찾기');
+  }, icon('map'), 'Google 지도에서 찾기');
   const directionsBtn = el('a', { class: 'btn btn-sm', target: '_blank', rel: 'noopener', href: '#', hidden: true, title: '현재 위치에서 여기까지' }, '여기로 길찾기');
   const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도 앱에서 "공유"로 복사한 내용을 붙여넣으면 그 이름으로 검색해요. 주소창의 긴 링크나 "위도, 경도"는 바로 핀이 찍혀요.' });
   const overlay = el('div', { class: 'sheet-overlay' });
@@ -349,7 +349,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       el('div', { class: 'field' },
         el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-photo', text: '사진' }), el('div', { class: 'ps-photo-actions' }, uploadBtn, clipboardBtn)),
         photoList, fileInput, photoStatus,
-        el('p', { class: 'muted ps-hint', text: '긴 변 1280px로 줄여서 저장돼요. 복사한 사진은 Ctrl+V로도 붙여넣을 수 있어요.' })));
+        el('p', { class: 'muted ps-hint', text: isTouchDevice() ? '긴 변 1280px로 줄여서 저장돼요.' : '긴 변 1280px로 줄여서 저장돼요. 복사한 사진은 Ctrl+V로도 붙여넣을 수 있어요.' })));
   form.append(
     el('div', { class: 'sheet-head' },
       el('h2', { text: title }),
