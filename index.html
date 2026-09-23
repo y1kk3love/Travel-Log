@@ -27,10 +27,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="여행 로그">
-<!-- 글꼴: Pretendard (한국어에서 iOS 기본 글꼴과 가장 비슷). 못 받으면 기기 기본 글꼴로 -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<!-- 도장·영수증 글꼴 (Google Fonts, 오프라인이면 기본 글꼴) -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap">
+<!-- 글꼴: Pretendard (한국어에서 iOS 기본 글꼴과 가장 비슷)와 도장·영수증용 Do Hyeon.
+     화면을 막지 않게 늦게 붙인다(그 사이엔 기기 글꼴). crossorigin 이라 서비스 워커가 캐시해 오프라인에서도 쓴다.
+     안드로이드 앱은 빌드 때 이 둘을 받아 APK 안에 넣는다 (scripts/build-web.js vendorFonts) -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap" crossorigin="anonymous" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
