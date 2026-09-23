@@ -1,4 +1,10 @@
 import { linkify } from './lib/text.js';
+import { createOverlayStack } from './lib/overlays.js';
+import { singleFlight } from './lib/single-flight.js';
+
+// 열린 창(대화상자·장소 시트·사진 확대) 목록. 안드로이드 뒤로가기는 맨 위 창부터 닫는다.
+export const overlays = createOverlayStack();
+export function closeTopOverlay() { return overlays.closeTop(); }
 const ICONS = {
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   close: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
@@ -12,6 +18,11 @@ const ICONS = {
   expand: '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>',
   pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/>',
+  chart: '<line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="18" y1="20" x2="18" y2="14"/>',
+  phone: '<rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
 };
 
 export const CATEGORY_LABELS = { sight: '관광', food: '식사', cafe: '카페', shop: '쇼핑', stay: '숙소', move: '이동', etc: '기타', note: '메모' };
@@ -60,11 +71,15 @@ export function linkedText(text, { firstLineOnly = false } = {}) {
     : document.createTextNode(p.value)));
 }
 
-// 사진을 화면 가득 보여주는 라이트박스 (배경을 누르면 닫힘)
+// 사진을 화면 가득 보여주는 라이트박스 (배경·닫기·Esc·뒤로가기로 닫힘)
 export function openLightbox(src) {
-  const box = el('div', { class: 'lightbox', onClick: () => box.remove() },
+  const onKey = (e) => { if (e.key === 'Escape' && entry.isTop()) close(); };
+  const close = () => { box.remove(); entry.release(); document.removeEventListener('keydown', onKey); };
+  const box = el('div', { class: 'lightbox', onClick: close },
     el('img', { src, alt: '' }),
     el('button', { type: 'button', class: 'btn btn-icon lightbox-close', 'aria-label': '닫기' }, icon('close')));
+  const entry = overlays.push(close);
+  document.addEventListener('keydown', onKey);
   document.body.append(box);
   return box;
 }
@@ -79,28 +94,54 @@ export function photoPath(tripId, filename) {
 
 export function toast(message, { kind = 'info', ms = 2800 } = {}) {
   const root = document.getElementById('toast-root');
-  const node = el('div', { class: `toast${kind === 'error' ? ' toast-error' : ''}`, text: message });
+  const node = el('div', { class: `toast${kind === 'error' ? ' toast-error' : ''}`, role: kind === 'error' ? 'alert' : 'status', text: message });
   root.append(node);
-  setTimeout(() => node.remove(), ms);
+  raiseToasts(root);
+  setTimeout(() => {
+    node.remove();
+    if (!root.childElementCount) try { root.hidePopover?.(); } catch { /* 이미 닫힘 */ }
+  }, ms);
+}
+
+// 모달 대화상자는 top layer 에 떠서 z-index 로는 그 위에 알림을 띄울 수 없다.
+// 알림 영역을 popover 로 top layer 에 올리고, 띄울 때마다 닫았다 다시 열어 가장 위로 보낸다 (popover 미지원 브라우저는 예전처럼).
+function raiseToasts(root) {
+  if (!root || typeof root.showPopover !== 'function' || !root.childElementCount) return;
+  try {
+    if (root.matches(':popover-open')) root.hidePopover();
+    root.showPopover();
+  } catch { /* 지원하지 않으면 그냥 둔다 */ }
 }
 
 // 모달 <dialog>를 열고, 닫히면 DOM에서 제거한다. 라우트가 바뀌면(뒤로가기 등) 자동으로 닫힌다.
 // 모달은 top layer에 있어서 해시가 바뀌어도 저절로 사라지지 않기 때문이다.
 export function openModal(dialog) {
   const onRoute = () => dialog.close();
+  const entry = overlays.push(() => dialog.close());
   window.addEventListener('hashchange', onRoute);
-  dialog.addEventListener('close', () => { window.removeEventListener('hashchange', onRoute); dialog.remove(); });
+  dialog.addEventListener('close', () => { entry.release(); window.removeEventListener('hashchange', onRoute); dialog.remove(); });
   document.body.append(dialog);
   dialog.showModal();
+  raiseToasts(document.getElementById('toast-root')); // 떠 있던 알림은 새 창 위로
 }
 
-export function confirmDialog(message, { okText = '삭제', cancelText = '취소' } = {}) {
+// 폼 제출을 한 번에 하나만 처리하고, 처리하는 동안 제출 버튼을 잠근다 (연타로 두 번 저장되지 않게).
+export function onSubmit(form, handler) {
+  const run = singleFlight(async (e) => {
+    const buttons = [...form.querySelectorAll('button[type="submit"]')];
+    buttons.forEach((b) => { b.disabled = true; });
+    try { await handler(e); } finally { buttons.forEach((b) => { b.disabled = false; }); }
+  });
+  form.addEventListener('submit', (e) => { e.preventDefault(); run(e).catch((err) => console.error(err)); });
+}
+
+export function confirmDialog(message, { okText = '삭제', cancelText = '취소', danger = false } = {}) {
   return new Promise((resolve) => {
     const dialog = el('dialog', {},
       el('p', { text: message }),
       el('div', { class: 'dialog-actions' },
         el('button', { type: 'button', class: 'btn', onClick: () => dialog.close('cancel') }, cancelText),
-        el('button', { type: 'button', class: 'btn btn-primary', onClick: () => dialog.close('ok') }, okText)));
+        el('button', { type: 'button', class: danger ? 'btn btn-primary btn-destructive' : 'btn btn-primary', onClick: () => dialog.close('ok') }, okText)));
     dialog.addEventListener('close', () => resolve(dialog.returnValue === 'ok'));
     openModal(dialog);
   });

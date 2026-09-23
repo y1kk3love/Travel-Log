@@ -1,4 +1,4 @@
-import { el, clear, toast, confirmDialog, openModal, icon, linkedText, openLightbox } from '../ui.js';
+import { el, clear, toast, confirmDialog, openModal, icon, linkedText, openLightbox, onSubmit } from '../ui.js';
 import {
   watchReservations, addReservation, updateReservation, deleteReservation, watchPlaces, watchDays,
   addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, addPlace, updatePlace,
@@ -313,7 +313,7 @@ function openDialog(tripId, state, existing = null) {
     el('div', { class: 'dialog-actions' },
       el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '취소'),
       el('button', { type: 'submit', class: 'btn btn-primary' }, existing ? '저장' : '추가')));
-  form.addEventListener('submit', async (e) => {
+  onSubmit(form, async (e) => { // 저장 중 연타 막기
     e.preventDefault();
     const parsedFlight = type.value === 'flight' ? parseFlightNumber(flight.value) : null;
     const isFlight = type.value === 'flight';

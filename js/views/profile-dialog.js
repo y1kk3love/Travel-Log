@@ -1,4 +1,4 @@
-import { el, toast, openModal } from '../ui.js';
+import { el, toast, openModal, onSubmit } from '../ui.js';
 import { setNickname } from '../db.js';
 import { normalizeNickname } from '../lib/profile.js';
 import { auth } from '../firebase.js';
@@ -15,7 +15,7 @@ export function openProfileDialog(currentNickname = '') {
     el('div', { class: 'dialog-actions' },
       el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '취소'),
       el('button', { type: 'submit', class: 'btn btn-primary' }, '저장')));
-  form.addEventListener('submit', async (e) => {
+  onSubmit(form, async (e) => { // 저장 중 연타 막기
     e.preventDefault();
     const nick = normalizeNickname(input.value);
     if (!nick) { toast('닉네임은 1~20자로 적어 주세요', { kind: 'error' }); input.focus(); return; }

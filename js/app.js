@@ -1,7 +1,7 @@
 import { watchAuth, signIn, signOut, isOwner } from './auth.js';
-import { el, clear, toast, confirmDialog } from './ui.js';
+import { el, clear, toast, confirmDialog, closeTopOverlay } from './ui.js';
 import { startRouter } from './router.js';
-import { canUseApp, ensureProfile } from './db.js';
+import { canUseApp, ensureProfile, onLateWriteError } from './db.js';
 import { isNative, takeSharedText, onResume, onNotificationTap, onBackButton, exitApp } from './native.js';
 import { isHomeHash } from './lib/nav.js';
 import { shareFromQuery } from './lib/share.js';
@@ -14,6 +14,12 @@ import * as tripsView from './views/trips.js';
 import * as tripView from './views/trip.js';
 
 const app = document.getElementById('app');
+
+// 오프라인에서 한 변경은 연결된 뒤 서버에 올라간다. 그때 거절되면(권한·크기 등) 기기 화면에서도 되돌려지므로 알려 준다.
+onLateWriteError((err) => {
+  console.error('[db] 나중에 실패한 저장', err);
+  toast(`저장하지 못한 변경이 있어요 (${err?.code ?? '오류'}). 내용을 다시 확인해 주세요`, { kind: 'error', ms: 7000 });
+});
 let stopApp = () => {}; // renderApp 이 시작한 것(라우터·네이티브 리스너)을 전부 끄는 함수. 로그인 상태가 바뀔 때 부른다
 
 function renderLogin() {
@@ -70,9 +76,11 @@ function renderApp() {
   stopApp = () => { disposers.forEach((d) => d?.()); stopApp = () => {}; };
 }
 
-// 안드로이드 뒤로가기: 홈이 아니면 이전 화면으로, 홈이면 종료할지 묻는다 (앱 전용, 한 번만 등록)
+// 안드로이드 뒤로가기: 열린 창(대화상자·장소 시트·사진)이 있으면 그것부터 닫고,
+// 없으면 홈이 아닐 때 이전 화면으로, 홈이면 종료할지 묻는다 (앱 전용, 한 번만 등록)
 let exitAsking = false;
 onBackButton(async () => {
+  if (closeTopOverlay()) return; // 편집 중이던 창을 닫을 뿐 화면은 그대로
   if (!isHomeHash(location.hash)) { history.back(); return; }
   if (exitAsking) return;
   exitAsking = true;

@@ -1,5 +1,5 @@
 import {
-  collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, query, where, orderBy, limit,
+  collection, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, getDocFromCache, getDocsFromCache, query, where, orderBy, limit,
   onSnapshot, writeBatch, serverTimestamp, getCountFromServer, increment, arrayUnion, arrayRemove, Bytes,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db, auth } from './firebase.js';
@@ -7,6 +7,7 @@ import { dayList, addDays, toDateStr } from './lib/dates.js';
 import { nextOrder } from './lib/order.js';
 import { sortTripsByStart } from './lib/members.js';
 import { planScheduleChange } from './lib/schedule.js';
+import { settleSoon, preferWithin } from './lib/settle.js';
 
 // 현재 로그인 사용자 (여행 소유자·동행 판정에 쓴다)
 function me() {
@@ -27,6 +28,19 @@ const docsOf = (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 const byOrder = (a, b) => a.order - b.order;
 const logError = (err) => console.error('[db]', err);
 
+// ---------- 오프라인에서도 멈추지 않는 읽기·쓰기 ----------
+// Firestore 는 쓰기를 먼저 기기 캐시에 반영하지만, 쓰기 약속은 서버가 확인해야 끝난다. 오프라인이면 끝나지 않아
+// 저장 창이 닫히지 않고 다시 누르면 두 번 저장됐다. 서버 확인은 잠깐만 기다리고 넘어가며(연결되면 올라간다),
+// 넘어간 뒤의 실패는 onLateWriteError 로 등록한 곳(app.js 의 알림)에 알린다.
+const WRITE_WAIT_MS = 1000;
+const READ_WAIT_MS = 2500;
+let lateWriteError = logError;
+export function onLateWriteError(handler) { lateWriteError = handler; }
+const save = (write) => settleSoon(write, { ms: WRITE_WAIT_MS, onLateError: (err) => lateWriteError(err) });
+// 쓰기 전에 필요한 읽기(순서 계산·함께 지울 문서 찾기): 서버가 늦거나 안 되면 기기 캐시로
+const readDocs = (q) => preferWithin(getDocs(q), () => getDocsFromCache(q), READ_WAIT_MS);
+const readDoc = (ref) => preferWithin(getDoc(ref), () => getDocFromCache(ref), READ_WAIT_MS);
+
 // ---------- trips ----------
 // 내가 동행으로 들어 있는 여행만. (array-contains + orderBy는 복합 색인이 필요해서 정렬은 클라이언트에서)
 export function watchTrips(cb, onError = logError) {
@@ -39,11 +53,11 @@ export async function canUseApp(isSiteOwner) {
   if (isSiteOwner) return true;
   const { email } = me();
   try {
-    const allowed = await getDoc(doc(db, 'allowedUsers', email));
+    const allowed = await readDoc(doc(db, 'allowedUsers', email)); // 오프라인으로 앱을 켜도 캐시로 바로 통과
     if (allowed.exists()) return true;
   } catch (err) { logError(err); }
   try {
-    const snap = await getDocs(query(tripsCol(), where('memberEmails', 'array-contains', email), limit(1)));
+    const snap = await readDocs(query(tripsCol(), where('memberEmails', 'array-contains', email), limit(1)));
     return !snap.empty;
   } catch (err) { logError(err); return false; }
 }
@@ -56,12 +70,12 @@ export async function ensureProfile(user) {
   const ref = doc(db, 'profiles', email);
   const photoURL = user.photoURL ?? null;
   try {
-    const snap = await getDoc(ref);
+    const snap = await readDoc(ref);
     if (!snap.exists()) {
-      await setDoc(ref, { uid: user.uid, nickname: (user.displayName ?? '').trim().slice(0, 20), photoURL, updatedAt: serverTimestamp() });
+      await save(setDoc(ref, { uid: user.uid, nickname: (user.displayName ?? '').trim().slice(0, 20), photoURL, updatedAt: serverTimestamp() }));
     } else if ((snap.data().photoURL ?? null) !== photoURL) {
       // Google 프로필 사진이 바뀌면 따라간다 (닉네임은 건드리지 않는다)
-      await setDoc(ref, { uid: user.uid, photoURL, updatedAt: serverTimestamp() }, { merge: true });
+      await save(setDoc(ref, { uid: user.uid, photoURL, updatedAt: serverTimestamp() }, { merge: true }));
     }
   } catch (err) { logError(err); }
 }
@@ -73,13 +87,13 @@ export function watchMyProfile(cb, onError = logError) {
 
 export function setNickname(nickname) {
   const { uid, email } = me();
-  return setDoc(doc(db, 'profiles', email), { uid, nickname, updatedAt: serverTimestamp() }, { merge: true });
+  return save(setDoc(doc(db, 'profiles', email), { uid, nickname, updatedAt: serverTimestamp() }, { merge: true }));
 }
 
 // 여러 이메일의 프로필을 한 번에 (없는 사람은 null)
 export async function getProfiles(emails) {
   const entries = await Promise.all(emails.map(async (email) => {
-    try { const s = await getDoc(doc(db, 'profiles', email)); return [email, s.exists() ? s.data() : null]; }
+    try { const s = await readDoc(doc(db, 'profiles', email)); return [email, s.exists() ? s.data() : null]; }
     catch (err) { logError(err); return [email, null]; }
   }));
   return Object.fromEntries(entries);
@@ -90,11 +104,11 @@ export async function addMember(tripId, email) {
   const batch = writeBatch(db);
   batch.update(tripDoc(tripId), { memberEmails: arrayUnion(email) });
   batch.set(doc(db, 'allowedUsers', email), { invitedAt: serverTimestamp(), invitedBy: me().uid }, { merge: true });
-  await batch.commit();
+  await save(batch.commit());
 }
 
 export function removeMember(tripId, email) {
-  return updateDoc(tripDoc(tripId), { memberEmails: arrayRemove(email) });
+  return save(updateDoc(tripDoc(tripId), { memberEmails: arrayRemove(email) }));
 }
 
 export function watchTrip(tripId, cb, onError = logError) {
@@ -115,13 +129,13 @@ export async function createTrip({ title, startDate, endDate }) {
   DEFAULT_CHECKLIST.forEach((g, groupOrder) => g.items.forEach((text, order) => {
     batch.set(doc(sub(ref.id, 'checklist')), { group: g.group, groupOrder, order, text, done: false });
   }));
-  await batch.commit();
+  await save(batch.commit());
   return ref.id;
 }
 
 // 여행 제목·기간 수정. 기존 Day는 순서대로 새 날짜를 받고, 늘어난 날은 추가, 줄어든 뒤쪽 Day는 장소·사진과 함께 지운다.
 export async function updateTripSchedule(tripId, { title, startDate, endDate }) {
-  const days = docsOf(await getDocs(query(sub(tripId, 'days'), orderBy('order'))));
+  const days = docsOf(await readDocs(query(sub(tripId, 'days'), orderBy('order'))));
   const plan = planScheduleChange(days, startDate, endDate);
   if (!plan) throw new Error('invalid-range');
   const batch = writeBatch(db);
@@ -129,29 +143,29 @@ export async function updateTripSchedule(tripId, { title, startDate, endDate }) 
   plan.redate.forEach((d) => batch.update(doc(sub(tripId, 'days'), d.id), { date: d.date, order: d.order }));
   plan.add.forEach((d) => batch.set(doc(sub(tripId, 'days')), d));
   for (const dayId of plan.remove) {
-    const placesSnap = await getDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId)));
+    const placesSnap = await readDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId)));
     for (const p of placesSnap.docs) {
-      const photosSnap = await getDocs(query(sub(tripId, 'photos'), where('placeId', '==', p.id)));
+      const photosSnap = await readDocs(query(sub(tripId, 'photos'), where('placeId', '==', p.id)));
       photosSnap.docs.forEach((ph) => batch.delete(ph.ref));
       batch.delete(p.ref);
     }
     if (placesSnap.size) await unlinkReservations(batch, tripId, placesSnap.docs.map((d) => d.id));
     batch.delete(doc(sub(tripId, 'days'), dayId));
   }
-  await batch.commit();
+  await save(batch.commit());
   return plan;
 }
 
 // 기간을 줄일 때 사라질 Day의 장소 수 (확인 대화상자용)
 export async function countPlacesInDays(tripId, dayIds) {
   let n = 0;
-  for (const dayId of dayIds) n += (await getDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId)))).size;
+  for (const dayId of dayIds) n += (await readDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId)))).size;
   return n;
 }
 
 // 대표 사진: 작게 줄인 JPEG 바이트를 여행 문서에 직접 둔다 (홈 목록에서 추가 읽기 없이 보이도록). null이면 제거.
 export function setTripCover(tripId, bytes) {
-  return updateDoc(tripDoc(tripId), { cover: bytes ? Bytes.fromUint8Array(bytes) : null });
+  return save(updateDoc(tripDoc(tripId), { cover: bytes ? Bytes.fromUint8Array(bytes) : null }));
 }
 
 export function coverBytes(trip) {
@@ -161,11 +175,11 @@ export function coverBytes(trip) {
 export async function deleteTrip(tripId) {
   const batch = writeBatch(db);
   for (const name of ['days', 'places', 'photos', 'checklist', 'reservations', 'expenses', 'files']) {
-    const snap = await getDocs(sub(tripId, name));
+    const snap = await readDocs(sub(tripId, name));
     snap.docs.forEach((d) => batch.delete(d.ref));
   }
   batch.delete(tripDoc(tripId));
-  await batch.commit();
+  await save(batch.commit());
 }
 
 // 오프라인이면 서버 카운트가 실패하므로 캐시된 문서를 세어 대신 채운다
@@ -203,7 +217,7 @@ export async function tripStats(tripId) {
 async function unlinkReservations(batch, tripId, placeIds) {
   for (let i = 0; i < placeIds.length; i += 30) {
     const chunk = placeIds.slice(i, i + 30);
-    const snap = await getDocs(query(sub(tripId, 'reservations'), where('linkedPlaceId', 'in', chunk)));
+    const snap = await readDocs(query(sub(tripId, 'reservations'), where('linkedPlaceId', 'in', chunk)));
     snap.docs.forEach((d) => batch.update(d.ref, { linkedPlaceId: null }));
   }
 }
@@ -214,26 +228,26 @@ export function watchDays(tripId, cb, onError = logError) {
 }
 
 export async function addDay(tripId) {
-  const days = docsOf(await getDocs(query(sub(tripId, 'days'), orderBy('order'))));
+  const days = docsOf(await readDocs(query(sub(tripId, 'days'), orderBy('order'))));
   const last = days[days.length - 1];
   const date = last ? addDays(last.date, 1) : toDateStr(new Date());
   const batch = writeBatch(db);
   batch.set(doc(sub(tripId, 'days')), { date, order: days.length });
   batch.update(tripDoc(tripId), { endDate: date });
-  await batch.commit();
+  await save(batch.commit());
 }
 
 // Day를 지우면 그 날 장소도 지우고, 남은 Day는 첫 날부터 이어지는 날짜로 다시 매긴다.
 export async function deleteDay(tripId, dayId) {
   const [daysSnap, placesSnap] = await Promise.all([
-    getDocs(query(sub(tripId, 'days'), orderBy('order'))),
-    getDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId))),
+    readDocs(query(sub(tripId, 'days'), orderBy('order'))),
+    readDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId))),
   ]);
   const remaining = docsOf(daysSnap).filter((d) => d.id !== dayId);
   if (remaining.length === 0) throw new Error('last-day');
   const batch = writeBatch(db);
   for (const d of placesSnap.docs) {
-    const photosSnap = await getDocs(query(sub(tripId, 'photos'), where('placeId', '==', d.id)));
+    const photosSnap = await readDocs(query(sub(tripId, 'photos'), where('placeId', '==', d.id)));
     photosSnap.docs.forEach((p) => batch.delete(p.ref));
     batch.delete(d.ref);
   }
@@ -245,7 +259,7 @@ export async function deleteDay(tripId, dayId) {
     if (d.order !== i || d.date !== date) batch.update(doc(sub(tripId, 'days'), d.id), { order: i, date });
   });
   batch.update(tripDoc(tripId), { startDate: first, endDate: addDays(first, remaining.length - 1) });
-  await batch.commit();
+  await save(batch.commit());
 }
 
 // ---------- places ----------
@@ -254,32 +268,33 @@ export function watchPlaces(tripId, cb, onError = logError) {
 }
 
 export async function addPlace(tripId, data) {
-  const sameDay = docsOf(await getDocs(query(sub(tripId, 'places'), where('dayId', '==', data.dayId))));
-  const ref = await addDoc(sub(tripId, 'places'), {
+  const sameDay = docsOf(await readDocs(query(sub(tripId, 'places'), where('dayId', '==', data.dayId))));
+  const ref = doc(sub(tripId, 'places')); // 아이디는 기기에서 바로 정해진다 (오프라인에서도 사진을 이어 붙일 수 있게)
+  await save(setDoc(ref, {
     name: '', time: null, stayMinutes: null, category: 'sight', memo: '',
     lat: null, lng: null, address: null, photos: [],
     ...data, order: data.order ?? nextOrder(sameDay), // 자리를 정해 주면(예약→일정) 그대로, 아니면 그 날의 끝
-  });
+  }));
   return ref.id;
 }
 
 export function updatePlace(tripId, placeId, data) {
-  return updateDoc(doc(sub(tripId, 'places'), placeId), data);
+  return save(updateDoc(doc(sub(tripId, 'places'), placeId), data));
 }
 
 export async function deletePlace(tripId, placeId) {
-  const photosSnap = await getDocs(query(sub(tripId, 'photos'), where('placeId', '==', placeId)));
+  const photosSnap = await readDocs(query(sub(tripId, 'photos'), where('placeId', '==', placeId)));
   const batch = writeBatch(db);
   photosSnap.docs.forEach((p) => batch.delete(p.ref));
   await unlinkReservations(batch, tripId, [placeId]);
   batch.delete(doc(sub(tripId, 'places'), placeId));
-  await batch.commit();
+  await save(batch.commit());
 }
 
 // 장소를 다른 Day로 옮긴다 (옮긴 Day의 맨 뒤로)
 export async function movePlaceToDay(tripId, placeId, dayId) {
-  const sameDay = docsOf(await getDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId))));
-  await updateDoc(doc(sub(tripId, 'places'), placeId), { dayId, order: nextOrder(sameDay) });
+  const sameDay = docsOf(await readDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId))));
+  await save(updateDoc(doc(sub(tripId, 'places'), placeId), { dayId, order: nextOrder(sameDay) }));
 }
 
 // ---------- photos ----------
@@ -299,7 +314,7 @@ export async function addPhoto(tripId, { placeId, bytes, width, height }) {
   const ref = doc(sub(tripId, 'photos'));
   batch.set(ref, { placeId, data: Bytes.fromUint8Array(bytes), width, height, createdAt: serverTimestamp() });
   batch.update(doc(sub(tripId, 'places'), placeId), { photoCount: increment(1) });
-  await batch.commit();
+  await save(batch.commit());
   return ref.id;
 }
 
@@ -307,14 +322,14 @@ export async function deletePhoto(tripId, photoId, placeId) {
   const batch = writeBatch(db);
   batch.delete(doc(sub(tripId, 'photos'), photoId));
   batch.update(doc(sub(tripId, 'places'), placeId), { photoCount: increment(-1) });
-  await batch.commit();
+  await save(batch.commit());
 }
 
 export async function reorderPlaces(tripId, updates) {
   if (!updates.length) return;
   const batch = writeBatch(db);
   updates.forEach((u) => batch.update(doc(sub(tripId, 'places'), u.id), { order: u.order }));
-  await batch.commit();
+  await save(batch.commit());
 }
 
 // ---------- checklist ----------
@@ -323,31 +338,32 @@ export function watchChecklist(tripId, cb, onError = logError) {
 }
 
 export async function addChecklistItem(tripId, { group, groupOrder, text }) {
-  const inGroup = docsOf(await getDocs(query(sub(tripId, 'checklist'), where('group', '==', group))));
-  const ref = await addDoc(sub(tripId, 'checklist'), { group, groupOrder, order: nextOrder(inGroup), text, done: false });
+  const inGroup = docsOf(await readDocs(query(sub(tripId, 'checklist'), where('group', '==', group))));
+  const ref = doc(sub(tripId, 'checklist'));
+  await save(setDoc(ref, { group, groupOrder, order: nextOrder(inGroup), text, done: false }));
   return ref.id;
 }
 
 export function updateChecklistItem(tripId, itemId, data) {
-  return updateDoc(doc(sub(tripId, 'checklist'), itemId), data);
+  return save(updateDoc(doc(sub(tripId, 'checklist'), itemId), data));
 }
 
 export function deleteChecklistItem(tripId, itemId) {
-  return deleteDoc(doc(sub(tripId, 'checklist'), itemId));
+  return save(deleteDoc(doc(sub(tripId, 'checklist'), itemId)));
 }
 
 export async function renameChecklistGroup(tripId, from, to) {
-  const snap = await getDocs(query(sub(tripId, 'checklist'), where('group', '==', from)));
+  const snap = await readDocs(query(sub(tripId, 'checklist'), where('group', '==', from)));
   const batch = writeBatch(db);
   snap.docs.forEach((d) => batch.update(d.ref, { group: to }));
-  await batch.commit();
+  await save(batch.commit());
 }
 
 export async function deleteChecklistGroup(tripId, group) {
-  const snap = await getDocs(query(sub(tripId, 'checklist'), where('group', '==', group)));
+  const snap = await readDocs(query(sub(tripId, 'checklist'), where('group', '==', group)));
   const batch = writeBatch(db);
   snap.docs.forEach((d) => batch.delete(d.ref));
-  await batch.commit();
+  await save(batch.commit());
 }
 
 // ---------- reservations ----------
@@ -356,22 +372,23 @@ export function watchReservations(tripId, cb, onError = logError) {
 }
 
 export async function addReservation(tripId, data) {
-  const ref = await addDoc(sub(tripId, 'reservations'), {
+  const ref = doc(sub(tripId, 'reservations'));
+  await save(setDoc(ref, {
     type: 'etc', title: '', datetime: null, arrival: null, checkout: null, code: '', note: '', linkedPlaceId: null, linkedPlaceIds: [], flightNumber: null, fromAirport: '', toAirport: '', ...data,
-  });
+  }));
   return ref.id;
 }
 
 export function updateReservation(tripId, id, data) {
-  return updateDoc(doc(sub(tripId, 'reservations'), id), data);
+  return save(updateDoc(doc(sub(tripId, 'reservations'), id), data));
 }
 
 export async function deleteReservation(tripId, id) {
-  const files = await getDocs(query(sub(tripId, 'files'), where('reservationId', '==', id)));
+  const files = await readDocs(query(sub(tripId, 'files'), where('reservationId', '==', id)));
   const batch = writeBatch(db);
   files.docs.forEach((f) => batch.delete(f.ref));
   batch.delete(doc(sub(tripId, 'reservations'), id));
-  await batch.commit();
+  await save(batch.commit());
 }
 
 // ---------- expenses (지출) ----------
@@ -381,24 +398,25 @@ export function watchExpenses(tripId, cb, onError = logError) {
 }
 
 export async function addExpense(tripId, data) {
-  const ref = await addDoc(sub(tripId, 'expenses'), {
+  const ref = doc(sub(tripId, 'expenses'));
+  await save(setDoc(ref, {
     title: '', amount: 0, currency: 'KRW', category: 'etc', date: null, paidBy: me().email, sharedWith: [], note: '',
     ...data, createdAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
 export function updateExpense(tripId, id, data) {
-  return updateDoc(doc(sub(tripId, 'expenses'), id), data);
+  return save(updateDoc(doc(sub(tripId, 'expenses'), id), data));
 }
 
 export function deleteExpense(tripId, id) {
-  return deleteDoc(doc(sub(tripId, 'expenses'), id));
+  return save(deleteDoc(doc(sub(tripId, 'expenses'), id)));
 }
 
 // 여행별 환율 (외화 1단위당 원화). 사용자가 고칠 수 있다.
 export function setTripRates(tripId, rates) {
-  return updateDoc(tripDoc(tripId), { rates });
+  return save(updateDoc(tripDoc(tripId), { rates }));
 }
 
 // ---------- files (예약 서류: 항공권 PDF, 바우처, 여권 사본) ----------
@@ -413,12 +431,12 @@ export async function addReservationFile(tripId, reservationId, { name, type, by
   const meta = { id: ref.id, name, type, size: bytes.length };
   batch.set(ref, { reservationId, name, type, size: bytes.length, data: Bytes.fromUint8Array(bytes), createdAt: serverTimestamp() });
   batch.update(doc(sub(tripId, 'reservations'), reservationId), { files: arrayUnion(meta) });
-  await batch.commit();
+  await save(batch.commit());
   return ref.id;
 }
 
 export async function getReservationFile(tripId, fileId) {
-  const s = await getDoc(doc(sub(tripId, 'files'), fileId));
+  const s = await readDoc(doc(sub(tripId, 'files'), fileId)); // 한 번 연 서류는 오프라인에서도 캐시로 열린다
   if (!s.exists()) return null;
   const d = s.data();
   return { name: d.name, type: d.type, bytes: d.data.toUint8Array() };
@@ -429,7 +447,7 @@ export async function deleteReservationFile(tripId, reservationId, meta) {
   const batch = writeBatch(db);
   batch.delete(doc(sub(tripId, 'files'), meta.id));
   batch.update(doc(sub(tripId, 'reservations'), reservationId), { files: arrayRemove(meta) });
-  await batch.commit();
+  await save(batch.commit());
 }
 
 // 사이트 주인용: 내가 볼 수 있는 모든 여행의 문서 크기를 합산 (Firestore 저장 한도 1 GiB 대비). 문서 수만큼 읽기를 쓰므로 버튼으로만 부른다.
@@ -448,7 +466,7 @@ export async function estimateStorage() {
 // ---------- 초대 목록 관리 (사이트 주인) ----------
 // allowedUsers/{email}: { invitedAt, invitedBy, canCreate? }. canCreate 가 켜진 계정은 새 여행을 만들 수 있다 (규칙에서도 검사).
 export async function myAllowedEntry() {
-  try { const s = await getDoc(doc(db, 'allowedUsers', me().email)); return s.exists() ? s.data() : null; }
+  try { const s = await readDoc(doc(db, 'allowedUsers', me().email)); return s.exists() ? s.data() : null; }
   catch (err) { logError(err); return null; }
 }
 
@@ -457,9 +475,9 @@ export function watchAllowedUsers(cb, onError = logError) {
 }
 
 export function setAllowedUser(email, data = {}) {
-  return setDoc(doc(db, 'allowedUsers', email), { invitedAt: serverTimestamp(), invitedBy: me().uid, ...data }, { merge: true });
+  return save(setDoc(doc(db, 'allowedUsers', email), { invitedAt: serverTimestamp(), invitedBy: me().uid, ...data }, { merge: true }));
 }
 
 export function removeAllowedUser(email) {
-  return deleteDoc(doc(db, 'allowedUsers', email));
+  return save(deleteDoc(doc(db, 'allowedUsers', email)));
 }

@@ -1,4 +1,4 @@
-import { el, clear, toast, confirmDialog, openModal, icon, linkedText } from '../ui.js';
+import { el, clear, toast, confirmDialog, openModal, icon, linkedText, onSubmit } from '../ui.js';
 import { watchTrip, watchExpenses, addExpense, updateExpense, deleteExpense, setTripRates, getProfiles } from '../db.js';
 import { CURRENCIES, EXPENSE_CATEGORIES, summarize, settle, toKRW, formatKRW, formatAmount } from '../lib/expenses.js';
 import { fetchKrwRates } from '../rates.js';
@@ -194,7 +194,7 @@ function openDialog(tripId, state, existing = null) {
       }, '삭제') : null,
       el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '취소'),
       el('button', { type: 'submit', class: 'btn btn-primary' }, existing ? '저장' : '추가')));
-  form.addEventListener('submit', async (e) => {
+  onSubmit(form, async (e) => { // 저장 중 연타 막기
     e.preventDefault();
     const sharedWith = shareBoxes.map((l) => l.querySelector('input')).filter((b) => b.checked).map((b) => b.value);
     const data = {

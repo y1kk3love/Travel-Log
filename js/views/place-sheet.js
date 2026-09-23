@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog, icon, photoPath, CATEGORY_LABELS, CATEGORY_ORDER } from '../ui.js';
+import { el, toast, confirmDialog, icon, photoPath, openLightbox, overlays, CATEGORY_LABELS, CATEGORY_ORDER, onSubmit } from '../ui.js';
 import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
@@ -72,13 +72,6 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       type: 'button', class: `chip${draft.category === key ? ' active' : ''}`,
       onClick: () => { draft.category = key; drawCategories(); },
     }, CATEGORY_LABELS[key])));
-  }
-
-  function openLightbox(src) {
-    const box = el('div', { class: 'lightbox', onClick: () => box.remove() },
-      el('img', { src, alt: '' }),
-      el('button', { type: 'button', class: 'btn btn-icon lightbox-close', 'aria-label': '닫기' }, icon('close')));
-    document.body.append(box);
   }
 
   function photoChip(src, label, onRemove) {
@@ -285,8 +278,9 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도 앱에서 "공유"로 복사한 내용을 붙여넣으면 그 이름으로 검색해요. 주소창의 긴 링크나 "위도, 경도"는 바로 핀이 찍혀요.' });
   const overlay = el('div', { class: 'sheet-overlay' });
   const form = el('form', { class: 'sheet' });
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const onKey = (e) => { if (e.key === 'Escape' && sheetEntry.isTop()) close(); }; // 위에 확인 창·사진이 떠 있으면 그것만 닫힌다
   function close() {
+    sheetEntry.release();
     overlay.remove();
     document.removeEventListener('keydown', onKey);
     document.removeEventListener('paste', onPaste);
@@ -294,9 +288,10 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     revokeAll();
   }
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  const sheetEntry = overlays.push(close); // 안드로이드 뒤로가기로 닫힌다
   document.addEventListener('keydown', onKey);
 
-  form.addEventListener('submit', async (e) => {
+  onSubmit(form, async (e) => { // 저장 중 연타 막기
     e.preventDefault();
     const data = noteMode
       ? { name: name.value.trim(), time: time.value || null, stayMinutes: null, category: 'note', memo: memo.value, lat: null, lng: null, address: null, photos: [] }

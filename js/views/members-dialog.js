@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog, openModal, icon } from '../ui.js';
+import { el, toast, confirmDialog, openModal, icon, onSubmit } from '../ui.js';
 import { addMember, removeMember, getProfiles } from '../db.js';
 import { normalizeEmail, isTripOwner } from '../lib/members.js';
 import { displayNameFor } from '../lib/profile.js';
@@ -45,7 +45,7 @@ export function openMembersDialog(trip) {
         : el('p', { class: 'muted ps-hint', text: '동행 초대와 내보내기는 여행 주인만 할 수 있어요.' })),
     el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '닫기')));
 
-  form.addEventListener('submit', async (e) => {
+  onSubmit(form, async (e) => { // 저장 중 연타 막기
     e.preventDefault();
     if (!owner) { dialog.close(); return; }
     const email = normalizeEmail(input.value);

@@ -31,6 +31,8 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; backgrou
 .btn:disabled { opacity: .45; cursor: default; }
 .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 4px 14px rgba(10, 108, 255, .28); }
 .btn-primary:hover { background: #0A5FE0; }
+.btn-primary.btn-destructive { background: var(--danger); box-shadow: none; }
+.btn-primary.btn-destructive:hover { background: #E0342A; }
 .btn-ghost { background: transparent; color: var(--accent); }
 .btn-ghost:hover { background: var(--accent-soft); }
 .btn-danger { background: transparent; color: var(--danger); }
@@ -68,6 +70,8 @@ textarea.input { height: auto; min-height: 88px; padding: 10px 12px; resize: ver
 .offline-badge[hidden] { display: none; }
 .topbar-me { max-width: 160px; overflow: hidden; text-overflow: ellipsis; gap: 8px; padding: 0 10px 0 4px; }
 .topbar-me-name { font-weight: 600; }
+.topbar-me { min-height: 40px; }
+@media (max-width: 640px) { .topbar-me-name { display: none; } .topbar-me { padding: 0 4px; } }
 
 /* ---- 대화상자 (iOS 알림창) ---- */
 dialog { border: 0; border-radius: var(--radius-lg); background: var(--sf); color: var(--ink); padding: 22px 20px 20px; width: min(420px, calc(100vw - 40px)); box-shadow: 0 20px 60px rgba(0, 0, 0, .22); }
@@ -83,6 +87,8 @@ dialog > p + .dialog-actions .btn { flex: 1; }
 
 /* ---- 토스트 ---- */
 #toast-root { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1200; pointer-events: none; width: min(420px, calc(100vw - 32px)); align-items: center; }
+/* 알림 영역은 popover 로 top layer 에 올려 모달 대화상자 위에도 보이게 한다. popover 기본 모양(가운데·테두리·배경)은 지운다 */
+#toast-root[popover] { inset: auto auto 28px 50%; margin: 0; border: 0; padding: 0; background: transparent; color: inherit; overflow: visible; height: auto; }
 .toast { background: rgba(17, 17, 17, .92); color: #fff; padding: 11px 16px; border-radius: 999px; font-size: 14px; font-weight: 500; box-shadow: var(--shadow-float); animation: toast-in .4s var(--spring); max-width: 100%; text-align: center; }
 .toast-error { background: var(--danger); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(16px) scale(.96); } to { opacity: 1; transform: none; } }
@@ -317,7 +323,6 @@ dialog > p + .dialog-actions .btn { flex: 1; }
 .usage-links { display: flex; gap: 8px; flex-wrap: wrap; }
 .usage-status { font-size: 13px; padding: 8px 12px; border-radius: 8px; background: var(--bg); }
 .usage-status-hit { background: #FFECEB; color: #B3261E; font-weight: 600; }
-@media (max-width: 640px) { .topbar-usage { display: none; } }
 .map-canvas { position: absolute; inset: 0; }
 .map-popup-row { padding: 2px 0; }
 .map-popup-row.active { font-weight: 700; }
@@ -432,7 +437,6 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .reservation.active { box-shadow: 0 0 0 2px var(--accent); animation: card-flash 1.2s var(--ease); }
 @keyframes card-flash { from { background: var(--accent-soft); } to { background: var(--sf); } }
 .invite-create { margin-top: 0; white-space: nowrap; }
-@media (max-width: 640px) { .topbar-invites { display: none; } }
 
 /* ---- 항공 예약: 탑승권 카드. 위 색 띠 · 본문(공항·시각·세부 줄) · 절취선 · 스텁. 폰은 세로 쌓기, 넓은 화면은 오른쪽 스텁 ---- */
 .ticket { padding: 0; gap: 0; overflow: hidden; display: grid; grid-template-columns: 1fr; background: var(--sf); }
@@ -554,3 +558,29 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .check-group::before { content: ''; position: absolute; top: 8px; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 2px var(--line); }
 .check-group.all-done::after { content: 'OK'; position: absolute; top: 10px; right: 52px; width: 40px; height: 40px; border-radius: 50%; border: 2.5px double #B3261E; color: #B3261E; font-family: 'Do Hyeon', var(--sans); font-size: 16px; display: grid; place-items: center; transform: rotate(-14deg); background: rgba(255, 255, 255, .85); pointer-events: none; }
 .check-group.all-done .check-group-name { color: var(--muted); }
+
+/* ---- 내 계정 메뉴: 넓은 화면은 오른쪽 위 메뉴, 폰은 아래에서 올라오는 시트 ---- */
+dialog.account-menu { padding: 0; margin: 0; inset: 64px 16px auto auto; width: 320px; max-width: calc(100vw - 32px); background: var(--bg); }
+dialog.account-menu[open] { animation: menu-in .28s var(--spring); }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-8px) scale(.97); } to { opacity: 1; transform: none; } }
+.account-menu-inner { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.account-head { display: flex; align-items: center; gap: 12px; padding: 2px 0 2px 4px; }
+.account-head-text { flex: 1; min-width: 0; }
+.account-name { font-weight: 700; font-size: 17px; }
+.account-email { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-group { background: var(--sf); border-radius: 14px; overflow: hidden; }
+.menu-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 0 16px; background: none; border: 0; font: inherit; font-size: 16px; color: var(--ink); text-align: left; cursor: pointer; }
+.menu-row { position: relative; }
+.menu-row + .menu-row::before { content: ''; position: absolute; top: 0; left: 48px; right: 0; height: 1px; background: var(--line); } /* iOS 처럼 아이콘 뒤에서 시작하는 구분선 */
+.menu-row:not(.menu-row-static):hover, .menu-row:not(.menu-row-static):active { background: var(--line-soft); }
+.menu-row-static { cursor: default; }
+.menu-row svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--muted); }
+.menu-row-value { margin-left: auto; color: var(--muted); font-size: 15px; }
+.menu-row-danger { color: var(--danger); font-weight: 600; }
+.menu-row-danger svg { color: var(--danger); }
+@media (max-width: 640px) {
+  dialog.account-menu { inset: auto 0 0 0; width: 100%; max-width: 100%; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+  dialog.account-menu[open] { animation: menu-up .38s var(--spring); }
+  .account-menu-inner { padding: 16px 16px 22px; }
+}
+@keyframes menu-up { from { transform: translateY(100%); } to { transform: none; } }

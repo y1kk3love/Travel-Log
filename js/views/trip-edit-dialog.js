@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog, openModal } from '../ui.js';
+import { el, toast, confirmDialog, openModal, onSubmit } from '../ui.js';
 import { updateTripSchedule, countPlacesInDays, watchDays } from '../db.js';
 import { dayList } from '../lib/dates.js';
 import { planScheduleChange } from '../lib/schedule.js';
@@ -22,7 +22,7 @@ export function openTripEditDialog(trip) {
       el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '취소'),
       el('button', { type: 'submit', class: 'btn btn-primary' }, '저장')));
 
-  form.addEventListener('submit', async (e) => {
+  onSubmit(form, async (e) => { // 저장 중 연타 막기
     e.preventDefault();
     const name = title.value.trim();
     if (!name) { toast('여행 이름을 입력해 주세요', { kind: 'error' }); title.focus(); return; }

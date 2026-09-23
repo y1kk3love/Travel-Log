@@ -1,4 +1,4 @@
-import { el, clear, toast, confirmDialog, openModal, icon, photoPath } from '../ui.js';
+import { el, clear, toast, confirmDialog, openModal, icon, photoPath, onSubmit } from '../ui.js';
 import { topbar } from './topbar.js';
 import { watchTrips, createTrip, deleteTrip, tripStats, coverBytes, myAllowedEntry } from '../db.js';
 import { bytesToObjectUrl } from '../photo.js';
@@ -148,7 +148,7 @@ function openNewTripDialog() {
     el('div', { class: 'dialog-actions' },
       el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '취소'),
       el('button', { type: 'submit', class: 'btn btn-primary' }, '만들기')));
-  form.addEventListener('submit', async (e) => {
+  onSubmit(form, async (e) => { // 저장 중 연타 막기
     e.preventDefault();
     if (dayList(start.value, end.value).length === 0) {
       toast('종료일은 시작일보다 빠를 수 없어요', { kind: 'error' });

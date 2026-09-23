@@ -1,4 +1,4 @@
-import { el, toast, confirmDialog, openModal, icon } from '../ui.js';
+import { el, toast, confirmDialog, openModal, icon, onSubmit } from '../ui.js';
 import { watchAllowedUsers, setAllowedUser, removeAllowedUser, getProfiles } from '../db.js';
 import { normalizeEmail } from '../lib/members.js';
 import { displayNameFor } from '../lib/profile.js';
@@ -53,7 +53,7 @@ export function openInvitesDialog() {
         el('label', { for: 'iv-email', text: '이메일로 초대' }),
         el('div', { class: 'member-add' }, input, el('button', { type: 'submit', class: 'btn btn-primary' }, '추가')))),
     el('div', { class: 'dialog-actions' }, el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '닫기')));
-  form.addEventListener('submit', async (e) => {
+  onSubmit(form, async (e) => { // 저장 중 연타 막기
     e.preventDefault();
     const email = normalizeEmail(input.value);
     if (!email) { toast('이메일 형식이 아니에요', { kind: 'error' }); input.focus(); return; }
