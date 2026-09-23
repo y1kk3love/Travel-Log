@@ -13,7 +13,7 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
-        <!-- 상태바·내비게이션 바 뒤(Capacitor 가 여백으로 비워 두는 자리)에 보이는 색. 앱 배경(css --bg)과 같게 -->
+        <!-- 상태바·내비게이션 바 뒤(Capacitor 가 여백으로 비워 두는 자리)에 보이는 색. 앱 배경(CSS 의 bg 색)과 같게 -->
         <item name="android:windowBackground">@color/app_background</item>
     </style>
 

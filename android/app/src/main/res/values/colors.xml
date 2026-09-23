@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 앱 배경(css --bg). 상태바·내비게이션 바 뒤(Capacitor 가 여백으로 비워 두는 자리)에 보인다 -->
+    <!-- 앱 배경(CSS 의 bg 색). 상태바·내비게이션 바 뒤(Capacitor 가 여백으로 비워 두는 자리)에 보인다 -->
     <color name="app_background">#F2F2F7</color>
 </resources>

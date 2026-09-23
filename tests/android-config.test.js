@@ -30,3 +30,13 @@ test('MainActivity 는 여백을 직접 주지 않는다 (Capacitor 와 겹치�
   const main = read('android/app/src/main/java/io/github/y1kk3love/travellog/MainActivity.java');
   assert.ok(!main.includes('setOnApplyWindowInsetsListener'));
 });
+
+test('안드로이드 XML 주석에는 -- 를 쓰지 않는다 (XML 규칙 위반이라 aapt2 가 리소스를 읽지 못해 빌드가 멈춘다)', () => {
+  const dir = 'android/app/src/main/res/values';
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.xml')).map((f) => `${dir}/${f}`).concat('android/app/src/main/AndroidManifest.xml');
+  for (const file of files) {
+    for (const [, body] of read(file).matchAll(/<!--([\s\S]*?)-->/g)) {
+      assert.ok(!body.includes('--'), `${file}: 주석 안에 -- 가 있음: ${body.trim().slice(0, 60)}`);
+    }
+  }
+});
