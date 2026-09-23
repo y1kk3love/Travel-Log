@@ -52,4 +52,7 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 출발 알림을 제시간에: 안드로이드 13+ 는 자동 허용 (SCHEDULE_EXACT_ALARM 은 14+ 에서 사용자가 직접 켜야 한다).
+         Play 스토어에 올리면 알람·캘린더 앱만 쓸 수 있는 권한이라 그때 다시 검토 -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 </manifest>

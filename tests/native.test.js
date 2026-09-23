@@ -25,7 +25,7 @@ test('native: Capacitor 가 있으면 registerPlugin 으로 플러그인을 얻�
   delete globalThis.window;
 });
 
-test('native: 알림 예약은 정확 알람을 요구하지 않는다 (권한 설정 화면으로 튕기지 않게)', async () => {
+test('native: 정확 알람 권한이 없으면(또는 확인할 수 없으면) 정확 알람을 요구하지 않는다 (권한 설정 화면으로 튕기지 않게)', async () => {
   const calls = [];
   globalThis.window = { Capacitor: { isNativePlatform: () => true, registerPlugin: (name) => ({ name, schedule: async (o) => { calls.push(o); } }) } };
   await scheduleNotifications([{ id: 7, title: '곧 출발: 센소지', body: '10:00 도착 예정', at: Date.now() + 60000, tripId: 't1', placeId: 'p1' }]);
@@ -34,6 +34,28 @@ test('native: 알림 예약은 정확 알람을 요구하지 않는다 (권한 �
   assert.equal(n.id, 7);
   assert.equal(n.isExactNotification, false);
   assert.deepEqual(n.extra, { tripId: 't1', placeId: 'p1' });
+  delete globalThis.window;
+});
+
+test('native: 정확 알람이 허용돼 있으면(USE_EXACT_ALARM) 출발 알림을 제시간에 울린다', async () => {
+  const calls = [];
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, registerPlugin: (name) => ({
+    name, schedule: async (o) => { calls.push(o); }, checkExactNotificationSetting: async () => ({ exact_alarm: 'granted' }),
+  }) } };
+  const m = await fresh();
+  await m.scheduleNotifications([{ id: 8, title: 't', body: 'b', at: Date.now() + 60000, tripId: 't1', placeId: 'p2' }]);
+  assert.equal(calls[0].notifications[0].isExactNotification, true);
+  delete globalThis.window;
+});
+
+test('native: 정확 알람이 거부돼 있으면 정확 알람을 요구하지 않는다', async () => {
+  const calls = [];
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, registerPlugin: (name) => ({
+    name, schedule: async (o) => { calls.push(o); }, checkExactNotificationSetting: async () => ({ exact_alarm: 'denied' }),
+  }) } };
+  const m = await fresh();
+  await m.scheduleNotifications([{ id: 9, title: 't', body: 'b', at: Date.now() + 60000, tripId: 't1', placeId: 'p3' }]);
+  assert.equal(calls[0].notifications[0].isExactNotification, false);
   delete globalThis.window;
 });
 

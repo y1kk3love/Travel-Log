@@ -40,3 +40,8 @@ test('안드로이드 XML 주석에는 -- 를 쓰지 않는다 (XML 규칙 위�
     }
   }
 });
+
+test('출발 알림을 제시간에 울리도록 USE_EXACT_ALARM 을 선언한다 (안드로이드 13+ 는 자동 허용, 스토어 밖 배포라 정책 심사 없음)', () => {
+  const manifest = read('android/app/src/main/AndroidManifest.xml');
+  assert.match(manifest, /<uses-permission android:name="android\.permission\.USE_EXACT_ALARM"\s*\/>/);
+});

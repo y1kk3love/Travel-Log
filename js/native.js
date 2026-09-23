@@ -104,15 +104,22 @@ export async function cancelAllNotifications() {
   } catch (err) { console.warn('cancel notifications', err); }
 }
 
+// 정확 알람을 쓸 수 있나 (USE_EXACT_ALARM 선언으로 안드로이드 13+ 는 자동 허용). 확인할 수 없으면 false.
+async function canExactAlarm(ln) {
+  try { return (await ln.checkExactNotificationSetting?.())?.exact_alarm === 'granted'; } catch { return false; }
+}
+
 // list: planAlarms() 결과
 export async function scheduleNotifications(list) {
   const ln = plugin('LocalNotifications');
   if (!ln || !list.length) return;
+  const exact = await canExactAlarm(ln);
   await ln.schedule({
     notifications: list.map((a) => ({
       id: a.id, title: a.title, body: a.body,
-      // 정확 알람(isExactNotification)은 안드로이드 12+ 에서 별도 권한이 필요해 설정 화면으로 튕긴다. 출발 알림은 몇 분 오차가 괜찮으니 요구하지 않는다.
-      isExactNotification: false,
+      // 정확 알람은 허용돼 있을 때만 요구한다. 허용 안 된 채로 요구하면 플러그인이 매번 설정 화면으로 튕긴다.
+      // 정확하지 않은 알람은 절전 중에 한참 늦게 울릴 수 있어 "10분 뒤 출발" 알림으로는 쓸모가 없다.
+      isExactNotification: exact,
       schedule: { at: new Date(a.at), allowWhileIdle: true },
       extra: { tripId: a.tripId, placeId: a.placeId },
     })),
