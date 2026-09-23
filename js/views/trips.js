@@ -3,7 +3,7 @@ import { topbar } from './topbar.js';
 import { watchTrips, createTrip, deleteTrip, tripStats, coverBytes, myAllowedEntry } from '../db.js';
 import { bytesToObjectUrl } from '../photo.js';
 import { tripStatus, formatStatus, formatRange, toDateStr, dayList } from '../lib/dates.js';
-import { isTripOwner, canCreateTrips } from '../lib/members.js';
+import { isTripOwner, canCreateTrips, canEditTripInfo } from '../lib/members.js';
 import { auth } from '../firebase.js';
 import { isOwner } from '../auth.js';
 import { navigate } from '../router.js';
@@ -63,7 +63,7 @@ function cover(trip, className) {
     return el('img', { class: className, src: url, alt: '', onLoad: () => URL.revokeObjectURL(url) });
   }
   if (trip.coverPhoto) return el('img', { class: className, src: photoPath(trip.id, trip.coverPhoto), alt: '' });
-  return el('div', { class: `${className} cover-empty`, text: isOwner(auth.currentUser) ? '대표 사진 없음 · 여행 화면에서 추가' : '대표 사진 없음' });
+  return el('div', { class: `${className} cover-empty`, text: canEditTripInfo(trip, auth.currentUser, isOwner(auth.currentUser)) ? '대표 사진 없음 · 여행 화면에서 추가' : '대표 사진 없음' });
 }
 
 function membersTag(trip) {

@@ -12,6 +12,7 @@ import { openCoverDialog } from './cover-dialog.js';
 import { openTripEditDialog } from './trip-edit-dialog.js';
 import { isOwner } from '../auth.js';
 import { auth } from '../firebase.js';
+import { canEditTripInfo } from '../lib/members.js';
 
 const TAB_VIEWS = { planner, checklist, reservations, expenses };
 const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약', expenses: '지출' };
@@ -52,10 +53,10 @@ function drawHeader(header, trip, tab) {
       el('span', { class: 'badge', text: formatStatus(tripStatus(trip.startDate, trip.endDate, toDateStr(new Date()))) }),
       el('button', { class: 'btn btn-sm btn-ghost trip-members', onClick: () => openMembersDialog(trip) },
         icon('pin'), `동행 ${(trip.memberEmails ?? []).length}명`),
-      // 대표 사진·여행 정보 수정은 사이트 주인만
-      isOwner(auth.currentUser) ? el('button', { class: 'btn btn-sm btn-ghost trip-members', onClick: () => openCoverDialog(trip) },
+      // 대표 사진·여행 정보 수정은 그 여행을 만든 사람과 사이트 주인
+      canEditTripInfo(trip, auth.currentUser, isOwner(auth.currentUser)) ? el('button', { class: 'btn btn-sm btn-ghost trip-members', onClick: () => openCoverDialog(trip) },
         icon('edit'), '대표 사진') : null,
-      isOwner(auth.currentUser) ? el('button', { class: 'btn btn-sm btn-ghost trip-members', onClick: () => openTripEditDialog(trip) },
+      canEditTripInfo(trip, auth.currentUser, isOwner(auth.currentUser)) ? el('button', { class: 'btn btn-sm btn-ghost trip-members', onClick: () => openTripEditDialog(trip) },
         icon('calendar'), '여행 정보 수정') : null),
     el('nav', { class: 'tabs' },
       ...Object.entries(TAB_LABELS).map(([key, label]) => el('a', {

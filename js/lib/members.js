@@ -15,6 +15,11 @@ export function isTripOwner(trip, user) {
   return !!user && !!trip?.ownerUid && trip.ownerUid === user.uid;
 }
 
+// 대표 사진·여행 정보(제목·기간)를 고칠 수 있나: 그 여행을 만든 사람이거나 사이트 주인
+export function canEditTripInfo(trip, user, isSiteOwner) {
+  return !!user && (isTripOwner(trip, user) || !!isSiteOwner);
+}
+
 // 새 여행을 만들 수 있나: 사이트 주인이거나, 초대 목록(allowedUsers) 항목에 canCreate 가 켜진 계정
 export function canCreateTrips({ isSiteOwner, allowed }) {
   return !!isSiteOwner || allowed?.canCreate === true;
