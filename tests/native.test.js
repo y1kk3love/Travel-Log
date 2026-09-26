@@ -190,3 +190,20 @@ test('native: 메뉴의 "알림 켜기"(ask) 는 한 번 물은 뒤에도 다시
   delete globalThis.window;
   delete globalThis.localStorage;
 });
+
+test('native: 짧은 지도 링크는 앱(ShareIntent.resolveLink)이 따라가 긴 주소를 준다 — 웹·실패·다른 링크는 null', async () => {
+  const calls = [];
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, Plugins: { ShareIntent: {
+    resolveLink: async ({ url }) => { calls.push(url); return { url: 'https://www.google.com/maps/place/X/data=!4m2!3m1!1s0x1:0x2' }; },
+  } } } };
+  const m = await fresh();
+  assert.equal(await m.resolveMapsLink('https://maps.app.goo.gl/abc'), 'https://www.google.com/maps/place/X/data=!4m2!3m1!1s0x1:0x2');
+  assert.equal(await m.resolveMapsLink('https://example.com/abc'), null); // 짧은 지도 링크가 아니면 부르지 않는다
+  assert.deepEqual(calls, ['https://maps.app.goo.gl/abc']);
+  globalThis.window.Capacitor.Plugins.ShareIntent.resolveLink = async () => { throw new Error('not implemented'); }; // 예전 앱
+  assert.equal(await (await fresh()).resolveMapsLink('https://maps.app.goo.gl/abc'), null);
+  globalThis.window.Capacitor.Plugins.ShareIntent.resolveLink = async () => ({ url: 'https://evil.example/maps' }); // 구글 지도가 아닌 곳
+  assert.equal(await (await fresh()).resolveMapsLink('https://maps.app.goo.gl/abc'), null);
+  delete globalThis.window;
+  assert.equal(await (await fresh()).resolveMapsLink('https://maps.app.goo.gl/abc'), null); // 웹
+});

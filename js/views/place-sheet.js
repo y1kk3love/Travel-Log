@@ -4,7 +4,8 @@ import { searchPlaces, debounce } from '../geocode.js';
 import { createPlaceSearch } from '../places.js';
 import { notifyQuota, isQuotaHit } from '../quota.js';
 import { extractLinks, shortLabel } from '../lib/text.js';
-import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl, parseMapsLink } from '../lib/coords.js';
+import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl, parseMapsLink, linkPlaceName } from '../lib/coords.js';
+import { resolveMapsLink } from '../native.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
 import { formatShort } from '../lib/dates.js';
@@ -175,26 +176,67 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       (err) => { console.error(err); toast('사진을 불러오지 못했어요', { kind: 'error' }); });
   }
 
-  // Google 지도 링크나 "위도, 경도"를 붙여넣으면 검색 대신 좌표를 바로 채운다.
-  // 앱 '공유'의 짧은 링크에는 좌표가 없으므로, 같이 복사된 이름으로 검색을 돌린다.
-  function applyPastedCoords(text) {
-    // 긴 구글 지도 링크: 이름·좌표·장소 ID 를 한 번에. 좌표가 없고 장소 ID 만 있으면 이름으로 검색해 고르게 한다
-    const link = parseMapsLink(text);
-    if (link && (link.lat != null || link.placeId)) {
-      if (link.name && !name.value.trim()) name.value = link.name;
-      if (link.lat != null) {
-        draft.lat = link.lat; draft.lng = link.lng; draft.placeId = link.placeId; markDirty();
-        draft.address = link.name ? `구글 지도 링크 · ${link.name}` : `붙여넣은 좌표 ${link.lat.toFixed(5)}, ${link.lng.toFixed(5)}`;
+  // 구글 지도 링크를 적용한다. 핀 좌표가 있으면 바로, 장소 ID(장소 키에서 만든 것)만 있으면 상세 1건으로 위치를 받는다.
+  // 둘 다 안 되면(한도·오프라인) 이름으로 검색해 고르게 한다. title: 공유 글 첫 줄의 깔끔한 이름 (없으면 링크 속 이름)
+  async function applyLink(link, title = linkPlaceName(link.name)) {
+    if (title && !name.value.trim()) name.value = title;
+    if (link.lat != null) {
+      draft.lat = link.lat; draft.lng = link.lng; draft.placeId = link.placeId; markDirty();
+      draft.address = title ? `구글 지도 링크 · ${title}` : `붙여넣은 좌표 ${link.lat.toFixed(5)}, ${link.lng.toFixed(5)}`;
+      results.hidden = true; search.value = '';
+      drawLocation();
+      toast(title ? `'${title}' 위치를 가져왔어요` : '좌표를 가져왔어요. 이름을 적어 주세요');
+      return;
+    }
+    if (link.placeId && !isQuotaHit('details')) {
+      location.textContent = '위치 확인 중…';
+      try {
+        const r = await placeSearch.byId(link.placeId);
+        draft.lat = r.lat; draft.lng = r.lng; draft.address = r.address; draft.placeId = r.placeId; markDirty();
         results.hidden = true; search.value = '';
         drawLocation();
-        toast(link.name ? `'${link.name}' 위치를 가져왔어요` : '좌표를 가져왔어요. 이름을 적어 주세요');
-      } else {
-        search.value = link.name;
-        toast(`'${link.name}'(으)로 검색했어요. 결과에서 골라 주세요`, { ms: 4000 });
-        runSearch(link.name);
+        toast(title ? `'${title}' 위치를 가져왔어요` : '위치를 가져왔어요. 이름을 적어 주세요');
+        return;
+      } catch (err) {
+        console.error(err);
+        notifyQuota('details', err);
+        drawLocation();
       }
-      return true;
     }
+    searchByName(title);
+  }
+
+  // 링크에서 위치를 바로 못 받았을 때: 이름으로 검색해 결과에서 고르게 한다
+  function searchByName(title) {
+    if (title) {
+      search.value = title;
+      toast(`'${title}'(으)로 검색했어요. 결과에서 골라 주세요`, { ms: 4000 });
+      runSearch(title);
+    } else {
+      search.value = '';
+      toast('링크에서 위치를 찾지 못했어요. 장소 이름으로 검색해 주세요', { kind: 'error', ms: 5000 });
+    }
+  }
+
+  // 구글 지도 앱이 공유한 짧은 링크: 앱이 따라가 긴 주소(핀 좌표나 장소 키)를 받는다. 웹은 따라갈 수 없어 이름 검색.
+  let resolvingLink = null; // 붙여넣기와 검색이 같은 링크를 두 번 따라가지 않게
+  async function applyShortLink(share) {
+    if (resolvingLink === share.link) return;
+    resolvingLink = share.link;
+    if (share.name && !name.value.trim()) name.value = share.name;
+    location.textContent = '공유 링크 여는 중…';
+    const long = await resolveMapsLink(share.link);
+    resolvingLink = null;
+    const link = long ? parseMapsLink(long) : null;
+    if (link && (link.lat != null || link.placeId)) { await applyLink(link, share.name ?? linkPlaceName(link.name)); return; }
+    drawLocation();
+    searchByName(share.name);
+  }
+
+  // Google 지도 링크나 "위도, 경도"를 붙여넣으면 검색 대신 위치를 바로 채운다 (처리했으면 true)
+  function applyPastedCoords(text) {
+    const link = parseMapsLink(text);
+    if (link && (link.lat != null || link.placeId)) { applyLink(link); return true; }
     const coords = parseCoordsInput(text);
     if (coords) {
       draft.lat = coords.lat; draft.lng = coords.lng; draft.placeId = null; markDirty();
@@ -207,15 +249,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     }
     const share = parseShareText(text);
     if (!share) return false;
-    if (share.name) {
-      search.value = share.name;
-      if (!name.value.trim()) name.value = share.name;
-      toast(`짧은 공유 링크에는 좌표가 없어서 '${share.name}'(으)로 검색했어요. 결과에서 골라 주세요`, { ms: 4500 });
-      runSearch(share.name);
-    } else {
-      search.value = '';
-      toast('이 짧은 링크에는 좌표가 없어요. 장소 이름으로 검색하거나, 링크를 연 뒤 주소창의 긴 주소를 붙여넣어 주세요', { kind: 'error', ms: 6000 });
-    }
+    applyShortLink(share);
     return true;
   }
 

@@ -81,3 +81,13 @@ test('WebView 안내 페이지: WebView 가 새것인데 뜬 경우(불러오기
   assert.ok(!/=>|\blet\b|\bconst\b|\?\.|\?\?|`/.test(script), '오래된 WebView 에서도 도는 문법만');
   assert.match(page, /다시 열어/);
 });
+
+test('짧은 지도 링크 따라가기(SharePlugin.resolveLink): 구글 짧은 링크 주소만, 자동 따라가기 끄고 Location 만, 시간 제한, 백그라운드', () => {
+  const src = read('android/app/src/main/java/io/github/y1kk3love/travellog/SharePlugin.java');
+  assert.match(src, /public void resolveLink\(PluginCall call\)/);
+  assert.match(src, /"maps\.app\.goo\.gl"/);
+  assert.match(src, /setInstanceFollowRedirects\(false\)/);
+  assert.match(src, /setConnectTimeout\(/);
+  assert.match(src, /setReadTimeout\(/);
+  assert.match(src, /new Thread\(|execute\(/, 'UI 스레드에서 네트워크를 쓰면 앱이 멈춘다');
+});

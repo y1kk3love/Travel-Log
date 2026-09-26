@@ -68,6 +68,29 @@ export function googleMapsSearchUrl(query) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
+// 구글 지도 링크의 장소 키("0x앞:0x뒤", 16진수 두 개)를 Places API 장소 ID("ChIJ…")로 바꾼다.
+// 장소 ID 는 두 수를 담은 작은 바이트열(0a 12 09 <앞 8바이트> 11 <뒤 8바이트>, 리틀 엔디언)의 URL-safe base64 다.
+// 앞쪽이 0 이면(리뷰 링크 등) 장소가 아니라 null.
+export function fidToPlaceId(fid) {
+  const m = String(fid ?? '').match(/^0x([0-9a-f]{1,16}):0x([0-9a-f]{1,16})$/i);
+  if (!m) return null;
+  const hi = BigInt(`0x${m[1]}`), lo = BigInt(`0x${m[2]}`);
+  if (hi === 0n || lo === 0n) return null;
+  const bytes = new Uint8Array(20);
+  const view = new DataView(bytes.buffer);
+  bytes.set([0x0a, 0x12, 0x09]);
+  view.setBigUint64(3, hi, true);
+  bytes[11] = 0x11;
+  view.setBigUint64(12, lo, true);
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// 링크 속 이름이 "이름, 주소…" 꼴이면(요즘 공유 링크를 따라간 주소) 이름만 쓴다
+export function linkPlaceName(name) {
+  if (name == null) return null;
+  return String(name).split(', ')[0].trim() || null;
+}
+
 // 긴 구글 지도 링크(브라우저 주소창의 것)에서 이름·좌표·장소 ID 를 뽑는다.
 //   /maps/place/<이름>/@위도,경도,...  → 이름 + 좌표 (핀 좌표 !3d/!4d 우선)
 //   /maps/search/?api=1&query=<이름>&query_place_id=<ID>  → 이름 + 장소 ID
@@ -87,6 +110,9 @@ export function parseMapsLink(text) {
   if (query && !name) name = decode(query[1]);
   const pid = url.match(/[?&]query_place_id=([^&]+)/);
   if (pid) placeId = decode(pid[1]);
+  // 장소 링크의 장소 키(!1s0x…:0x…). 요즘 앱 공유 링크를 따라가면 좌표 없이 이것만 있다
+  const fid = url.match(/!1s(0x[0-9a-f]+:0x[0-9a-f]+)/i);
+  if (fid && !placeId) placeId = fidToPlaceId(fid[1]);
   if (!name && !coords && !placeId) return null;
   return { name, lat: coords?.lat ?? null, lng: coords?.lng ?? null, placeId };
 }

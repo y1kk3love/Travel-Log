@@ -32,5 +32,15 @@ export function createPlaceSearch() {
     return { name: item.name, address: item.address || place.formattedAddress || '', lat: place.location.lat(), lng: place.location.lng(), placeId: place.id };
   }
 
-  return { suggest, resolve };
+  // 장소 ID 로 바로 위치·주소를 받는다 (구글 지도 공유 링크의 장소 키에서 만든 ID). 상세 1건, 같은 Essentials 필드만.
+  // 반환: { address, lat, lng, placeId }
+  async function byId(placeId) {
+    const { Place } = await importLibrary('places');
+    const place = new Place({ id: placeId });
+    await place.fetchFields({ fields: ['location', 'formattedAddress'] });
+    if (!place.location) throw new Error('no location');
+    return { address: place.formattedAddress ?? '', lat: place.location.lat(), lng: place.location.lng(), placeId: place.id };
+  }
+
+  return { suggest, resolve, byId };
 }

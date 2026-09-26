@@ -70,6 +70,21 @@ export async function takeSharedText() {
   } catch (err) { console.warn('share take', err); return null; }
 }
 
+// 구글 지도 앱이 공유하는 짧은 링크(maps.app.goo.gl)를 앱이 따라가 긴 구글 지도 주소를 받는다 (없으면 null).
+// 웹은 브라우저 보안(CORS) 때문에 따라갈 수 없어 null — 부른 쪽이 이름 검색으로 넘어간다. 예전 앱에는 이 메서드가 없다.
+const SHORT_MAPS_LINK = /^https:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/maps)\/[^\s]+$/i;
+const GOOGLE_MAPS_URL = /^https:\/\/(?:www\.|maps\.)?google\.[a-z.]+\/maps[/?]/i;
+export async function resolveMapsLink(url) {
+  const short = String(url ?? '').trim();
+  if (!SHORT_MAPS_LINK.test(short)) return null;
+  const si = plugin('ShareIntent');
+  if (!si) return null;
+  try {
+    const long = (await si.resolveLink({ url: short }))?.url;
+    return typeof long === 'string' && GOOGLE_MAPS_URL.test(long) ? long : null;
+  } catch (err) { console.warn('resolveLink', err); return null; }
+}
+
 // 안드로이드 뒤로가기. 리스너를 달면 웹뷰 기본 동작이 꺼지므로 cb 가 직접 처리한다 ({ canGoBack })
 export function onBackButton(cb) {
   const app = plugin('App');
