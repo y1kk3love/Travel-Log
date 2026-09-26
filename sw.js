@@ -68,6 +68,7 @@ const PRECACHE = [
   "js/update-check.js",
   "js/views/account-menu.js",
   "js/views/action-menu.js",
+  "js/views/admin.js",
   "js/views/app-download.js",
   "js/views/avatar.js",
   "js/views/checklist.js",

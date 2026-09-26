@@ -1,14 +1,15 @@
 import { el, toast, confirmDialog, openModal, icon, onSubmit } from '../ui.js';
 import { addMember, removeMember, getProfiles } from '../db.js';
-import { normalizeEmail, isTripOwner } from '../lib/members.js';
+import { normalizeEmail, canManageTrip } from '../lib/members.js';
+import { isSiteOwner } from '../auth.js';
 import { displayNameFor } from '../lib/profile.js';
 import { avatar } from './avatar.js';
 import { auth } from '../firebase.js';
 import { inviteShareButton, invitedToast } from './invite-share.js';
 
-// 동행 관리 창. 소유자만 추가·삭제할 수 있고, 동행은 목록만 본다.
+// 동행 관리 창. 여행 주인과 관리자(사이트 주인)만 추가·삭제할 수 있고, 동행은 목록만 본다.
 export function openMembersDialog(trip) {
-  const owner = isTripOwner(trip, auth.currentUser);
+  const owner = canManageTrip(trip, auth.currentUser, isSiteOwner(auth.currentUser)); // 여행 주인과 관리자
   const list = el('div', { class: 'member-list' });
   const input = el('input', { class: 'input', id: 'mb-email', type: 'email', placeholder: '초대할 Google 이메일', autocomplete: 'off' });
 

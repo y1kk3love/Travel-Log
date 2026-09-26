@@ -12,7 +12,7 @@ import { openCoverDialog } from './cover-dialog.js';
 import { openTripEditDialog } from './trip-edit-dialog.js';
 import { isSiteOwner } from '../auth.js';
 import { auth } from '../firebase.js';
-import { canEditTripInfo, isTripOwner } from '../lib/members.js';
+import { canEditTripInfo, canManageTrip, isAdminViewing } from '../lib/members.js';
 import { openActionMenu } from './action-menu.js';
 import { avatar } from './avatar.js';
 
@@ -87,11 +87,15 @@ function drawHeader(header, tabsBar, trip, tab) {
         { icon: 'users', label: `동행 ${members.length}명`, onClick: () => openMembersDialog(trip) },
         canEdit && { icon: 'image', label: '대표 사진', onClick: () => openCoverDialog(trip) },
         canEdit && { icon: 'calendar', label: '여행 정보 수정', onClick: () => openTripEditDialog(trip) },
-        isTripOwner(trip, user) && { icon: 'trash', label: '여행 삭제', danger: true, onClick: () => confirmDeleteTrip(trip) },
+        canManageTrip(trip, user, isSiteOwner(user)) && { icon: 'trash', label: '여행 삭제', danger: true, onClick: () => confirmDeleteTrip(trip) },
       ],
     }),
   }, icon('more'));
   clear(header);
+  // 관리자가 동행이 아닌 여행을 볼 때: 나에게만 보이는 표시 (동행 목록에는 들어가지 않는다)
+  if (isAdminViewing(trip, user, isSiteOwner(user))) {
+    header.append(el('a', { class: 'admin-banner', href: '#/admin' }, icon('shield'), `관리자로 보는 중 · ${trip.ownerEmail ?? ''} 님의 여행`));
+  }
   header.append(
     el('div', { class: 'trip-title-row' },
       el('h1', { text: trip.title }),

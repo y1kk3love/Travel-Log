@@ -165,3 +165,38 @@ test('초대 목록: 여행 만들기 켜진 계정은 동행을 초대할 수 �
   await assertFails(getDocs(collection(friend(), 'allowedUsers')));
   await assertSucceeds(getDocs(collection(owner(), 'allowedUsers')));
 });
+
+test('관리자(사이트 주인): 동행이 아닌 여행도 모두 보고·고치고·지울 수 있다 (동행 목록에는 들어가지 않는다)', async () => {
+  // 사이트 주인이 동행이 아닌 여행 (여행 만들기 켜진 계정이 만든 것)
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'trips', 'C1'), {
+      title: '친구 여행', startDate: '2027-05-01', endDate: '2027-05-03', coverPhoto: null, createdAt: 1,
+      ownerUid: 'creator-uid', ownerEmail: CREATOR, memberEmails: [CREATOR, FRIEND],
+    });
+    await setDoc(doc(db, 'trips', 'C1', 'places', 'P1'), place());
+  });
+  const db = owner();
+  const all = await assertSucceeds(getDocs(collection(db, 'trips'))); // 전체 목록 (동행 조건 없이)
+  assert.deepEqual(all.docs.map((d) => d.id).sort(), ['C1', 'T1']);
+  await assertSucceeds(getDoc(doc(db, 'trips', 'C1')));
+  await assertSucceeds(getDocs(collection(db, 'trips', 'C1', 'places')));
+  await assertSucceeds(setDoc(doc(db, 'trips', 'C1', 'places', 'P2'), place()));
+  await assertSucceeds(updateDoc(doc(db, 'trips', 'C1', 'places', 'P1'), { time: '10:00' }));
+  await assertSucceeds(updateDoc(doc(db, 'trips', 'C1'), { title: '고친 제목', memberEmails: [CREATOR] })); // 동행 관리도
+  await assertFails(updateDoc(doc(db, 'trips', 'C1'), { ownerUid: OWNER_UID })); // 여행 주인은 못 바꾼다
+  await assertFails(setDoc(doc(db, 'trips', 'C1', 'places', 'P3'), place({ hacked: true }))); // 형식 검사는 그대로
+  await assertSucceeds(deleteDoc(doc(db, 'trips', 'C1', 'places', 'P1')));
+  await assertSucceeds(deleteDoc(doc(db, 'trips', 'C1')));
+});
+
+test('관리자 권한은 사이트 주인만: 여행 만들기 켜진 계정도 남의 여행 전체 목록·내용은 못 본다', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'trips', 'O1'), {
+    title: '주인 여행', startDate: '2027-05-01', endDate: '2027-05-03', coverPhoto: null, createdAt: 1,
+    ownerUid: OWNER_UID, ownerEmail: OWNER, memberEmails: [OWNER],
+  }));
+  await assertFails(getDocs(collection(creator(), 'trips')));
+  await assertFails(getDoc(doc(creator(), 'trips', 'O1')));
+  await assertFails(getDocs(collection(friend(), 'trips', 'O1', 'places')));
+  await assertFails(deleteDoc(doc(friend(), 'trips', 'O1')));
+});

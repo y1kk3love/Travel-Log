@@ -35,3 +35,8 @@ test('reservations 탭 뒤의 ID 는 reservationId 로 넘어온다 (일정 → 
   assert.deepEqual(parseHash('#/trip/abc/reservations/r1'), { name: 'trip', tripId: 'abc', tab: 'reservations', reservationId: 'r1' });
   assert.deepEqual(parseHash('#/trip/abc/reservations'), { name: 'trip', tripId: 'abc', tab: 'reservations' });
 });
+
+test('#/admin 은 관리자 화면 (홈에서 들어가면 forward)', () => {
+  assert.deepEqual(parseHash('#/admin'), { name: 'admin' });
+  assert.equal(navDirection({ name: 'trips' }, { name: 'admin' }), 'forward');
+});

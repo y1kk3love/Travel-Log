@@ -56,6 +56,11 @@ export function watchTrips(cb, onError = logError) {
   return onSnapshot(q, (s) => cb(sortTripsByStart(docsOf(s))), onError);
 }
 
+// 관리자(사이트 주인) 전용: 동행 여부와 상관없이 모든 여행 (규칙이 사이트 주인에게만 전체 목록을 허용한다)
+export function watchAllTrips(cb, onError = logError) {
+  return onSnapshot(tripsCol(), (s) => cb(sortTripsByStart(docsOf(s))), onError);
+}
+
 // 로그인한 계정이 이 사이트를 쓸 수 있는지: 사이트 주인이거나, 초대 목록에 있거나, 어떤 여행의 동행이거나.
 export async function canUseApp(isSiteOwner) {
   if (isSiteOwner) return true;

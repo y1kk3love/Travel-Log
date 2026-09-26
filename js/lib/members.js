@@ -15,6 +15,18 @@ export function isTripOwner(trip, user) {
   return !!user && !!trip?.ownerUid && trip.ownerUid === user.uid;
 }
 
+// 동행 추가·내보내기와 여행 삭제: 그 여행을 만든 사람이거나 관리자(사이트 주인)
+export function canManageTrip(trip, user, isSiteOwner) {
+  return !!user && (isTripOwner(trip, user) || !!isSiteOwner);
+}
+
+// 관리자가 동행이 아닌 여행을 보고 있나 ("관리자로 보는 중" 표시). 관리자는 동행 목록에 들어가지 않는다
+export function isAdminViewing(trip, user, isSiteOwner) {
+  if (!isSiteOwner || !user) return false;
+  const me = String(user.email ?? '').toLowerCase();
+  return !(trip?.memberEmails ?? []).some((m) => String(m).toLowerCase() === me);
+}
+
 // 대표 사진·여행 정보(제목·기간)를 고칠 수 있나: 그 여행을 만든 사람이거나 사이트 주인
 export function canEditTripInfo(trip, user, isSiteOwner) {
   return !!user && (isTripOwner(trip, user) || !!isSiteOwner);

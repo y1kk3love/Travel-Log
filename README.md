@@ -45,6 +45,7 @@ main 에 올리면 GitHub Actions 가 둘 다 돌린다 (`.github/workflows/test
 - `js/app.js` 로그인 분기 → `js/router.js` 해시 라우팅 → `js/views/*`
 - `js/db.js` Firestore 접근 전부
 - `js/lib/*` 순수 계산 (테스트 대상)
+- 관리자(사이트 주인, `OWNER_UID`): 내 계정 메뉴 → "관리자 · 모든 여행"(`#/admin`, `js/views/admin.js`). 동행 목록에 들어가지 않고 모든 여행을 보고·고치고·지우고 동행을 관리한다 (규칙의 `isSiteOwner()`). 동행이 아닌 여행에서는 "관리자로 보는 중" 표시가 나에게만 보인다
 - `firestore.rules` 보안 규칙. 게시는 `npm run deploy:rules` (처음 한 번 `npx firebase login`). 문서에 새 필드를 쓰면 규칙의 필드 목록·`tests-rules/` 도 함께 고친다
 - `manifest.webmanifest`, `sw.js`, `icons/` 홈 화면 앱(PWA). 서비스 워커는 설치 때 앱 파일을 전부 받아 두므로, JS 파일을 더하거나 지우면 `npm run sw:precache` (테스트가 알려 준다). 아이콘은 `node scripts/make-icons.js`로 `favicon.svg`에서 다시 만든다
 - `js/firebase-sdk.js` Firebase SDK 버전은 여기 한 곳. `js/walk-routes.js` Routes API 도보 경로

@@ -12,6 +12,7 @@ import { setPendingShare } from './views/share.js';
 import { navigate } from './router.js';
 import * as tripsView from './views/trips.js';
 import * as tripView from './views/trip.js';
+import * as adminView from './views/admin.js';
 
 const app = document.getElementById('app');
 
@@ -54,7 +55,7 @@ function renderChecking() {
 
 function renderApp() {
   clear(app);
-  const disposers = [startRouter({ trips: tripsView, trip: tripView, share: shareView }, app)];
+  const disposers = [startRouter({ trips: tripsView, trip: tripView, share: shareView, admin: adminView }, app)];
   // 공유 시트로 열렸으면 여행 선택 화면으로. 앱은 네이티브 인텐트, 홈 화면 웹앱(PWA)은 주소의 ?title=&text=&url= (manifest share_target)
   const goShare = async () => {
     let text = await takeSharedText();

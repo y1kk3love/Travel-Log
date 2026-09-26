@@ -7,6 +7,7 @@ import { avatar } from './avatar.js';
 import { openProfileDialog } from './profile-dialog.js';
 import { openUsageDialog } from './usage-dialog.js';
 import { openInvitesDialog } from './invites-dialog.js';
+import { navigate } from '../router.js';
 
 // 상단 아바타를 누르면 여는 내 계정 메뉴. 폰에서는 아래에서 올라오는 시트, 넓은 화면에서는 오른쪽 위 메뉴.
 // 사이트 주인만 초대 관리·사용량이 보이고, 앱에서는 앱 버전이 보인다. 로그아웃은 한 번 확인한다.
@@ -21,6 +22,7 @@ export function openAccountMenu({ profile, email, isSiteOwner, onSignOut }) {
 
   const rows = [
     row('user', '닉네임 바꾸기', then(() => openProfileDialog(profile?.nickname ?? ''))),
+    isSiteOwner ? row('shield', '관리자 · 모든 여행', then(() => navigate('/admin'))) : null,
     isSiteOwner ? row('mail', '초대 관리', then(openInvitesDialog)) : null,
     isSiteOwner ? row('chart', '사용량과 한도', then(openUsageDialog)) : null,
     // 출발 알림이 꺼져 있으면 누구에게나 보인다 (처음 묻는 창을 닫았으면 앱은 다시 묻지 않으므로)

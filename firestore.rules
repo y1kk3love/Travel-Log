@@ -134,27 +134,29 @@ service cloud.firestore {
       allow delete: if isSiteOwner();
     }
 
+    // 관리자(사이트 주인)는 동행 목록에 들어가지 않고도 모든 여행과 그 안의 문서를 보고·고치고·지울 수 있다 (관리자 화면).
+    // 여행 주인(ownerUid)은 못 바꾸고, 문서 형식 검사는 똑같이 받는다.
     match /trips/{tripId} {
-      // 없는 여행(방금 삭제된 것 등)을 단건 조회하면 오류 대신 "없음"이 오도록 허용한다. 목록 조회는 멤버만.
-      allow get: if signedIn() && (resource == null || isMemberOf(resource.data));
-      allow list: if isMemberOf(resource.data);
+      // 없는 여행(방금 삭제된 것 등)을 단건 조회하면 오류 대신 "없음"이 오도록 허용한다. 목록 조회는 멤버(와 관리자)만.
+      allow get: if signedIn() && (resource == null || isSiteOwner() || isMemberOf(resource.data));
+      allow list: if isSiteOwner() || isMemberOf(resource.data);
       // 새 여행은 사이트 주인 또는 "여행 만들기"가 켜진 초대 계정이 만든다. 만든 사람이 그 여행의 주인.
       allow create: if canCreateTrips()
         && request.resource.data.ownerUid == request.auth.uid
         && myEmail() in request.resource.data.memberEmails
         && tripOk(request.resource.data);
-      // 멤버는 내용을 고칠 수 있지만 소유자·만든 날은 못 바꾸고, 동행 목록은 소유자만 바꾼다
-      allow update: if isMemberOf(resource.data)
+      // 멤버는 내용을 고칠 수 있지만 소유자·만든 날은 못 바꾸고, 동행 목록은 소유자(와 관리자)만 바꾼다
+      allow update: if (isSiteOwner() || isMemberOf(resource.data))
         && request.resource.data.ownerUid == resource.data.ownerUid
-        && (request.resource.data.memberEmails == resource.data.memberEmails || resource.data.ownerUid == request.auth.uid)
+        && (request.resource.data.memberEmails == resource.data.memberEmails || resource.data.ownerUid == request.auth.uid || isSiteOwner())
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'startDate', 'endDate', 'coverPhoto', 'cover', 'memberEmails', 'rates'])
         && tripOk(request.resource.data);
-      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow delete: if signedIn() && (resource.data.ownerUid == request.auth.uid || isSiteOwner());
 
       // 여행 안의 문서: 앱이 쓰는 7가지 모음만, 각자 형식 검사
       match /{col}/{docId} {
-        allow read, delete: if isMemberOf(tripData(tripId));
-        allow create, update: if isMemberOf(tripDataAfter(tripId)) && subDocOk(col, request.resource.data);
+        allow read, delete: if isSiteOwner() || isMemberOf(tripData(tripId));
+        allow create, update: if (isSiteOwner() || isMemberOf(tripDataAfter(tripId))) && subDocOk(col, request.resource.data);
       }
     }
   }

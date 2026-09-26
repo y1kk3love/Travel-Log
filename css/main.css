@@ -671,3 +671,7 @@ dialog.sheet-menu[open] { animation: menu-in .28s var(--spring); }
 
 /* ---- 지도 핀 (AdvancedMarkerElement 의 내용). 원의 가운데가 좌표에 오게 반만큼 내린다 ---- */
 .map-pin { box-sizing: border-box; display: grid; place-items: center; border-radius: 50%; background: var(--pin); border: 3px solid #fff; color: #fff; font-weight: 700; line-height: 1; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); transform: translateY(50%); cursor: pointer; font-family: var(--sans); }
+
+/* ---- 관리자로 보는 중 (사이트 주인이 동행이 아닌 여행을 볼 때, 나에게만 보인다) ---- */
+.admin-banner { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 5px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); font-size: 12px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-banner svg { width: 14px; height: 14px; flex-shrink: 0; }

@@ -3,6 +3,7 @@ const TABS = ['planner', 'checklist', 'reservations', 'expenses'];
 export function parseHash(hash) {
   const parts = String(hash || '').replace(/^#/, '').split('/').filter(Boolean);
   if (parts[0] === 'share') return { name: 'share' };
+  if (parts[0] === 'admin') return { name: 'admin' }; // 관리자(사이트 주인) 전용: 모든 여행
   if (parts[0] === 'trip' && parts[1]) {
     const tab = TABS.includes(parts[2]) ? parts[2] : 'planner';
     const route = { name: 'trip', tripId: parts[1], tab };
