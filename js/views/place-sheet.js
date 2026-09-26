@@ -6,6 +6,8 @@ import { notifyQuota, isQuotaHit } from '../quota.js';
 import { extractLinks, shortLabel } from '../lib/text.js';
 import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl, parseMapsLink, linkPlaceName } from '../lib/coords.js';
 import { resolveMapsLink } from '../native.js';
+import { resolveShortLink, relayResolver } from '../lib/short-link.js';
+import { MAPS_LINK_RELAY } from '../firebase-config.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
 import { formatShort } from '../lib/dates.js';
@@ -218,14 +220,14 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     }
   }
 
-  // 구글 지도 앱이 공유한 짧은 링크: 앱이 따라가 긴 주소(핀 좌표나 장소 키)를 받는다. 웹은 따라갈 수 없어 이름 검색.
+  // 구글 지도 앱이 공유한 짧은 링크: 앱은 네이티브로, 웹은 중계(Apps Script)로 따라가 긴 주소(핀 좌표나 장소 키)를 받는다. 안 되면 이름 검색.
   let resolvingLink = null; // 붙여넣기와 검색이 같은 링크를 두 번 따라가지 않게
   async function applyShortLink(share) {
     if (resolvingLink === share.link) return;
     resolvingLink = share.link;
     if (share.name && !name.value.trim()) name.value = share.name;
     location.textContent = '공유 링크 여는 중…';
-    const long = await resolveMapsLink(share.link);
+    const long = await resolveShortLink(share.link, [resolveMapsLink, relayResolver(MAPS_LINK_RELAY)]);
     resolvingLink = null;
     const link = long ? parseMapsLink(long) : null;
     if (link && (link.lat != null || link.placeId)) { await applyLink(link, share.name ?? linkPlaceName(link.name)); return; }
@@ -287,6 +289,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     const seq = ++searchSeq;
     const query = q.trim();
     if (query.length < 2) { results.hidden = true; lastQuery = null; return; }
+    if (query === handledText) return; // paste 에서 이미 처리한 링크
     if (applyPastedCoords(q)) return;
     if (query === lastQuery) { results.hidden = results.childElementCount === 0; return; }
     lastQuery = query;
@@ -312,8 +315,12 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     results.replaceChildren(...(items.length ? items : [el('p', { class: 'muted', text: '검색 결과가 없어요' })]));
     results.hidden = false;
   }, 600);
+  // 붙여넣기는 paste(바로 처리)와 input(0.6초 뒤 검색) 두 이벤트로 온다. paste 에서 처리한 링크는 검색 쪽에서 다시 처리하지 않는다
+  // (안 그러면 같은 링크를 두 번 따라가 안내가 두 번 뜬다). 같은 링크를 다시 붙여넣으면 paste 가 다시 처리한다.
+  let handledText = null;
+  const handlePasted = (text) => { if (!applyPastedCoords(text)) return false; handledText = String(text).trim(); return true; };
   search.addEventListener('input', () => runSearch(search.value));
-  search.addEventListener('paste', () => setTimeout(() => applyPastedCoords(search.value), 0));
+  search.addEventListener('paste', () => setTimeout(() => handlePasted(search.value), 0));
   // 이미 위치가 정해진 장소면 Google 지도의 그 장소 페이지(사진·평점·영업시간)를 바로 연다
   const googleBtn = el('a', {
     class: 'btn btn-sm', target: '_blank', rel: 'noopener', href: googleMapsSearchUrl(''),
@@ -472,6 +479,6 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     handle.addEventListener('pointercancel', end);
   }
   // 공유로 받은 텍스트: 좌표·짧은 링크면 그대로 처리, 아니면(그냥 장소 이름 등) 그 텍스트로 검색
-  if (sharedText && !noteMode) { search.value = sharedText; setTimeout(() => { if (!applyPastedCoords(sharedText)) runSearch(sharedText); }, 0); }
+  if (sharedText && !noteMode) { search.value = sharedText; setTimeout(() => { if (!handlePasted(sharedText)) runSearch(sharedText); }, 0); }
   return close;
 }

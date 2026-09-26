@@ -49,6 +49,7 @@ const PRECACHE = [
   "js/lib/schedule.js",
   "js/lib/settle.js",
   "js/lib/share.js",
+  "js/lib/short-link.js",
   "js/lib/single-flight.js",
   "js/lib/stamp.js",
   "js/lib/text.js",

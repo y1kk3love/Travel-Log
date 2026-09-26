@@ -1,6 +1,7 @@
 // 네이티브(안드로이드 앱) 기능 접근을 이 파일에만 둔다. 웹에서는 전부 no-op.
 // Capacitor 는 앱 웹뷰에 window.Capacitor 를 주입한다. 번들러가 없으므로 registerPlugin 으로 플러그인 프록시를 얻는다.
 import { sharedTextFrom } from './lib/share.js';
+import { isShortMapsLink, isGoogleMapsUrl } from './lib/short-link.js';
 
 const cap = () => (typeof window !== 'undefined' ? window.Capacitor : undefined);
 
@@ -72,16 +73,14 @@ export async function takeSharedText() {
 
 // 구글 지도 앱이 공유하는 짧은 링크(maps.app.goo.gl)를 앱이 따라가 긴 구글 지도 주소를 받는다 (없으면 null).
 // 웹은 브라우저 보안(CORS) 때문에 따라갈 수 없어 null — 부른 쪽이 이름 검색으로 넘어간다. 예전 앱에는 이 메서드가 없다.
-const SHORT_MAPS_LINK = /^https:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/maps)\/[^\s]+$/i;
-const GOOGLE_MAPS_URL = /^https:\/\/(?:www\.|maps\.)?google\.[a-z.]+\/maps[/?]/i;
 export async function resolveMapsLink(url) {
   const short = String(url ?? '').trim();
-  if (!SHORT_MAPS_LINK.test(short)) return null;
+  if (!isShortMapsLink(short)) return null;
   const si = plugin('ShareIntent');
   if (!si) return null;
   try {
     const long = (await si.resolveLink({ url: short }))?.url;
-    return typeof long === 'string' && GOOGLE_MAPS_URL.test(long) ? long : null;
+    return isGoogleMapsUrl(long) ? long : null;
   } catch (err) { console.warn('resolveLink', err); return null; }
 }
 
