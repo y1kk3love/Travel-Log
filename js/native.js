@@ -84,6 +84,14 @@ export async function resolveMapsLink(url) {
   } catch (err) { console.warn('resolveLink', err); return null; }
 }
 
+// 안드로이드 공유 창(카카오톡·문자·메일…)으로 글을 보낸다. 앱이 처리했으면 true, 웹·예전 앱이면 false (부른 쪽이 브라우저 공유·복사로).
+export async function shareText({ title = '', text }) {
+  const si = plugin('ShareIntent');
+  if (!si) return false;
+  try { await si.shareText({ title, text }); return true; }
+  catch (err) { console.warn('shareText', err); return false; }
+}
+
 // 안드로이드 뒤로가기. 리스너를 달면 웹뷰 기본 동작이 꺼지므로 cb 가 직접 처리한다 ({ canGoBack })
 export function onBackButton(cb) {
   const app = plugin('App');

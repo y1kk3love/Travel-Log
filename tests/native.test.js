@@ -207,3 +207,15 @@ test('native: 짧은 지도 링크는 앱(ShareIntent.resolveLink)이 따라가 
   delete globalThis.window;
   assert.equal(await (await fresh()).resolveMapsLink('https://maps.app.goo.gl/abc'), null); // 웹
 });
+
+test('native: shareText 는 앱이면 안드로이드 공유 창(ShareIntent.shareText)을 열고 true, 웹·예전 앱은 false', async () => {
+  const calls = [];
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, Plugins: { ShareIntent: { shareText: async (o) => { calls.push(o); return {}; } } } } };
+  const m = await fresh();
+  assert.equal(await m.shareText({ title: 't', text: 'x' }), true);
+  assert.deepEqual(calls, [{ title: 't', text: 'x' }]);
+  globalThis.window.Capacitor.Plugins.ShareIntent.shareText = async () => { throw new Error('not implemented'); };
+  assert.equal(await (await fresh()).shareText({ title: 't', text: 'x' }), false);
+  delete globalThis.window;
+  assert.equal(await (await fresh()).shareText({ title: 't', text: 'x' }), false);
+});

@@ -3,6 +3,7 @@ import { watchAllowedUsers, setAllowedUser, removeAllowedUser, getProfiles } fro
 import { normalizeEmail, NEW_INVITE } from '../lib/members.js';
 import { displayNameFor } from '../lib/profile.js';
 import { avatar } from './avatar.js';
+import { inviteShareButton, invitedToast } from './invite-share.js';
 
 // 사이트 주인용 초대 관리: 초대 목록 전체를 보고, 이메일을 추가하고, 계정마다 "여행 만들기" 를 켜고 끈다.
 export function openInvitesDialog() {
@@ -26,6 +27,7 @@ export function openInvitesDialog() {
             catch (err) { console.error(err); e.target.checked = !e.target.checked; toast('바꾸지 못했어요', { kind: 'error' }); }
           },
         }), '여행 만들기'),
+      inviteShareButton(u.email),
       el('button', {
         type: 'button', class: 'btn btn-icon btn-sm', 'aria-label': `${u.email} 초대 취소`,
         onClick: async () => {
@@ -58,7 +60,7 @@ export function openInvitesDialog() {
     const email = normalizeEmail(input.value);
     if (!email) { toast('이메일 형식이 아니에요', { kind: 'error' }); input.focus(); return; }
     if (users.some((u) => u.email === email)) { toast('이미 초대 목록에 있어요'); input.value = ''; return; }
-    try { await setAllowedUser(email, { ...NEW_INVITE }); input.value = ''; toast(`${email} 님을 추가했어요. 여행을 만들게 하려면 "여행 만들기"를 켜 주세요`, { ms: 5000 }); }
+    try { await setAllowedUser(email, { ...NEW_INVITE }); input.value = ''; invitedToast(`${email} 님을 추가했어요`, email); }
     catch (err) { console.error(err); toast('추가하지 못했어요', { kind: 'error' }); }
   });
   dialog.addEventListener('close', () => unsub());

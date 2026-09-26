@@ -1,5 +1,6 @@
 package io.github.y1kk3love.travellog;
 
+import android.content.ComponentName;
 import android.content.Intent;
 
 import com.getcapacitor.JSObject;
@@ -39,6 +40,27 @@ public class SharePlugin extends Plugin {
             getActivity().setIntent(new Intent());
         }
         call.resolve(ret);
+    }
+
+    // 초대 메시지 등 글을 안드로이드 공유 창으로 보낸다. 이 앱도 글 공유를 받으므로 목록에서 자신은 뺀다.
+    @PluginMethod
+    public void shareText(PluginCall call) {
+        String text = call.getString("text", "");
+        String title = call.getString("title", "");
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, text);
+        if (!title.isEmpty()) send.putExtra(Intent.EXTRA_SUBJECT, title);
+        Intent chooser = Intent.createChooser(send, title.isEmpty() ? null : title);
+        chooser.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, new ComponentName[] { new ComponentName(getContext(), ShareActivity.class) });
+        getActivity().runOnUiThread(() -> {
+            try {
+                getActivity().startActivity(chooser);
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("공유 창을 열지 못했어요", e);
+            }
+        });
     }
 
     @PluginMethod

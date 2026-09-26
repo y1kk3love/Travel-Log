@@ -4,6 +4,7 @@ import { normalizeEmail, isTripOwner } from '../lib/members.js';
 import { displayNameFor } from '../lib/profile.js';
 import { avatar } from './avatar.js';
 import { auth } from '../firebase.js';
+import { inviteShareButton, invitedToast } from './invite-share.js';
 
 // 동행 관리 창. 소유자만 추가·삭제할 수 있고, 동행은 목록만 본다.
 export function openMembersDialog(trip) {
@@ -19,6 +20,7 @@ export function openMembersDialog(trip) {
         el('span', { class: 'member-name', text: displayNameFor(profiles[email], email) }),
         el('span', { class: 'muted member-sub', text: email })),
       email === trip.ownerEmail ? el('span', { class: 'tag', text: '주인' }) : null,
+      owner && email !== trip.ownerEmail ? inviteShareButton(email, trip) : null,
       owner && email !== trip.ownerEmail ? el('button', {
         type: 'button', class: 'btn btn-icon btn-sm', 'aria-label': `${email} 내보내기`,
         onClick: async () => {
@@ -54,7 +56,7 @@ export function openMembersDialog(trip) {
     try {
       await addMember(trip.id, email);
       members = [...members, email]; draw(members); input.value = '';
-      toast(`${email} 님을 초대했어요`);
+      invitedToast(`${email} 님을 초대했어요`, email, trip);
     } catch (err) {
       console.error(err);
       toast('초대하지 못했어요', { kind: 'error' });

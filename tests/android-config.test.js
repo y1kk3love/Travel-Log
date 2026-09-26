@@ -91,3 +91,11 @@ test('짧은 지도 링크 따라가기(SharePlugin.resolveLink): 구글 짧은 
   assert.match(src, /setReadTimeout\(/);
   assert.match(src, /new Thread\(|execute\(/, 'UI 스레드에서 네트워크를 쓰면 앱이 멈춘다');
 });
+
+test('초대 메시지 보내기(SharePlugin.shareText): 안드로이드 공유 창을 띄우고, 목록에서 이 앱 자신은 뺀다', () => {
+  const src = read('android/app/src/main/java/io/github/y1kk3love/travellog/SharePlugin.java');
+  assert.match(src, /public void shareText\(PluginCall call\)/);
+  assert.match(src, /Intent\.createChooser\(/);
+  assert.match(src, /EXTRA_EXCLUDE_COMPONENTS/);
+  assert.match(src, /ShareActivity\.class/);
+});
