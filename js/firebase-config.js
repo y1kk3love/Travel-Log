@@ -18,4 +18,4 @@ export const MAPS_MAP_ID = '46966c66a1cbaca5846e633e';
 
 // 웹에서 구글 지도 짧은 링크(maps.app.goo.gl)를 따라가 주는 중계 (사이트 주인 구글 계정의 Apps Script 웹 앱, relay/maps-link.gs).
 // 비어 있으면 웹은 이름 검색으로 넘어간다. 앱은 중계 없이 네이티브로 따라간다. 공개돼도 되는 값 (구글 짧은 링크만 받는다)
-export const MAPS_LINK_RELAY = '';
+export const MAPS_LINK_RELAY = 'https://script.google.com/macros/s/AKfycbxlw8KRhbpzjXPe0y3lQ5DsPo4Rj5hXN7rdaKW9B51Z7oNVdyEVbSttCa8l_gltXsXGvQ/exec';

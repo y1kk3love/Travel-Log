@@ -50,4 +50,5 @@ main 에 올리면 GitHub Actions 가 둘 다 돌린다 (`.github/workflows/test
 - `js/firebase-sdk.js` Firebase SDK 버전은 여기 한 곳. `js/walk-routes.js` Routes API 도보 경로
 - `app-config.json` 앱 최소 지원 버전 (위 "옛 앱 막기")
 - 날씨는 Open-Meteo(키 없음, 오늘부터 15일 안의 날짜만), 도착 예상 시간은 `js/lib/timeline.js`
+- 구글 지도 짧은 공유 링크(maps.app.goo.gl): 앱은 네이티브(`SharePlugin.resolveLink`)로, 웹은 중계 `relay/maps-link.gs`(사이트 주인 구글 계정의 Apps Script 웹 앱 "여행 로그 지도 링크 중계", 주소는 `js/firebase-config.js` 의 `MAPS_LINK_RELAY`)로 따라간다. 중계 코드를 고치면 Apps Script 편집기에 붙여넣고 "배포 관리 → 수정 → 새 버전"으로 올린다 (주소는 그대로)
 - 설계: `docs/superpowers/specs/2026-09-20-travel-planner-design.md` (첫 설계. 지금과 다른 점은 그 문서 맨 위에 적어 둠), 데이터 구조: `docs/data-model.md`
