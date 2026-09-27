@@ -54,3 +54,12 @@ test('다크 모드: Google 지도도 시스템 설정을 따르고, 웹 앱 바
   assert.match(css, /\.map-popup \{[^}]*color: #111111/);
   assert.ok(manifest.includes('"background_color": "#F2F2F7"'));
 });
+
+test('움직임: 차례 등장·스켈레톤·탭 알약·체크·도장·핀이 있고, 움직임 줄이기는 지연까지 없앤다', () => {
+  for (const name of ['rise-in', 'shimmer', 'check-pop', 'strike', 'stamp-in', 'toast-out', 'pin-drop', 'day-pop']) {
+    assert.match(css, new RegExp(`@keyframes ${name} `), `${name} 애니메이션이 없음`);
+  }
+  assert.match(css, /\.tabs\.has-indicator::before \{[^}]*transition: transform/);
+  const reduce = css.match(/prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
+  assert.match(reduce, /animation-delay: 0s !important/);
+});

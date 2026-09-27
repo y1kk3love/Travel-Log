@@ -1,6 +1,7 @@
 import { linkify } from './lib/text.js';
 import { createOverlayStack } from './lib/overlays.js';
 import { singleFlight } from './lib/single-flight.js';
+import { reduceMotion, haptic } from './motion.js';
 
 // 열린 창(대화상자·장소 시트·사진 확대) 목록. 안드로이드 뒤로가기는 맨 위 창부터 닫는다.
 export const overlays = createOverlayStack();
@@ -117,8 +118,11 @@ export function toast(message, { kind = 'info', ms = 2800, action = null } = {})
   root.append(node);
   raiseToasts(root);
   setTimeout(() => {
-    node.remove();
-    if (!root.childElementCount) try { root.hidePopover?.(); } catch { /* 이미 닫힘 */ }
+    node.classList.add('leaving'); // 부드럽게 내려가며 사라진 뒤 지운다
+    setTimeout(() => {
+      node.remove();
+      if (!root.childElementCount) try { root.hidePopover?.(); } catch { /* 이미 닫힘 */ }
+    }, reduceMotion() ? 0 : 220);
   }, ms);
 }
 
@@ -144,7 +148,8 @@ export function openModal(dialog) {
   const onRoute = () => dialog.close();
   const entry = overlays.push(() => dialog.close());
   window.addEventListener('hashchange', onRoute);
-  dialog.addEventListener('close', () => { entry.release(); window.removeEventListener('hashchange', onRoute); dialog.remove(); });
+  // 닫히는 움직임(css 의 dialog:not([open]))이 끝난 뒤에 지운다
+  dialog.addEventListener('close', () => { entry.release(); window.removeEventListener('hashchange', onRoute); setTimeout(() => dialog.remove(), reduceMotion() ? 0 : 220); });
   document.body.append(dialog);
   dialog.showModal();
   raiseToasts(document.getElementById('toast-root')); // 떠 있던 알림은 새 창 위로
@@ -167,7 +172,10 @@ export function confirmDialog(message, { okText = '삭제', cancelText = '취소
       el('div', { class: 'dialog-actions' },
         el('button', { type: 'button', class: 'btn', onClick: () => dialog.close('cancel') }, cancelText),
         el('button', { type: 'button', class: danger ? 'btn btn-primary btn-destructive' : 'btn btn-primary', onClick: () => dialog.close('ok') }, okText)));
-    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'ok'));
+    dialog.addEventListener('close', () => {
+      if (danger && dialog.returnValue === 'ok') haptic('warning'); // 지우기처럼 되돌릴 수 없는 동작은 손끝으로도
+      resolve(dialog.returnValue === 'ok');
+    });
     openModal(dialog);
   });
 }

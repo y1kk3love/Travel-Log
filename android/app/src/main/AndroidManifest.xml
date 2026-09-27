@@ -55,4 +55,6 @@
     <!-- 출발 알림을 제시간에: 안드로이드 13+ 는 자동 허용 (SCHEDULE_EXACT_ALARM 은 14+ 에서 사용자가 직접 켜야 한다).
          Play 스토어에 올리면 알람·캘린더 앱만 쓸 수 있는 권한이라 그때 다시 검토 -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- 체크, 순서 옮기기, 삭제 때 가벼운 진동 (웹의 navigator.vibrate). 일반 권한이라 설치 때 자동 허용 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

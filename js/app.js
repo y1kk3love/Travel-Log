@@ -13,8 +13,10 @@ import { navigate } from './router.js';
 import * as tripsView from './views/trips.js';
 import * as tripView from './views/trip.js';
 import * as adminView from './views/admin.js';
+import { installImageFade } from './motion.js';
 
 const app = document.getElementById('app');
+installImageFade(); // 사진이 뚝 뜨지 않고 부드럽게
 
 // 오프라인에서 한 변경은 연결된 뒤 서버에 올라간다. 그때 거절되면(권한·크기 등) 기기 화면에서도 되돌려지므로 알려 준다.
 onLateWriteError((err) => {

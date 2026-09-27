@@ -5,13 +5,17 @@ import { fetchKrwRates } from '../rates.js';
 import { displayNameFor } from '../lib/profile.js';
 import { formatShort, toDateStr } from '../lib/dates.js';
 import { auth } from '../firebase.js';
+import { enter, forgetEnter, countUp, skeleton } from '../motion.js';
+
+let mounts = 0;
 
 // 지출 탭: 손으로 적는 가계부 + 동행 정산. 결제 수단 연동 없음.
 export function mount(content, ctx) {
   const { tripId } = ctx;
-  const state = { trip: ctx.trip ?? null, expenses: [], profiles: {}, ratesFetched: false };
+  const state = { trip: ctx.trip ?? null, expenses: [], profiles: {}, ratesFetched: false, scope: `expenses:${++mounts}` };
   const main = el('main', { class: 'container expenses-page' });
   content.append(main);
+  main.append(skeleton('row', 4));
   const redraw = () => draw(main, tripId, state);
   // 닉네임: 지금 동행과, 지출에 낸 사람·나눈 사람으로 남은 나간 동행까지 (없는 사람만 한 번 더 읽는다)
   const asked = new Set();
@@ -33,7 +37,7 @@ export function mount(content, ctx) {
     watchExpenses(tripId, (list) => { state.expenses = list; loadProfiles(); redraw(); ensureRates(tripId, state); },
       (err) => { console.error(err); toast('지출을 불러오지 못했어요', { kind: 'error' }); }),
   ];
-  return () => unsubs.forEach((u) => u());
+  return () => { unsubs.forEach((u) => u()); forgetEnter(state.scope); };
 }
 
 // 쓰인 외화 중 환율이 없는 통화가 있으면 한 번 받아 여행에 저장한다 (사용자가 나중에 고칠 수 있다)
@@ -69,8 +73,8 @@ function draw(main, tripId, state) {
 
   // 요약
   main.append(el('section', { class: 'card expense-summary' },
-    stat('총 지출', formatKRW(s.totalKRW)),
-    members.length > 1 ? stat('1인당', formatKRW(perHead)) : null,
+    stat('총 지출', counted(`${tripId}:total`, s.totalKRW)),
+    members.length > 1 ? stat('1인당', counted(`${tripId}:perHead`, perHead)) : null,
     ...Object.entries(s.byCurrency).filter(([c]) => c !== 'KRW').map(([c, v]) => stat(`${c} 합계`, formatAmount(v, c))),
     el('div', { class: 'stat' }, el('span', { class: 'muted', text: '분류별' }),
       el('div', { class: 'expense-chips' }, ...Object.entries(s.byCategory).sort((a, b) => b[1] - a[1])
@@ -128,16 +132,27 @@ function draw(main, tripId, state) {
     main.append(el('p', { class: 'muted expense-empty', text: '식비, 교통비, 입장료를 적어 두면 여행 경비 합계와 동행 정산이 자동으로 계산돼요.' }));
     return;
   }
+  const rows = [];
   for (const [date, list] of byDate) {
     const dayTotal = list.reduce((sum, e) => sum + (toKRW(e.amount, e.currency, rates) ?? 0), 0);
+    const els = list.map((e) => row(tripId, state, e, rates));
+    list.forEach((e, i) => rows.push({ el: els[i], key: e.id }));
     main.append(el('section', { class: 'expense-day' },
       el('div', { class: 'expense-day-head' }, el('strong', { text: date ? formatShort(date) : '날짜 없음' }), el('span', { class: 'muted', text: formatKRW(dayTotal) })),
-      ...list.map((e) => row(tripId, state, e, rates))));
+      ...els));
   }
+  enter(state.scope, rows);
+}
+
+// 원화 합계는 이전 금액에서 새 금액으로 세어 올라간다 (토스식)
+function counted(key, value) {
+  const strong = el('strong');
+  countUp(strong, key, [Math.round(value)], ([v]) => formatKRW(v));
+  return strong;
 }
 
 function stat(label, value) {
-  return el('div', { class: 'stat' }, el('span', { class: 'muted', text: label }), el('strong', { text: value }));
+  return el('div', { class: 'stat' }, el('span', { class: 'muted', text: label }), typeof value === 'string' ? el('strong', { text: value }) : value);
 }
 
 function row(tripId, state, e, rates) {

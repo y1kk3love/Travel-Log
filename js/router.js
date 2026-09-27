@@ -44,7 +44,8 @@ export function startRouter(views, container) {
     // 지원하는 브라우저(크롬·안드로이드 웹뷰)에서만 화면 전환 애니메이션. 첫 화면과 미지원 브라우저는 즉시 교체
     if (!first && typeof document.startViewTransition === 'function') {
       document.documentElement.dataset.nav = dir;
-      document.startViewTransition(() => swap(route));
+      // 화면이 안 보이면 전환은 건너뛰고(ready 가 거절된다) 내용만 바뀐다 — 그건 오류가 아니다
+      document.startViewTransition(() => swap(route)).ready?.catch(() => {});
     } else {
       swap(route);
     }

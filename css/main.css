@@ -460,7 +460,7 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 
 /* ---- 움직임 줄이기 ---- */
 @media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  *, ::before, ::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
   ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
 }
 
@@ -675,3 +675,59 @@ dialog.sheet-menu[open] { animation: menu-in .28s var(--spring); }
 /* ---- 관리자로 보는 중 (사이트 주인이 동행이 아닌 여행을 볼 때, 나에게만 보인다) ---- */
 .admin-banner { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 5px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); font-size: 12px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-banner svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* ==== 움직임 (iOS·토스 느낌). transform·opacity 만 움직이고, 움직임 줄이기면 위의 공통 규칙이 거의 멈춘다 ==== */
+/* 목록 항목: 처음 나타나거나 새로 생길 때 위에서부터 차례로 떠오른다 (js/motion.js enter) */
+.enter { animation: rise-in .42s var(--ease) both; animation-delay: calc(var(--i, 0) * 32ms - var(--elapsed, 0ms)); }
+@keyframes rise-in { from { opacity: 0; transform: translateY(10px) scale(.985); } }
+
+/* 불러오는 동안 반짝이는 뼈대 */
+.skeleton-list { display: flex; flex-direction: column; gap: 10px; }
+.skeleton { border-radius: var(--radius-lg); background: linear-gradient(100deg, var(--sf) 40%, var(--line-soft) 50%, var(--sf) 60%) 0 0 / 300% 100%; animation: shimmer 1.4s linear infinite; }
+.skeleton-card .skeleton { height: 220px; }
+.skeleton-row .skeleton { height: 64px; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* 여행 탭(세그먼트): 흰 알약이 옆 탭으로 미끄러져 간다 (JS 가 has-indicator 와 --tab-i·--tab-n 을 준다) */
+.tabs.has-indicator::before { content: ''; position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px - (var(--tab-n, 4) - 1) * 2px) / var(--tab-n, 4)); border-radius: 8px; background: var(--seg-active); box-shadow: 0 2px 6px rgba(0, 0, 0, .12); transform: translateX(calc(var(--tab-i, 0) * (100% + 2px))); transition: transform .38s var(--spring); }
+.tabs.has-indicator .tab { z-index: 1; }
+.tabs.has-indicator .tab.active { background: transparent; box-shadow: none; }
+/* 화면 전환 때 상단 바와 여행 탭은 제자리에 두고 내용만 민다 (iOS 내비게이션 바처럼) */
+.topbar { view-transition-name: topbar; }
+.trip-tabs-bar { view-transition-name: trip-tabs; }
+
+/* Day 를 바꾸면 고른 Day 알약이 톡 */
+.day-tab.active.pop { animation: day-pop .36s var(--spring); }
+@keyframes day-pop { from { transform: scale(.9); } }
+
+/* 체크리스트: 방금 체크한 칸은 톡 튀고 취소선이 왼쪽부터 그어진다, 그룹을 다 채우면 OK 도장이 쾅 */
+.check-row.just-checked input[type=checkbox]:checked { animation: check-pop .34s var(--spring); }
+@keyframes check-pop { 0% { transform: scale(.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.check-row.done.just-checked label { text-decoration: none; }
+.check-row.done.just-checked .check-text { background: linear-gradient(currentColor, currentColor) no-repeat 0 58% / 100% 1.5px; -webkit-box-decoration-break: clone; box-decoration-break: clone; animation: strike .32s var(--ease) both; }
+@keyframes strike { from { background-size: 0 1.5px; } }
+.check-group.all-done.just-done::after { animation: stamp-in .55s var(--spring) both; }
+@keyframes stamp-in { 0% { opacity: 0; transform: rotate(-14deg) scale(1.9); } 55% { opacity: 1; transform: rotate(-14deg) scale(.9); } 100% { transform: rotate(-14deg) scale(1); } }
+
+/* 알림·창이 닫힐 때도 뚝 사라지지 않고 부드럽게 (창은 크롬·웹뷰 117+ 에서, 그 전엔 그냥 닫힌다) */
+.toast.leaving { animation: toast-out .22s var(--ease) forwards; }
+@keyframes toast-out { to { opacity: 0; transform: translateY(12px) scale(.96); } }
+dialog { transition: opacity .2s var(--ease), transform .2s var(--ease), overlay .2s allow-discrete, display .2s allow-discrete; }
+dialog:not([open]) { opacity: 0; transform: scale(.96); }
+dialog::backdrop { transition: background-color .2s, overlay .2s allow-discrete, display .2s allow-discrete; }
+dialog:not([open])::backdrop { background-color: rgba(0, 0, 0, 0); }
+@media (max-width: 640px) { dialog.sheet-menu:not([open]) { opacity: 1; transform: translateY(100%); } }
+
+/* 지도 핀: 새로 보이는 핀이 번호 순서대로 톡톡 떨어진다 (원의 가운데가 좌표에 오는 translateY(50%) 는 유지) */
+.map-pin.drop { animation: pin-drop .5s var(--spring) both; animation-delay: calc(var(--i, 0) * 45ms - var(--elapsed, 0ms)); }
+@keyframes pin-drop { from { opacity: 0; transform: translateY(calc(50% - 18px)) scale(.6); } to { opacity: 1; transform: translateY(50%); } }
+
+/* 여행 화면: 큰 제목이 스크롤로 가려지면 상단 바에 작은 제목이 나타난다 (iOS 큰 제목) */
+.topbar-left.has-title { display: grid; align-items: center; }
+.topbar-left.has-title > * { grid-area: 1 / 1; min-width: 0; }
+.topbar-nav { display: flex; align-items: center; gap: 10px; min-width: 0; transition: opacity .2s var(--ease), transform .25s var(--ease); }
+.topbar-title { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 16px; font-weight: 700; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s var(--ease), transform .25s var(--ease); }
+.topbar-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-title .topbar-back { flex-shrink: 0; }
+.topbar.condensed .topbar-nav { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+.topbar.condensed .topbar-title { opacity: 1; transform: none; pointer-events: auto; }

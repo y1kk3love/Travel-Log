@@ -15,6 +15,10 @@ import { fetchDailyForecast } from '../weather.js';
 import { toDateStr } from '../lib/dates.js';
 import { linkedIds } from '../lib/reservation-links.js';
 import { poolPlaces as pooledOf } from '../lib/pool.js';
+import { slideDir } from '../lib/motion.js';
+import { enter, forgetEnter, slideIn, haptic, skeleton } from '../motion.js';
+
+let mounts = 0;
 
 const isNote = (p) => p.category === 'note';
 // 메모 항목은 번호를 차지하지 않는다: 장소에만 1, 2, 3… 을 붙인다
@@ -40,6 +44,8 @@ export function mount(content, ctx) {
   const locateBtn = el('button', { class: 'btn btn-sm map-toggle map-locate', 'aria-label': '내 위치 보기', onClick: () => toggleLocate() }, icon('crosshair'), '내 위치');
   mapArea.append(mapBox, el('div', { class: 'map-controls' }, toggleDay, toggleAll, locateBtn));
   content.append(el('div', { class: 'planner' }, panel, mapArea));
+  panel.append(skeleton('row', 4)); // Day·장소가 오기 전: 반짝이는 뼈대
+  const scope = `planner:${++mounts}`; // 처음 열 때 일정이 차례로 떠오르고, 다시 그려질 땐 새로 생긴 장소만
 
   const map = createMap(mapBox);
 
@@ -97,6 +103,8 @@ export function mount(content, ctx) {
   }
 
   function selectDay(dayId) {
+    // 뒤 날로 가면 오른쪽에서, 앞 날로 가면 왼쪽에서 일정이 밀려 들어온다
+    state.slideDir = slideDir(state.days.findIndex((d) => d.id === state.selectedDayId), state.days.findIndex((d) => d.id === dayId));
     state.selectedDayId = dayId;
     redraw();
   }
@@ -200,6 +208,10 @@ export function mount(content, ctx) {
     });
     if (!places.length) list.append(el('p', { class: 'muted tl-empty', text: '아직 장소가 없어요. 아래에서 추가해 보세요.' }));
     panel.append(list);
+    const dir = state.slideDir ?? 0;
+    state.slideDir = 0;
+    enter(scope, [...list.querySelectorAll('.tl-item')].map((n) => ({ el: n, key: n.dataset.id })), { animate: !dir });
+    if (dir) { slideIn(list, dir); panel.querySelector('.day-tab.active')?.classList.add('pop'); }
     enableDrag(list, places);
     panel.append(el('div', { class: 'tl-actions' },
       el('button', { class: 'btn btn-dashed', onClick: () => openSheet({ dayId: day.id, dayIndex }) }, icon('plus'), '장소 추가'),
@@ -307,6 +319,7 @@ export function mount(content, ctx) {
         let to = from;
         state.dragging = true;
         item.classList.add('dragging');
+        haptic('light');
         try { handle.setPointerCapture(e.pointerId); } catch { /* 합성 이벤트 등 포인터가 없으면 무시 */ }
 
         const onMove = (ev) => {
@@ -324,6 +337,7 @@ export function mount(content, ctx) {
           rows.forEach((r) => r.classList.remove('drop-before', 'drop-after', 'dragging'));
           state.dragging = false;
           if (to !== from) {
+            haptic('medium');
             try { await reorderPlaces(tripId, reorderUpdates(places, from, to)); }
             catch (err) { console.error(err); toast('순서를 바꾸지 못했어요', { kind: 'error' }); }
           }
@@ -390,7 +404,7 @@ export function mount(content, ctx) {
   }
 
   // 라우트가 바뀌면(뒤로가기 등) 열려 있던 시트도 닫는다. 안 그러면 떠난 여행에 장소가 저장될 수 있다.
-  return () => { unsubs.forEach((u) => u()); clearInterval(minuteTimer); if (closeSheet) closeSheet(); map.destroy(); };
+  return () => { unsubs.forEach((u) => u()); clearInterval(minuteTimer); if (closeSheet) closeSheet(); map.destroy(); forgetEnter(scope); };
 }
 
 function nowHHMM() {

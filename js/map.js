@@ -12,6 +12,7 @@ import { isKnownNoRoute } from './lib/polyline.js';
 import { escapeHtml, toast } from './ui.js';
 import { notifyQuota } from './quota.js';
 import { MAPS_MAP_ID } from './firebase-config.js';
+import { planEnter, markEnter, forgetEnter } from './motion.js';
 
 const ROUTE_COLOR = '#0A6CFF'; // css --accent 와 같은 파랑
 const ME_COLOR = '#34C759';
@@ -77,6 +78,7 @@ export function createMap(container) {
   let routeCb = null;
   let openPopupId = null;
   let routeGen = 0;
+  const pinScope = `pins:${Math.random().toString(36).slice(2)}`; // 이미 떨어진 핀 (지도마다)
   let closeListener = null;
 
   const ready = acquireMap(container)
@@ -166,11 +168,21 @@ export function createMap(container) {
       markers = new Map();
       clearLines();
       const bounds = new g.LatLngBounds();
-      for (const p of groupOverlapping(extras)) {
+      // 새로 보이는 핀(처음 열 때·Day 를 바꿀 때·장소를 더할 때)만 번호 순서대로 톡톡 떨어진다. 시간만 고친 다시 그리기는 그대로
+      const pools = groupOverlapping(extras);
+      const spots = groupOverlapping(groups.flat());
+      const pinKey = (items) => items.map((x) => x.id).join(',');
+      const plan = planEnter(pinScope, [...pools, ...spots].map((x) => pinKey(x.items)));
+      const drop = (content, items) => {
+        const p = plan.get(pinKey(items));
+        if (p) markEnter(content, 'drop', p);
+        return content;
+      };
+      for (const p of pools) {
         const position = { lat: p.lat, lng: p.lng };
         const marker = new AdvancedMarkerElement({
           map, position, title: p.items.map((x) => x.name).join(', '), zIndex: 1, gmpClickable: true,
-          content: pinEl({ color: POOL_COLOR, diameter: 20, border: 2 }),
+          content: drop(pinEl({ color: POOL_COLOR, diameter: 20, border: 2 }), p.items),
         });
         const entry = { marker, position, items: p.items.map((x) => ({ ...x, label: '보관' })) };
         onPinClick(marker, () => { openPopup(entry); selectCb && selectCb(p.items[0].id); });
@@ -178,12 +190,11 @@ export function createMap(container) {
         bounds.extend(position);
       }
       // 같은 자리의 장소(여러 날 묵는 호텔 등)는 핀 하나에 "3·6" 처럼 번호를 모아 쓴다
-      const spots = groupOverlapping(groups.flat());
       for (const spot of spots) {
         const label = spot.items.map((p) => p.label).filter(Boolean).join('·');
         const position = { lat: spot.lat, lng: spot.lng };
         const marker = new AdvancedMarkerElement({
-          map, position, title: spot.items.map((p) => p.name).join(', '), gmpClickable: true, content: numberPin(label),
+          map, position, title: spot.items.map((p) => p.name).join(', '), gmpClickable: true, content: drop(numberPin(label), spot.items),
         });
         const entry = { marker, position, items: spot.items };
         onPinClick(marker, () => { openPopup(entry); selectCb && selectCb(spot.items[0].id); });
@@ -258,6 +269,7 @@ export function createMap(container) {
     // 공유 지도는 없애지 않고 마커·선만 걷어낸 뒤 화면에서 떼어 둔다 (다음에 다시 붙여 쓴다)
     destroy: () => {
       destroyed = true;
+      forgetEnter(pinScope);
       locateStop();
       if (map) {
         markers.forEach((m) => { m.marker.map = null; });

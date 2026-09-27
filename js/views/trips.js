@@ -9,32 +9,38 @@ import { isSiteOwner } from '../auth.js';
 import { navigate } from '../router.js';
 import { appDownloadCard } from './app-download.js';
 import { stampLabel } from '../lib/stamp.js';
+import { enter, forgetEnter, countUp, growBar, skeleton } from '../motion.js';
 
 export function render(container) {
   const main = el('main', { class: 'container trips-page' });
   container.append(topbar(), main);
+  main.append(skeleton('card', 2)); // 첫 목록이 오기 전: 반짝이는 뼈대
+  const scope = `home:${++mounts}`; // 이 화면에 들어올 때마다 카드가 차례로 떠오르고, 다시 그려질 땐 새 카드만
   // 새 여행 버튼: 사이트 주인은 바로, 초대 계정은 "여행 만들기"가 켜져 있으면 (초대 목록 항목을 한 번 읽는다)
   let trips = null;
   const perm = { canCreate: isSiteOwner(auth.currentUser) };
-  if (!perm.canCreate) myAllowedEntry().then((allowed) => { perm.canCreate = canCreateTrips({ isSiteOwner: false, allowed }); if (trips) draw(main, trips, perm); });
+  if (!perm.canCreate) myAllowedEntry().then((allowed) => { perm.canCreate = canCreateTrips({ isSiteOwner: false, allowed }); if (trips) draw(main, trips, perm, scope); });
   const unsub = watchTrips(
-    (t) => { trips = t; draw(main, trips, perm); },
+    (t) => { trips = t; draw(main, trips, perm, scope); },
     (err) => {
       console.error(err);
       if (err.code === 'permission-denied') toast('여행 목록을 볼 권한이 없어요. 잠시 뒤 다시 열어 보세요', { kind: 'error', ms: 6000 });
       else toast('여행 목록을 불러오지 못했어요', { kind: 'error' });
     },
   );
-  return () => unsub();
+  return () => { unsub(); forgetEnter(scope); };
 }
+let mounts = 0;
 
-function draw(main, trips, perm) {
+function draw(main, trips, perm, scope) {
   clear(main);
   const today = toDateStr(new Date());
   const withStatus = trips.map((t) => ({ ...t, status: tripStatus(t.startDate, t.endDate, today) }));
   const upcoming = withStatus.filter((t) => t.status.kind !== 'after').sort((a, b) => a.startDate.localeCompare(b.startDate));
   const past = withStatus.filter((t) => t.status.kind === 'after');
   const canCreate = perm.canCreate; // 새 여행: 사이트 주인 또는 "여행 만들기"가 켜진 초대 계정
+  const upcomingCards = upcoming.map(featureCard);
+  const pastCards = past.map(smallCard);
 
   main.append(
     el('div', { class: 'page-head' },
@@ -42,9 +48,10 @@ function draw(main, trips, perm) {
         el('h1', { text: '내 여행' }),
         el('p', { class: 'muted', text: `다가오는 여행 ${upcoming.length}개 · 지난 여행 ${past.length}개` })),
       canCreate ? el('button', { class: 'btn btn-primary', onClick: openNewTripDialog }, icon('plus'), '새 여행') : null),
-    section('다가오는 여행', upcoming.map(featureCard), canCreate ? '아직 계획한 여행이 없어요. 새 여행을 만들어 보세요.' : '초대받은 여행이 여기에 보여요.'),
-    section('지난 여행', past.map(smallCard), '지난 여행이 없어요.'),
+    section('다가오는 여행', upcomingCards, canCreate ? '아직 계획한 여행이 없어요. 새 여행을 만들어 보세요.' : '초대받은 여행이 여기에 보여요.'),
+    section('지난 여행', pastCards, '지난 여행이 없어요.'),
   );
+  enter(scope, [...upcoming, ...past].map((t, i) => ({ el: [...upcomingCards, ...pastCards][i], key: t.id })));
   const download = appDownloadCard(); // 웹에서만: 최신 APK 링크 (앱 안에서는 null → append 하면 글자 "null" 이 찍히므로 걸러 낸다)
   if (download) main.append(download);
 }
@@ -79,11 +86,13 @@ function featureCard(trip) {
   tripStats(trip.id).then((s) => {
     if (!s) return;
     clear(stats);
-    stats.append(
-      stat('일정', `${s.days}일 · 장소 ${s.places}곳`),
-      stat('체크리스트', `${s.checklistDone} / ${s.checklistTotal} 완료`),
-      stat('예약', `${s.reservations}건`));
-    bar.firstChild.style.width = s.checklistTotal ? `${Math.round((s.checklistDone / s.checklistTotal) * 100)}%` : '0%';
+    // 숫자는 이전 값에서 새 값으로 세어 올라간다 (토스식), 막대는 이전 너비에서 늘어난다
+    const plan = el('strong'), check = el('strong'), resv = el('strong');
+    stats.append(stat('일정', plan), stat('체크리스트', check), stat('예약', resv));
+    countUp(plan, `${trip.id}:plan`, [s.days, s.places], ([d, p]) => `${d}일 · 장소 ${p}곳`);
+    countUp(check, `${trip.id}:check`, [s.checklistDone, s.checklistTotal], ([d, t]) => `${d} / ${t} 완료`);
+    countUp(resv, `${trip.id}:resv`, [s.reservations], ([r]) => `${r}건`);
+    growBar(bar.firstChild, `${trip.id}:bar`, s.checklistTotal ? Math.round((s.checklistDone / s.checklistTotal) * 100) : 0);
   });
   // 사진 위에 제목·날짜를 얹고, 아래 흰 면에 일정·체크·예약 숫자
   return el('a', { href: `#/trip/${trip.id}`, class: 'card trip-feature' },
@@ -99,7 +108,7 @@ function featureCard(trip) {
 }
 
 function stat(label, value) {
-  return el('div', { class: 'stat' }, el('span', { class: 'muted', text: label }), el('strong', { text: value }));
+  return el('div', { class: 'stat' }, el('span', { class: 'muted', text: label }), value);
 }
 
 // 지난 여행: 사진 모서리에 여권 도장 (도시 · 연월)

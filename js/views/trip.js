@@ -15,6 +15,7 @@ import { auth } from '../firebase.js';
 import { canEditTripInfo, canManageTrip, isAdminViewing } from '../lib/members.js';
 import { openActionMenu } from './action-menu.js';
 import { avatar } from './avatar.js';
+import { restyle } from '../motion.js';
 
 const TAB_VIEWS = { planner, checklist, reservations, expenses };
 const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약', expenses: '지출' };
@@ -24,13 +25,16 @@ export function render(container, route) {
   const header = el('div', { class: 'trip-header' });
   const tabsBar = el('div', { class: 'trip-tabs-bar' }); // 폰에서 스크롤해도 상단 바 아래에 붙어 있다
   const content = el('div', { class: 'trip-content' });
-  container.append(topbar({ backHref: '#/' }), header, tabsBar, content);
+  const bar = topbar({ backHref: '#/' });
+  container.append(bar, header, tabsBar, content);
   let mounted = false;
   let cleanupTab = null;
+  const condense = condensingTitle(bar);
 
   const unsub = watchTrip(tripId, (trip) => {
     if (!trip) { toast('여행을 찾을 수 없어요', { kind: 'error' }); navigate('/'); return; }
     drawHeader(header, tabsBar, trip, tab);
+    condense.update(trip.title, header.querySelector('h1'));
     if (!mounted) {
       mounted = true;
       const view = TAB_VIEWS[tab];
@@ -44,7 +48,40 @@ export function render(container, route) {
     toast('여행을 불러오지 못했어요', { kind: 'error' });
   });
 
-  return () => { unsub(); if (cleanupTab) cleanupTab(); };
+  return () => { unsub(); condense.stop(); if (cleanupTab) cleanupTab(); };
+}
+
+// iOS 큰 제목: 여행 제목(h1)이 스크롤로 상단 바 밑에 가려지면, 상단 바의 "여행 로그 · 내 여행" 자리에 작은 제목이 나타난다
+function condensingTitle(bar) {
+  const left = bar.querySelector('.topbar-left');
+  const name = el('span');
+  left.classList.add('has-title');
+  left.append(el('a', { class: 'topbar-title', href: '#/', 'aria-hidden': 'true', tabindex: '-1' }, el('span', { class: 'topbar-back', text: '‹' }), name));
+  let observer = null;
+  return {
+    update(title, h1) {
+      name.textContent = title;
+      observer?.disconnect();
+      if (!h1 || typeof IntersectionObserver !== 'function') return;
+      const top = bar.getBoundingClientRect().height || 56;
+      observer = new IntersectionObserver(([e]) => {
+        bar.classList.toggle('condensed', !e.isIntersecting && e.boundingClientRect.top < top);
+      }, { rootMargin: `-${top}px 0px 0px 0px` });
+      observer.observe(h1);
+    },
+    stop() { observer?.disconnect(); },
+  };
+}
+
+// 탭의 흰 알약이 이전 탭 자리에서 새 탭으로 미끄러진다. 같은 여행 안에서 탭을 옮길 때만 (다른 여행에서 들어오면 제자리)
+let lastTab = { tripId: null, index: -1 };
+function slideTabs(nav, tripId, index) {
+  const from = lastTab.tripId === tripId && lastTab.index >= 0 ? lastTab.index : index;
+  lastTab = { tripId, index };
+  nav.classList.add('has-indicator');
+  nav.style.setProperty('--tab-n', String(Object.keys(TAB_LABELS).length));
+  nav.style.setProperty('--tab-i', String(from));
+  if (from !== index) { restyle(nav, '::before'); restyle(nav.firstElementChild); nav.style.setProperty('--tab-i', String(index)); }
 }
 
 // 동행 얼굴: 닉네임·사진은 한 번 읽은 것을 여행 화면이 다시 그려질 때도 쓴다
@@ -106,9 +143,11 @@ function drawHeader(header, tabsBar, trip, tab) {
       el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) }),
       el('span', { class: 'badge', text: formatStatus(tripStatus(trip.startDate, trip.endDate, toDateStr(new Date()))) })));
   clear(tabsBar);
-  tabsBar.append(el('nav', { class: 'tabs', 'aria-label': '여행 탭' },
+  const nav = el('nav', { class: 'tabs', 'aria-label': '여행 탭' },
     ...Object.entries(TAB_LABELS).map(([key, label]) => el('a', {
       href: key === 'planner' ? `#/trip/${trip.id}` : `#/trip/${trip.id}/${key}`,
       class: `tab${key === tab ? ' active' : ''}`, text: label, 'aria-current': key === tab ? 'page' : null,
-    }))));
+    })));
+  tabsBar.append(nav);
+  slideTabs(nav, trip.id, Object.keys(TAB_LABELS).indexOf(tab));
 }

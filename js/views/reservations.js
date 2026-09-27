@@ -10,6 +10,9 @@ import { compressImage } from '../photo.js';
 import { diffDays } from '../lib/dates.js';
 import { safeFileType } from '../lib/file-type.js';
 import { linkedIds, chooseLink, linkFields } from '../lib/reservation-links.js';
+import { enter, forgetEnter, skeleton } from '../motion.js';
+
+let mounts = 0;
 
 const FILE_ACCEPT = 'image/*,application/pdf';
 const formatSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
@@ -19,9 +22,10 @@ const TYPE_LABELS = { flight: '항공', stay: '숙소', food: '식당', etc: '�
 export function mount(content, ctx) {
   const { tripId } = ctx;
   // 일정에서 넘어온 예약: 강조는 다시 그릴 때마다 유지하고, 스크롤은 처음 한 번만
-  const state = { reservations: [], places: [], days: [], focusId: ctx.reservationId ?? null, scrolled: false };
+  const state = { reservations: [], places: [], days: [], focusId: ctx.reservationId ?? null, scrolled: false, scope: `reservations:${++mounts}` };
   const main = el('main', { class: 'container reservations-page' });
   content.append(main);
+  main.append(skeleton('card', 2));
   const redraw = () => {
     draw(main, tripId, state);
     const target = state.focusId && main.querySelector(`.reservation[data-id="${state.focusId}"]`);
@@ -34,7 +38,7 @@ export function mount(content, ctx) {
     watchPlaces(tripId, (p) => { state.places = p; redraw(); }),
     watchDays(tripId, (d) => { state.days = d; redraw(); }),
   ];
-  return () => unsubs.forEach((u) => u());
+  return () => { unsubs.forEach((u) => u()); forgetEnter(state.scope); };
 }
 
 function placeLabel(state, placeId) {
@@ -57,12 +61,14 @@ function formatDatetime(str) {
 function draw(main, tripId, state) {
   clear(main);
   const sorted = [...state.reservations].sort((a, b) => String(a.datetime ?? '9').localeCompare(String(b.datetime ?? '9')));
+  const cards = sorted.map((r) => card(tripId, state, r));
   main.append(
     el('div', { class: 'page-head' },
       el('div', {}, el('h2', { class: 'checklist-title', text: '예약' }), el('p', { class: 'muted', text: `${sorted.length}건` })),
       el('button', { class: 'btn', onClick: () => openDialog(tripId, state) }, icon('plus'), '예약 추가')),
-    el('div', { class: 'reservation-list' }, ...sorted.map((r) => card(tripId, state, r))),
+    el('div', { class: 'reservation-list' }, ...cards),
     ...(sorted.length === 0 ? [el('p', { class: 'muted', text: '항공, 숙소, 식당 예약을 적어 두면 여행 중에 바로 찾을 수 있어요.' })] : []));
+  enter(state.scope, sorted.map((r, i) => ({ el: cards[i], key: r.id })));
 }
 
 function card(tripId, state, r) {

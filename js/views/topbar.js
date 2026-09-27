@@ -39,8 +39,10 @@ export function topbar({ backHref = null } = {}) {
   const email = auth.currentUser?.email ?? '';
   return el('header', { class: 'topbar' },
     el('div', { class: 'topbar-left' },
-      el('a', { href: '#/', class: 'wordmark', text: '여행 로그' }),
-      backHref && el('a', { href: backHref, class: 'topbar-back', text: '‹ 내 여행' })),
+      // 여행 화면은 스크롤하면 이 자리에 작은 제목이 나타난다 (trip.js 가 .topbar-title 을 붙이고 .condensed 로 바꾼다)
+      el('div', { class: 'topbar-nav' },
+        el('a', { href: '#/', class: 'wordmark', text: '여행 로그' }),
+        backHref && el('a', { href: backHref, class: 'topbar-back', text: '‹ 내 여행' }))),
     el('div', { class: 'topbar-right' },
       offline,
       // 아바타 하나로 내 계정 메뉴(닉네임·초대 관리·사용량·앱 버전·로그아웃)를 연다. 폰에서도 모든 항목에 닿는다.
