@@ -1,7 +1,8 @@
 import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS, linkedText } from '../ui.js';
 import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations, updatePlace, movePlaceToDay } from '../db.js';
 import { formatShort } from '../lib/dates.js';
-import { legLabel, hasCoords, distanceKm } from '../lib/geo.js';
+import { legLabel, hasCoords, distanceKm, locateErrorMessage } from '../lib/geo.js';
+import { isNative } from '../native.js';
 import { googleMapsDirectionsUrl } from '../lib/coords.js';
 import { reorderUpdates } from '../lib/order.js';
 import { createMap } from '../map.js';
@@ -54,9 +55,7 @@ export function mount(content, ctx) {
     const ok = map.locateStart({
       onError: (err) => {
         locateBtn.classList.remove('active');
-        const msg = err?.code === 1 ? '위치 권한이 꺼져 있어요. 브라우저 설정에서 허용해 주세요'
-          : err?.message === 'unsupported' ? '이 브라우저는 위치를 지원하지 않아요' : '위치를 가져오지 못했어요';
-        toast(msg, { kind: 'error', ms: 4000 });
+        toast(locateErrorMessage(err, { native: isNative() }), { kind: 'error', ms: 6000 });
       },
     });
     if (ok) locateBtn.classList.add('active');

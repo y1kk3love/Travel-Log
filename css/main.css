@@ -360,7 +360,7 @@ dialog > p + .dialog-actions .btn { flex: 1; }
 .usage-links { display: flex; gap: 8px; flex-wrap: wrap; }
 .usage-status { font-size: 13px; padding: 8px 12px; border-radius: 8px; background: var(--field); }
 .usage-status-hit { background: var(--danger-soft); color: var(--danger-soft-ink); font-weight: 600; }
-.map-canvas { position: absolute; inset: 0; }
+.map-canvas { position: absolute; inset: 0; touch-action: none; } /* 지도를 끄는 동안 페이지가 같이 스크롤·확대되지 않게 */
 .map-popup { color: #111111; } .map-popup .muted { color: #636366; } /* Google 말풍선은 다크 모드에서도 흰 바탕 */
 .map-popup-row { padding: 2px 0; }
 .map-popup-row.active { font-weight: 700; }

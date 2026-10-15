@@ -57,4 +57,8 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- 체크, 순서 옮기기, 삭제 때 가벼운 진동 (웹의 navigator.vibrate). 일반 권한이라 설치 때 자동 허용 -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 지도 "내 위치" (웹뷰의 navigator.geolocation). Capacitor 가 처음 쓸 때 안드로이드 권한 창을 띄운다.
+         선언이 없으면 권한 창 없이 바로 거절돼 위치를 쓸 수 없다. 대략적인 위치만 허용해도 동작한다 (안드로이드 12+) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 </manifest>

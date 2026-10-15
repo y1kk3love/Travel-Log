@@ -41,8 +41,9 @@ async function acquireMap(container) {
     colorScheme: g.ColorScheme?.FOLLOW_SYSTEM, // 다크 모드 폰에서는 어두운 지도 (처음 만들 때만 정할 수 있다)
     mapTypeControl: false, streetViewControl: false, fullscreenControl: false, rotateControl: false,
     cameraControl: false, zoomControl: true, keyboardShortcuts: false, clickableIcons: false,
-    // 폰: 한 손가락은 페이지 스크롤, 지도는 두 손가락 (지도 위에서 페이지가 안 내려가던 것). 마우스는 그대로
-    gestureHandling: globalThis.matchMedia?.('(pointer: coarse)').matches ? 'cooperative' : 'greedy', zoomControlOptions: { position: g.ControlPosition.RIGHT_TOP },
+    // 폰에서도 한 손가락으로 지도를 움직인다. cooperative(두 손가락)는 한 손가락이면 지도 대신 페이지가 움직이고, 두 손가락도
+    // 첫 손가락이 먼저 움직이면 페이지가 같이 스크롤됐다. 폰의 지도는 230px 이라 페이지는 지도 밖을 끌어 스크롤한다
+    gestureHandling: 'greedy', zoomControlOptions: { position: g.ControlPosition.RIGHT_TOP },
   });
   const infoWindow = new InfoWindow({ headerDisabled: true });
   shared = { div, map, g, AdvancedMarkerElement, infoWindow };

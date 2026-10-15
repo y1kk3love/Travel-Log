@@ -55,6 +55,13 @@ test('다크 모드: Google 지도도 시스템 설정을 따르고, 웹 앱 바
   assert.ok(manifest.includes('"background_color": "#F2F2F7"'));
 });
 
+test('지도: 폰에서도 한 손가락으로 움직이고, 지도를 끄는 동안 페이지는 스크롤되지 않는다', () => {
+  // cooperative 는 한 손가락이면 지도는 그대로 두고 페이지를 스크롤하고, 두 손가락도 첫 손가락이 먼저 움직이면 페이지가 같이 스크롤된다
+  assert.match(mapJs, /gestureHandling: 'greedy'/);
+  assert.ok(!mapJs.includes("'cooperative'"), "map.js 에 'cooperative' 가 남아 있음");
+  assert.match(css, /\.map-canvas \{[^}]*touch-action: none/);
+});
+
 test('움직임: 차례 등장·스켈레톤·탭 알약·체크·도장·핀이 있고, 움직임 줄이기는 지연까지 없앤다', () => {
   for (const name of ['rise-in', 'shimmer', 'check-pop', 'strike', 'stamp-in', 'toast-out', 'pin-drop', 'day-pop']) {
     assert.match(css, new RegExp(`@keyframes ${name} `), `${name} 애니메이션이 없음`);

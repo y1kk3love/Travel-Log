@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hasCoords, distanceKm, walkMinutes, legLabel, groupOverlapping } from '../js/lib/geo.js';
+import { hasCoords, distanceKm, walkMinutes, legLabel, groupOverlapping, locateErrorMessage } from '../js/lib/geo.js';
+
+test('locateErrorMessage: 권한이 꺼져 있으면 앱은 폰 설정, 웹은 브라우저 설정으로 안내', () => {
+  const denied = { code: 1 };
+  assert.match(locateErrorMessage(denied, { native: true }), /폰 설정 → 앱 → 여행 로그 → 권한 → 위치/);
+  assert.ok(!locateErrorMessage(denied, { native: true }).includes('브라우저'));
+  assert.match(locateErrorMessage(denied, { native: false }), /브라우저 설정/);
+  assert.equal(locateErrorMessage(new Error('unsupported'), { native: false }), '이 브라우저는 위치를 지원하지 않아요');
+  assert.equal(locateErrorMessage({ code: 3 }, { native: true }), '위치를 가져오지 못했어요');
+  assert.equal(locateErrorMessage(undefined), '위치를 가져오지 못했어요');
+});
 
 test('hasCoords', () => {
   assert.equal(hasCoords({ lat: 35, lng: 135 }), true);

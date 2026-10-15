@@ -100,6 +100,12 @@ test('초대 메시지 보내기(SharePlugin.shareText): 안드로이드 공유 
   assert.match(src, /ShareActivity\.class/);
 });
 
+test('지도의 "내 위치": 위치 권한을 선언한다 (없으면 Capacitor 가 권한 창을 띄워도 안드로이드가 바로 거절한다)', () => {
+  const manifest = read('android/app/src/main/AndroidManifest.xml');
+  assert.match(manifest, /<uses-permission android:name="android\.permission\.ACCESS_COARSE_LOCATION"\s*\/>/);
+  assert.match(manifest, /<uses-permission android:name="android\.permission\.ACCESS_FINE_LOCATION"\s*\/>/);
+});
+
 test('가벼운 진동(체크·순서 옮기기·삭제)을 쓰도록 VIBRATE 권한 (일반 권한이라 설치 때 자동 허용)', () => {
   assert.match(read('android/app/src/main/AndroidManifest.xml'), /<uses-permission android:name="android\.permission\.VIBRATE"\s*\/>/);
 });

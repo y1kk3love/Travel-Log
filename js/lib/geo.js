@@ -31,6 +31,16 @@ export function legLabel(a, b, route = null) {
   return `거리 ${km.toFixed(1)}km`;
 }
 
+// 지도 "내 위치"가 실패했을 때의 안내. 권한 거절(code 1)이면 앱은 폰 설정, 웹은 브라우저 설정으로 보낸다
+export function locateErrorMessage(err, { native = false } = {}) {
+  if (err?.code === 1) {
+    return native ? '위치 권한이 꺼져 있어요. 폰 설정 → 앱 → 여행 로그 → 권한 → 위치에서 허용해 주세요'
+      : '위치 권한이 꺼져 있어요. 브라우저 설정에서 허용해 주세요';
+  }
+  if (err?.message === 'unsupported') return '이 브라우저는 위치를 지원하지 않아요';
+  return '위치를 가져오지 못했어요';
+}
+
 // 같은 자리(약 10m 안)에 있는 장소들을 한 핀으로 묶는다. 호텔처럼 여러 날 반복되는 장소가 겹쳐 보이지 않게.
 // 반환: [{ lat, lng, items: [place, ...] }] (입력 순서 유지)
 export function groupOverlapping(places) {
