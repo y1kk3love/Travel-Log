@@ -10,9 +10,7 @@ import { compressImage } from '../photo.js';
 import { diffDays } from '../lib/dates.js';
 import { safeFileType } from '../lib/file-type.js';
 import { linkedIds, chooseLink, linkFields } from '../lib/reservation-links.js';
-import { enter, forgetEnter, skeleton } from '../motion.js';
-
-let mounts = 0;
+import { enter, skeleton } from '../motion.js';
 
 const FILE_ACCEPT = 'image/*,application/pdf';
 const formatSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
@@ -22,7 +20,7 @@ const TYPE_LABELS = { flight: '항공', stay: '숙소', food: '식당', etc: '�
 export function mount(content, ctx) {
   const { tripId } = ctx;
   // 일정에서 넘어온 예약: 강조는 다시 그릴 때마다 유지하고, 스크롤은 처음 한 번만
-  const state = { reservations: [], places: [], days: [], focusId: ctx.reservationId ?? null, scrolled: false, scope: `reservations:${++mounts}` };
+  const state = { reservations: [], places: [], days: [], focusId: ctx.reservationId ?? null, scrolled: false, scope: `reservations:${tripId}` }; // 처음 열 때만 차례로, 그 뒤로는 새 예약만
   const main = el('main', { class: 'container reservations-page' });
   content.append(main);
   main.append(skeleton('card', 2));
@@ -38,7 +36,7 @@ export function mount(content, ctx) {
     watchPlaces(tripId, (p) => { state.places = p; redraw(); }),
     watchDays(tripId, (d) => { state.days = d; redraw(); }),
   ];
-  return () => { unsubs.forEach((u) => u()); forgetEnter(state.scope); };
+  return () => unsubs.forEach((u) => u());
 }
 
 function placeLabel(state, placeId) {

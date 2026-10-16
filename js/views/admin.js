@@ -8,9 +8,7 @@ import { isSiteOwner } from '../auth.js';
 import { isAdminViewing } from '../lib/members.js';
 import { tripStatus, formatStatus, formatRange, toDateStr } from '../lib/dates.js';
 import { navigate } from '../router.js';
-import { enter, forgetEnter, skeleton } from '../motion.js';
-
-let mounts = 0;
+import { enter, skeleton } from '../motion.js';
 
 export function render(container) {
   const user = auth.currentUser;
@@ -18,13 +16,13 @@ export function render(container) {
   const main = el('main', { class: 'container share-page' });
   container.append(topbar({ backHref: '#/' }), main);
   main.append(skeleton('row', 5));
-  const scope = `admin:${++mounts}`;
+  const scope = 'admin'; // 처음 열 때만 차례로, 그 뒤로는 새 여행만
 
   const unsub = watchAllTrips((trips) => draw(main, trips, user, scope), (err) => {
     console.error(err);
     toast('여행 목록을 불러오지 못했어요', { kind: 'error' });
   });
-  return () => { unsub(); forgetEnter(scope); };
+  return () => unsub();
 }
 
 function draw(root, trips, user, scope) {

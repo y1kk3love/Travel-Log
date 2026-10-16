@@ -11,6 +11,8 @@ import { MAPS_LINK_RELAY } from '../firebase-config.js';
 import { compressImage, bytesToObjectUrl } from '../photo.js';
 import { imageFilesFrom } from '../lib/clipboard.js';
 import { formatShort } from '../lib/dates.js';
+import { rubberBand, velocity, shouldDismiss } from '../lib/gesture.js';
+import { sheetBackdrop, restyle } from '../motion.js';
 
 // kind: 'place'(기본) 또는 'note'(장소 없는 메모 항목). days를 주면 기존 항목을 다른 Day로 옮길 수 있다.
 // near: 검색 결과를 우선 보여줄 기준 좌표 (보통 그 날의 마지막 장소)
@@ -81,7 +83,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
 
   function photoChip(src, label, onRemove) {
     return el('div', { class: 'photo-chip' },
-      el('button', { type: 'button', class: 'photo-open', 'aria-label': `${label} 크게 보기`, onClick: () => openLightbox(src) }, el('img', { src, alt: '' })),
+      el('button', { type: 'button', class: 'photo-open', 'aria-label': `${label} 크게 보기`, onClick: (e) => openLightbox(src, e.currentTarget.querySelector('img')) }, el('img', { src, alt: '' })),
       el('button', { type: 'button', class: 'photo-remove', 'aria-label': `${label} 삭제`, onClick: onRemove }, icon('close')));
   }
 
@@ -340,6 +342,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   form.addEventListener('input', (e) => { if (e.target !== search) markDirty(); }); // 검색어 입력은 편집이 아니다
   form.addEventListener('change', (e) => { if (e.target !== search && e.target !== fileInput) markDirty(); });
   let closed = false;
+  const backdrop = sheetBackdrop(); // 폰: 시트가 올라오면 뒤 화면이 살짝 작아진다
   // 바로 닫기 (저장 뒤, 다른 장소를 열 때, 화면을 떠날 때). 아래로 내려가며 사라진다
   function close() {
     if (closed) return;
@@ -348,8 +351,11 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     document.removeEventListener('keydown', onKey);
     document.removeEventListener('paste', onPaste);
     if (unsubPhotos) unsubPhotos();
+    overlay.style.background = '';
+    form.style.transition = ''; overlay.style.transition = ''; form.style.transform = ''; // 끄던 자리에서 그대로 아래로 내려간다
     overlay.classList.remove('open');
     overlay.classList.add('closing');
+    backdrop.close();
     setTimeout(() => { overlay.remove(); revokeAll(); }, 320);
   }
   // 사용자가 닫을 때 (바깥·닫기·취소·Esc·뒤로가기·아래로 쓸기): 저장 안 한 편집이 있으면 한 번 묻는다
@@ -392,9 +398,9 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         createdDayId = target;
         if (pendingPhotos.length) await uploadPhotos(createdId, pendingPhotos);
       }
+      close(); // 먼저 닫아야 알림이 (내려가는) 시트 버튼 위가 아닌 제자리에 뜬다
       toast(place ? (moved ? (target ? '다른 날로 옮겼어요' : '보관함으로 옮겼어요') : '저장했어요')
         : (noteMode ? '메모를 추가했어요' : (target ? '일정에 추가했어요' : '보관함에 담았어요')));
-      close();
     } catch (err) {
       console.error(err);
       toast('저장하지 못했어요', { kind: 'error' });
@@ -435,7 +441,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
         type: 'button', class: 'btn btn-danger',
         onClick: async () => {
           if (!(await confirmDialog(`'${place.name}'을(를) 일정에서 삭제할까요?`))) return;
-          try { await deletePlace(tripId, place.id); toast('삭제했어요'); close(); }
+          try { await deletePlace(tripId, place.id); close(); toast('삭제했어요'); }
           catch (err) { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); }
         },
       }, '삭제') : el('span'),
@@ -446,33 +452,52 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   drawLocation(); drawCategories(); drawPhotos();
   overlay.append(form);
   document.body.append(overlay);
-  requestAnimationFrame(() => overlay.classList.add('open'));
+  restyle(form);
+  overlay.classList.add('open');
+  backdrop.open();
   enableSwipeClose(sheetHead);
   // 새로 추가할 때만 입력칸에 커서 (있는 장소를 보려고 열었을 때 키보드가 화면 절반을 가리지 않게)
   if (!place) (noteMode ? name : search).focus();
 
-  // 폰(아래 시트): 머리 부분을 아래로 끌어 닫는다. 조금만 끌면 제자리로
+  // 폰(아래 시트): 머리 부분을 끌어 닫는다 (Vaul 방식). 높이의 25% 넘게 끌거나 아래로 휙 튕기면 닫히고, 아니면 제자리로.
+  // 손가락을 1:1 로 따라오고, 위로 끌면 고무줄처럼 버틴다. 끄는 만큼 배경 어둡기와 뒤 화면 줄어듦이 풀린다
   function enableSwipeClose(handle) {
     let startY = null;
     let dy = 0;
+    let samples = [];
+    let height = 1;
+    const follow = (offset) => {
+      form.style.transform = `translateY(${offset}px)`;
+      const shown = 1 - Math.min(Math.max(offset, 0) / height, 1); // 1 = 다 올라옴
+      overlay.style.background = `rgba(0, 0, 0, ${(0.3 * shown).toFixed(3)})`;
+      backdrop.drag(shown);
+    };
+    const settle = () => { // 제자리로 (transition 을 되살려 부드럽게)
+      form.style.transition = ''; overlay.style.transition = '';
+      form.style.transform = ''; overlay.style.background = '';
+      backdrop.release(1);
+    };
     handle.addEventListener('pointerdown', (e) => {
-      if (!globalThis.matchMedia?.('(max-width: 900px)').matches || e.target.closest('button')) return;
+      if (closed || !globalThis.matchMedia?.('(max-width: 900px)').matches || e.target.closest('button')) return;
       startY = e.clientY; dy = 0;
-      form.style.transition = 'none';
+      samples = [{ t: e.timeStamp, y: e.clientY }];
+      height = form.getBoundingClientRect().height || 1;
+      form.style.transition = 'none'; overlay.style.transition = 'none';
       try { handle.setPointerCapture(e.pointerId); } catch { /* 합성 이벤트면 무시 */ }
     });
     handle.addEventListener('pointermove', (e) => {
-      if (startY == null) return;
-      dy = Math.max(0, e.clientY - startY);
-      form.style.transform = `translateY(${dy}px)`;
+      if (startY == null || closed) return; // 끄는 도중에 닫혔으면(뒤로가기·화면 이동) 따라가지 않는다
+      dy = e.clientY - startY;
+      samples.push({ t: e.timeStamp, y: e.clientY });
+      if (samples.length > 20) samples.shift();
+      follow(dy >= 0 ? dy : rubberBand(dy, 40));
     });
-    const end = () => {
+    const end = (e) => {
       if (startY == null) return;
       startY = null;
-      form.style.transition = '';
-      if (dy < 90) { form.style.transform = ''; return; }
-      if (dirty) { requestClose(); return; } // 물어보는 동안은 끌던 자리에, 계속 편집하면 제자리로
-      form.style.transform = 'translateY(100%)';
+      if (closed) return;
+      if (!shouldDismiss({ distance: dy, velocity: velocity(samples, 100, e.timeStamp), size: height })) { settle(); return; }
+      if (dirty) { settle(); requestClose(); return; } // 저장 안 한 편집이 있으면 제자리에서 한 번 묻는다
       close();
     };
     handle.addEventListener('pointerup', end);

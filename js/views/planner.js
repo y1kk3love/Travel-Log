@@ -17,9 +17,7 @@ import { toDateStr } from '../lib/dates.js';
 import { linkedIds } from '../lib/reservation-links.js';
 import { poolPlaces as pooledOf } from '../lib/pool.js';
 import { slideDir } from '../lib/motion.js';
-import { enter, forgetEnter, slideIn, haptic, skeleton } from '../motion.js';
-
-let mounts = 0;
+import { enter, slideIn, haptic, skeleton } from '../motion.js';
 
 const isNote = (p) => p.category === 'note';
 // 메모 항목은 번호를 차지하지 않는다: 장소에만 1, 2, 3… 을 붙인다
@@ -46,9 +44,9 @@ export function mount(content, ctx) {
   mapArea.append(mapBox, el('div', { class: 'map-controls' }, toggleDay, toggleAll, locateBtn));
   content.append(el('div', { class: 'planner' }, panel, mapArea));
   panel.append(skeleton('row', 4)); // Day·장소가 오기 전: 반짝이는 뼈대
-  const scope = `planner:${++mounts}`; // 처음 열 때 일정이 차례로 떠오르고, 다시 그려질 땐 새로 생긴 장소만
+  const scope = `planner:${tripId}`; // 이 여행을 처음 열 때 일정이 차례로 떠오르고, 그 뒤로는 새로 생긴 장소만
 
-  const map = createMap(mapBox);
+  const map = createMap(mapBox, { pinScope: `pins:${tripId}` });
 
   function toggleLocate() {
     if (map.isLocating()) { map.locateStop(); locateBtn.classList.remove('active'); return; }
@@ -403,7 +401,7 @@ export function mount(content, ctx) {
   }
 
   // 라우트가 바뀌면(뒤로가기 등) 열려 있던 시트도 닫는다. 안 그러면 떠난 여행에 장소가 저장될 수 있다.
-  return () => { unsubs.forEach((u) => u()); clearInterval(minuteTimer); if (closeSheet) closeSheet(); map.destroy(); forgetEnter(scope); };
+  return () => { unsubs.forEach((u) => u()); clearInterval(minuteTimer); if (closeSheet) closeSheet(); map.destroy(); };
 }
 
 function nowHHMM() {

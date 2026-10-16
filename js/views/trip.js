@@ -16,6 +16,7 @@ import { canEditTripInfo, canManageTrip, isAdminViewing } from '../lib/members.j
 import { openActionMenu } from './action-menu.js';
 import { avatar } from './avatar.js';
 import { restyle } from '../motion.js';
+import { morphArrive } from '../morph.js';
 
 const TAB_VIEWS = { planner, checklist, reservations, expenses };
 const TAB_LABELS = { planner: '일정', checklist: '체크리스트', reservations: '예약', expenses: '지출' };
@@ -133,9 +134,11 @@ function drawHeader(header, tabsBar, trip, tab) {
   if (isAdminViewing(trip, user, isSiteOwner(user))) {
     header.append(el('a', { class: 'admin-banner', href: '#/admin' }, icon('shield'), `관리자로 보는 중 · ${trip.ownerEmail ?? ''} 님의 여행`));
   }
+  const title = el('h1', { text: trip.title });
+  morphArrive(title, trip.id, 'trip'); // 홈에서 누른 카드의 제목이 이 큰 제목으로 이어져 온다 (js/morph.js)
   header.append(
     el('div', { class: 'trip-title-row' },
-      el('h1', { text: trip.title }),
+      title,
       el('button', { type: 'button', class: 'trip-people', 'aria-label': `동행 ${members.length}명 보기`, onClick: () => openMembersDialog(trip) },
         avatarStack(members), el('span', { text: `${members.length}명` })),
       more),

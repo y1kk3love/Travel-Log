@@ -5,14 +5,12 @@ import { fetchKrwRates } from '../rates.js';
 import { displayNameFor } from '../lib/profile.js';
 import { formatShort, toDateStr } from '../lib/dates.js';
 import { auth } from '../firebase.js';
-import { enter, forgetEnter, countUp, skeleton } from '../motion.js';
-
-let mounts = 0;
+import { enter, countUp, skeleton } from '../motion.js';
 
 // 지출 탭: 손으로 적는 가계부 + 동행 정산. 결제 수단 연동 없음.
 export function mount(content, ctx) {
   const { tripId } = ctx;
-  const state = { trip: ctx.trip ?? null, expenses: [], profiles: {}, ratesFetched: false, scope: `expenses:${++mounts}` };
+  const state = { trip: ctx.trip ?? null, expenses: [], profiles: {}, ratesFetched: false, scope: `expenses:${tripId}` }; // 처음 열 때만 차례로, 그 뒤로는 새 지출만
   const main = el('main', { class: 'container expenses-page' });
   content.append(main);
   main.append(skeleton('row', 4));
@@ -37,7 +35,7 @@ export function mount(content, ctx) {
     watchExpenses(tripId, (list) => { state.expenses = list; loadProfiles(); redraw(); ensureRates(tripId, state); },
       (err) => { console.error(err); toast('지출을 불러오지 못했어요', { kind: 'error' }); }),
   ];
-  return () => { unsubs.forEach((u) => u()); forgetEnter(state.scope); };
+  return () => unsubs.forEach((u) => u());
 }
 
 // 쓰인 외화 중 환율이 없는 통화가 있으면 한 번 받아 여행에 저장한다 (사용자가 나중에 고칠 수 있다)

@@ -1,23 +1,22 @@
 import { el, clear, toast, confirmDialog, openModal, icon } from '../ui.js';
 import { watchChecklist, addChecklistItem, updateChecklistItem, deleteChecklistItem, renameChecklistGroup, deleteChecklistGroup } from '../db.js';
 import { touchedRecently } from '../lib/motion.js';
-import { enter, forgetEnter, growBar, haptic, skeleton } from '../motion.js';
+import { enter, growBar, haptic, skeleton } from '../motion.js';
 
 // 방금 내가 체크한 항목 (id → 시각): 목록이 다시 그려져도 체크 애니메이션을 한 번만 준다
 const touched = new Map();
 // 그룹마다 이전에 다 채워져 있었나 (tripId|그룹 → bool): 방금 다 채운 그룹에만 OK 도장이 쾅
 const wasDone = new Map();
-let mounts = 0;
 
 export function mount(content, ctx) {
   const { tripId } = ctx;
   const main = el('main', { class: 'container checklist-page' });
   content.append(main);
   main.append(skeleton('row', 4));
-  const scope = `checklist:${++mounts}`;
+  const scope = `checklist:${tripId}`; // 처음 열 때만 차례로, 그 뒤로는 새 그룹만
   const unsub = watchChecklist(tripId, (items) => draw(main, tripId, items, scope),
     (err) => { console.error(err); toast('체크리스트를 불러오지 못했어요', { kind: 'error' }); });
-  return () => { unsub(); forgetEnter(scope); };
+  return () => unsub();
 }
 
 function groupItems(items) {

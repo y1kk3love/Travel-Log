@@ -9,13 +9,15 @@ import { isSiteOwner } from '../auth.js';
 import { navigate } from '../router.js';
 import { appDownloadCard } from './app-download.js';
 import { stampLabel } from '../lib/stamp.js';
-import { enter, forgetEnter, countUp, growBar, skeleton } from '../motion.js';
+import { enter, countUp, growBar, skeleton } from '../motion.js';
+import { morphFromCard, morphArrive } from '../morph.js';
 
 export function render(container) {
   const main = el('main', { class: 'container trips-page' });
   container.append(topbar(), main);
   main.append(skeleton('card', 2)); // 첫 목록이 오기 전: 반짝이는 뼈대
-  const scope = `home:${++mounts}`; // 이 화면에 들어올 때마다 카드가 차례로 떠오르고, 다시 그려질 땐 새 카드만
+  // 앱을 처음 열 때 카드가 차례로 떠오르고, 그 뒤로는 새로 생긴 여행만 (돌아올 때는 화면 전환이 움직임을 맡는다)
+  const scope = 'home';
   // 새 여행 버튼: 사이트 주인은 바로, 초대 계정은 "여행 만들기"가 켜져 있으면 (초대 목록 항목을 한 번 읽는다)
   let trips = null;
   const perm = { canCreate: isSiteOwner(auth.currentUser) };
@@ -28,9 +30,8 @@ export function render(container) {
       else toast('여행 목록을 불러오지 못했어요', { kind: 'error' });
     },
   );
-  return () => { unsub(); forgetEnter(scope); };
+  return () => unsub();
 }
-let mounts = 0;
 
 function draw(main, trips, perm, scope) {
   clear(main);
@@ -95,14 +96,17 @@ function featureCard(trip) {
     growBar(bar.firstChild, `${trip.id}:bar`, s.checklistTotal ? Math.round((s.checklistDone / s.checklistTotal) * 100) : 0);
   });
   // 사진 위에 제목·날짜를 얹고, 아래 흰 면에 일정·체크·예약 숫자
-  return el('a', { href: `#/trip/${trip.id}`, class: 'card trip-feature' },
+  // 누르면 이 카드의 제목이 여행 화면의 큰 제목으로 이어져 움직인다 (js/morph.js)
+  const title = el('h2', { class: 'trip-title', text: trip.title });
+  morphArrive(title, trip.id, 'trips'); // 여행 화면에서 돌아올 때 큰 제목이 이 제목으로
+  return el('a', { href: `#/trip/${trip.id}`, class: 'card trip-feature', onClick: () => morphFromCard(title, trip.id) },
     el('div', { class: 'trip-feature-cover-wrap' },
       cover(trip, 'trip-feature-cover'),
       el('div', { class: 'trip-feature-overlay' },
         el('div', { class: 'trip-meta' },
           el('span', { class: 'badge', text: formatStatus(trip.status) }),
           membersTag(trip)),
-        el('h2', { class: 'trip-title', text: trip.title }),
+        title,
         el('span', { class: 'muted', text: formatRange(trip.startDate, trip.endDate) }))),
     el('div', { class: 'trip-feature-body' }, stats, bar));
 }
@@ -120,11 +124,13 @@ function passportStamp(trip) {
 }
 
 function smallCard(trip) {
-  return el('a', { href: `#/trip/${trip.id}`, class: 'card trip-small' },
+  const title = el('h3', { text: trip.title });
+  morphArrive(title, trip.id, 'trips');
+  return el('a', { href: `#/trip/${trip.id}`, class: 'card trip-small', onClick: () => morphFromCard(title, trip.id) },
     el('div', { class: 'trip-small-cover-wrap' }, cover(trip, 'trip-small-cover')),
     el('div', { class: 'trip-small-body' },
       passportStamp(trip),
-      el('h3', { text: trip.title }),
+      title,
       el('p', { class: 'muted trip-small-sub' }, formatRange(trip.startDate, trip.endDate), ' ', membersTag(trip))));
 }
 

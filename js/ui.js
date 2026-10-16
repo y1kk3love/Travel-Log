@@ -2,6 +2,7 @@ import { linkify } from './lib/text.js';
 import { createOverlayStack } from './lib/overlays.js';
 import { singleFlight } from './lib/single-flight.js';
 import { reduceMotion, haptic } from './motion.js';
+import { toast, raiseToasts } from './toast.js';
 
 // 열린 창(대화상자·장소 시트·사진 확대) 목록. 안드로이드 뒤로가기는 맨 위 창부터 닫는다.
 export const overlays = createOverlayStack();
@@ -88,16 +89,47 @@ export function linkedText(text, { firstLineOnly = false } = {}) {
     : document.createTextNode(p.value)));
 }
 
-// 사진을 화면 가득 보여주는 라이트박스 (배경·닫기·Esc·뒤로가기로 닫힘)
-export function openLightbox(src) {
+// 사진을 화면 가득 보여주는 라이트박스 (배경·닫기·Esc·뒤로가기로 닫힘).
+// from(누른 썸네일 요소)을 주면 iOS 사진 앱처럼 그 자리에서 커지며 열리고, 닫으면 그 자리로 줄어든다 (FLIP)
+export function openLightbox(src, from = null) {
   const onKey = (e) => { if (e.key === 'Escape' && entry.isTop()) close(); };
-  const close = () => { box.remove(); entry.release(); document.removeEventListener('keydown', onKey); };
+  const origin = from?.getBoundingClientRect?.();
+  const flip = !!origin && origin.width > 0 && !reduceMotion();
+  const img = el('img', { src, alt: '', class: flip ? 'flip' : null });
+  // 썸네일 자리 ↔ 화면 가운데. 썸네일은 정사각형으로 잘려 있으니 더 긴 쪽에 맞춰 줄인다
+  const zoom = (closing) => {
+    const last = img.getBoundingClientRect();
+    if (!last.width || typeof img.animate !== 'function') return null;
+    const dx = origin.left + origin.width / 2 - (last.left + last.width / 2);
+    const dy = origin.top + origin.height / 2 - (last.top + last.height / 2);
+    const s = Math.max(origin.width / last.width, origin.height / last.height);
+    const frames = [{ transform: `translate(${dx}px, ${dy}px) scale(${s})`, opacity: 0.6 }, { transform: 'none', opacity: 1 }];
+    return img.animate(closing ? frames.reverse() : frames, closing
+      ? { duration: 220, easing: 'cubic-bezier(.3, 0, .8, .15)', fill: 'forwards' }
+      : { duration: 380, easing: 'cubic-bezier(.32, .72, 0, 1)' });
+  };
+  let closing = false;
+  const close = () => {
+    if (closing) return;
+    closing = true;
+    entry.release();
+    document.removeEventListener('keydown', onKey);
+    box.classList.add('closing'); // 검은 배경은 옅어지고
+    const shrink = flip && from.isConnected ? zoom(true) : null; // 사진은 썸네일 자리로
+    const done = () => box.remove();
+    if (shrink) shrink.finished.then(done, done);
+    else setTimeout(done, reduceMotion() ? 0 : 160);
+  };
   const box = el('div', { class: 'lightbox', onClick: close },
-    el('img', { src, alt: '' }),
+    img,
     el('button', { type: 'button', class: 'btn btn-icon lightbox-close', 'aria-label': '닫기' }, icon('close')));
   const entry = overlays.push(close);
   document.addEventListener('keydown', onKey);
   document.body.append(box);
+  if (flip) {
+    if (img.complete && img.naturalWidth) zoom(false);
+    else img.addEventListener('load', () => zoom(false), { once: true });
+  }
   return box;
 }
 
@@ -109,32 +141,8 @@ export function photoPath(tripId, filename) {
   return `photos/${encodeURIComponent(tripId)}/${encodeURIComponent(filename)}`;
 }
 
-// action: { label, onClick } 을 주면 알림 안에 버튼 하나(예: 되돌리기)를 둔다
-export function toast(message, { kind = 'info', ms = 2800, action = null } = {}) {
-  const root = document.getElementById('toast-root');
-  const node = el('div', { class: `toast${kind === 'error' ? ' toast-error' : ''}${action ? ' toast-with-action' : ''}`, role: kind === 'error' ? 'alert' : 'status' },
-    el('span', { text: message }),
-    action && el('button', { type: 'button', class: 'toast-action', onClick: () => { node.remove(); action.onClick(); } }, action.label));
-  root.append(node);
-  raiseToasts(root);
-  setTimeout(() => {
-    node.classList.add('leaving'); // 부드럽게 내려가며 사라진 뒤 지운다
-    setTimeout(() => {
-      node.remove();
-      if (!root.childElementCount) try { root.hidePopover?.(); } catch { /* 이미 닫힘 */ }
-    }, reduceMotion() ? 0 : 220);
-  }, ms);
-}
-
-// 모달 대화상자는 top layer 에 떠서 z-index 로는 그 위에 알림을 띄울 수 없다.
-// 알림 영역을 popover 로 top layer 에 올리고, 띄울 때마다 닫았다 다시 열어 가장 위로 보낸다 (popover 미지원 브라우저는 예전처럼).
-function raiseToasts(root) {
-  if (!root || typeof root.showPopover !== 'function' || !root.childElementCount) return;
-  try {
-    if (root.matches(':popover-open')) root.hidePopover();
-    root.showPopover();
-  } catch { /* 지원하지 않으면 그냥 둔다 */ }
-}
+// 알림(토스트)은 js/toast.js (쌓기·밀어 닫기·멈춤). 여기서 그대로 내보내 기존 import 를 유지한다
+export { toast };
 
 // 모달 <dialog>를 열고, 닫히면 DOM에서 제거한다. 라우트가 바뀌면(뒤로가기 등) 자동으로 닫힌다.
 // 모달은 top layer에 있어서 해시가 바뀌어도 저절로 사라지지 않기 때문이다.
@@ -149,7 +157,7 @@ export function openModal(dialog) {
   const entry = overlays.push(() => dialog.close());
   window.addEventListener('hashchange', onRoute);
   // 닫히는 움직임(css 의 dialog:not([open]))이 끝난 뒤에 지운다
-  dialog.addEventListener('close', () => { entry.release(); window.removeEventListener('hashchange', onRoute); setTimeout(() => dialog.remove(), reduceMotion() ? 0 : 220); });
+  dialog.addEventListener('close', () => { entry.release(); window.removeEventListener('hashchange', onRoute); setTimeout(() => dialog.remove(), reduceMotion() ? 0 : 170); });
   document.body.append(dialog);
   dialog.showModal();
   raiseToasts(document.getElementById('toast-root')); // 떠 있던 알림은 새 창 위로

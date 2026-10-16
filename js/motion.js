@@ -27,8 +27,6 @@ export function markEnter(el, className, { order, elapsed }) {
   el.style.setProperty('--elapsed', `${Math.round(elapsed)}ms`);
 }
 export const planEnter = (scope, keys) => (reduceMotion() ? new Map() : seen.plan(scope, keys, performance.now()));
-// 화면을 떠날 때: 다음에 다시 들어오면 처음처럼 등장하게
-export const forgetEnter = (scope) => seen.forget(scope);
 
 // 숫자를 이전 값에서 새 값으로 센다 (처음이면 0부터). values: 숫자 배열, format(values) → 글자
 const lastValues = new Map();
@@ -72,7 +70,7 @@ export function slideIn(el, dir) {
 }
 
 // 사진: 화면에 붙은 채 불러와지면 살짝 페이드 인 (이미 불러와진 사진은 그대로라 숨은 채 남을 일이 없다)
-const FADE_IMAGES = '.trip-feature-cover, .trip-small-cover, .photo-chip img, .cover-preview img, .lightbox img';
+const FADE_IMAGES = '.trip-feature-cover, .trip-small-cover, .photo-chip img, .cover-preview img, .lightbox img:not(.flip)'; // 썸네일에서 커지는 사진은 제 움직임이 있다
 export function installImageFade() {
   document.addEventListener('load', (e) => {
     const img = e.target;
@@ -85,6 +83,39 @@ export function installImageFade() {
 const PATTERNS = { light: 8, medium: 16, success: [10, 60, 18], warning: [24] };
 export function haptic(kind = 'light') {
   try { globalThis.navigator?.vibrate?.(PATTERNS[kind] ?? PATTERNS.light); } catch { /* 지원하지 않으면 무시 */ }
+}
+
+// iOS 시트처럼 뒤 화면이 살짝 작아지며 위가 둥글어진다 (폰에서만, Vaul 방식). p: 1 = 시트가 다 올라옴, 0 = 원래대로
+// 문서 전체(#app)를 줄이므로, 지금 보이는 위쪽을 기준점으로 삼아 스크롤한 채여도 제자리에서 줄어든다
+export function sheetBackdrop() {
+  const app = document.getElementById('app');
+  const on = !!app && !reduceMotion() && !!globalThis.matchMedia?.('(max-width: 900px)').matches;
+  let top = 0;
+  let done = false; // 닫힌 뒤: 아직 끝나지 않은 끌기·놓기가 와도 다시 줄이지 않는다 (끄는 중에 뒤로가기로 닫힌 경우)
+  const apply = (p) => {
+    const s = 1 - (1 - Math.max(0.9, (window.innerWidth - 26) / window.innerWidth)) * p;
+    app.style.transform = p > 0 ? `translateY(${(12 * p).toFixed(1)}px) scale(${s.toFixed(4)})` : '';
+    app.style.clipPath = p > 0 ? `inset(${top}px 0 0 0 round ${(12 * p).toFixed(1)}px)` : '';
+  };
+  return {
+    open() {
+      if (!on || done) return;
+      top = window.scrollY;
+      app.style.transformOrigin = `50% ${top}px`;
+      document.documentElement.classList.add('sheet-backdrop');
+      restyle(app);
+      apply(1);
+    },
+    drag(p) { if (on && !done) { app.style.transition = 'none'; apply(p); } },
+    release(p = 1) { if (on && !done) { app.style.transition = ''; apply(p); } },
+    close() {
+      if (!on || done) return;
+      done = true;
+      app.style.transition = '';
+      apply(0);
+      setTimeout(() => { if (!app.style.transform) document.documentElement.classList.remove('sheet-backdrop'); }, 500);
+    },
+  };
 }
 
 // 불러오는 동안 보여 줄 반짝이는 뼈대. kind: 'card'(큰 카드) | 'row'(목록 한 줄)

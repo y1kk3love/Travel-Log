@@ -63,10 +63,25 @@ test('지도: 폰에서도 한 손가락으로 움직이고, 지도를 끄는 �
 });
 
 test('움직임: 차례 등장·스켈레톤·탭 알약·체크·도장·핀이 있고, 움직임 줄이기는 지연까지 없앤다', () => {
-  for (const name of ['rise-in', 'shimmer', 'check-pop', 'strike', 'stamp-in', 'toast-out', 'pin-drop', 'day-pop']) {
+  for (const name of ['rise-in', 'shimmer', 'check-pop', 'strike', 'stamp-in', 'pin-drop', 'day-pop', 'skeleton-in']) {
     assert.match(css, new RegExp(`@keyframes ${name} `), `${name} 애니메이션이 없음`);
   }
   assert.match(css, /\.tabs\.has-indicator::before \{[^}]*transition: transform/);
   const reduce = css.match(/prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
   assert.match(reduce, /animation-delay: 0s !important/);
+});
+
+test('움직임 기준: 마우스를 올릴 때만 hover, 대화상자·메뉴·시트는 튀지 않고, 닫기는 열기보다 짧다', () => {
+  const hoverLines = css.split('\n').filter((l) => l.includes(':hover'));
+  assert.ok(hoverLines.length > 0);
+  for (const l of hoverLines) assert.ok(l.startsWith('@media (hover: hover) and (pointer: fine)'), `터치에서도 적용되는 hover: ${l.slice(0, 60)}`);
+  assert.match(css, /dialog\[open\] \{ animation: dialog-in \.25s var\(--ease-out\); \}/);
+  assert.match(css, /dialog\.sheet-menu\[open\] \{ animation: menu-in \.18s var\(--ease-out\); \}/);
+  assert.match(css, /dialog\.sheet-menu \{ transform-origin: top right;/); // 누른 버튼(오른쪽 위) 쪽에서 커진다
+  assert.match(css, /transform: translateY\(100%\); transition: transform \.5s var\(--ease-sheet\); \}/); // 폰 시트
+  assert.match(css, /dialog \{ transition: opacity \.15s var\(--ease-exit\)/); // 닫기 0.15초 < 열기 0.25초
+  assert.match(css, /\.skeleton-list \{ animation: skeleton-in \.2s \.2s both; \}/); // 금방 오면 뼈대가 번쩍이지 않게
+  assert.match(css, /font-variant-numeric: tabular-nums/);
+  // hover 가 없는 터치 화면(가로 태블릿 등 900px 초과)에서도 체크리스트 수정·삭제 버튼이 보인다
+  assert.match(css, /@media \(hover: none\) \{ \.check-edit, \.check-delete \{ opacity: 1; \} \}/);
 });

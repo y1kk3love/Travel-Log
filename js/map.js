@@ -12,7 +12,7 @@ import { isKnownNoRoute } from './lib/polyline.js';
 import { escapeHtml, toast } from './ui.js';
 import { notifyQuota } from './quota.js';
 import { MAPS_MAP_ID } from './firebase-config.js';
-import { planEnter, markEnter, forgetEnter } from './motion.js';
+import { planEnter, markEnter } from './motion.js';
 
 const ROUTE_COLOR = '#0A6CFF'; // css --accent 와 같은 파랑
 const ME_COLOR = '#34C759';
@@ -66,7 +66,8 @@ function watchMapErrors(div) {
   setTimeout(() => observer.disconnect(), 60000);
 }
 
-export function createMap(container) {
+// pinScope: 이미 떨어진 핀을 기억하는 범위 (여행마다). 그 여행을 처음 열 때와 새 핀만 떨어진다
+export function createMap(container, { pinScope = 'pins' } = {}) {
   let map = null;
   let g = null;
   let AdvancedMarkerElement = null;
@@ -79,7 +80,6 @@ export function createMap(container) {
   let routeCb = null;
   let openPopupId = null;
   let routeGen = 0;
-  const pinScope = `pins:${Math.random().toString(36).slice(2)}`; // 이미 떨어진 핀 (지도마다)
   let closeListener = null;
 
   const ready = acquireMap(container)
@@ -270,7 +270,6 @@ export function createMap(container) {
     // 공유 지도는 없애지 않고 마커·선만 걷어낸 뒤 화면에서 떼어 둔다 (다음에 다시 붙여 쓴다)
     destroy: () => {
       destroyed = true;
-      forgetEnter(pinScope);
       locateStop();
       if (map) {
         markers.forEach((m) => { m.marker.map = null; });
