@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hasCoords, distanceKm, walkMinutes, legLabel, groupOverlapping, locateErrorMessage } from '../js/lib/geo.js';
+import { hasCoords, distanceKm, walkMinutes, legLabel, groupOverlapping, splitLegs, locateErrorMessage } from '../js/lib/geo.js';
 
 test('locateErrorMessage: 권한이 꺼져 있으면 앱은 폰 설정, 웹은 브라우저 설정으로 안내', () => {
   const denied = { code: 1 };
@@ -37,9 +37,12 @@ test('legLabel: 3km 이하는 도보, 초과는 거리만, 좌표 없으면 null
   assert.equal(legLabel({ name: '이름만' }, { lat: 35, lng: 135 }), null);
 });
 
-test('legLabel: 구글 도보 경로가 있으면 그 시간·거리를 쓴다 (3km 넘어도 도보 표시)', () => {
-  assert.equal(legLabel({ lat: 35, lng: 135 }, { lat: 35.009, lng: 135 }, { seconds: 970, meters: 1140 }), '도보 17분 · 1.1km');
-  assert.equal(legLabel({ lat: 35, lng: 135 }, { lat: 35.009, lng: 135 }, null), '도보 14분 · 1.0km');
+test('splitLegs: 좌표 있는 장소만 순서대로 이어 구간 목록을 만든다', () => {
+  const places = [
+    { id: 'a', lat: 1, lng: 1 }, { id: 'b', lat: null, lng: null }, { id: 'c', lat: 2, lng: 2 }, { id: 'd', lat: 3, lng: 3 },
+  ];
+  assert.deepEqual(splitLegs(places).map((l) => [l.from.id, l.to.id]), [['a', 'c'], ['c', 'd']]);
+  assert.deepEqual(splitLegs([{ id: 'x', lat: 1, lng: 1 }]), []);
 });
 
 test('groupOverlapping: 같은 자리(약 10m 안)의 장소는 한 묶음, 좌표 없는 장소는 제외', () => {

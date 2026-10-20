@@ -1,5 +1,5 @@
 // Google 지도 API "하루 한도 초과" 판별 (순수 함수, 테스트 대상)
-// Routes REST 는 HTTP 429, Places JS 라이브러리는 RESOURCE_EXHAUSTED / OVER_QUERY_LIMIT 류 메시지로 온다.
+// Places JS 라이브러리는 RESOURCE_EXHAUSTED / OVER_QUERY_LIMIT 류 메시지로 온다.
 const QUOTA_RE = /429|RESOURCE_EXHAUSTED|OVER_QUERY_LIMIT|quota|rate ?limit|too many requests/i;
 
 export function isQuotaError(err) {

@@ -5,8 +5,8 @@
 - 사이트: https://y1kk3love.github.io/Travel-Log/
 - 데이터: Firebase 프로젝트 `travel-log-d6cc9` (Firestore + Google 로그인, 무료 Spark). 로그인은 사이트 주인과 초대 목록(`allowedUsers`)의 계정만. 구조는 `docs/data-model.md`
 - 지도: Google Maps Platform, 별도 Cloud 프로젝트 `travel-log-maps` (Firebase 와 분리해 Firebase 는 무료 요금제 유지)
-  - Maps JavaScript(지도), Places API New(검색 자동완성 + 위치·주소만 조회), Routes API(3km 이하 구간 도보 경로)
-  - 키는 사이트 주소로 제한. 콘솔 할당량에 하루 한도를 걸어 둠: 지도 로드·자동완성 각 320 (월 무료 10,000건 아래), 장소 상세·경로 각 32 (키가 악용돼 가장 비싼 등급으로 불려도 월 무료 1,000건 아래), 앱이 쓰지 않는 메서드(텍스트 검색·주변 검색·사진·경로 행렬 등)는 0. 한도를 넘으면 그 기능만 멈추고 검색은 OpenStreetMap 으로 대체됨. 도보 경로는 "경로 없음"까지 30일간 저장해 다시 묻지 않음
+  - Maps JavaScript(지도), Places API New(검색 자동완성 + 위치·주소만 조회). 도보 경로(Routes API)는 쓰지 않는다: 지도는 장소 사이를 점선 직선으로 잇고, 실제 길은 일정의 "길찾기"(구글 지도 앱·웹으로 연결, 요금 없음)로 본다. 옛 앱이 부르지 않게 콘솔에서 Routes API 는 사용 중지
+  - 키는 사이트 주소로 제한. 콘솔 할당량에 하루 한도를 걸어 둠: 지도 로드·자동완성 각 320 (월 무료 10,000건 아래), 장소 상세 32 (키가 악용돼 가장 비싼 등급으로 불려도 월 무료 1,000건 아래), 앱이 쓰지 않는 메서드(텍스트 검색·주변 검색·사진·경로 행렬 등)는 0. 한도를 넘으면 그 기능만 멈추고 검색은 OpenStreetMap 으로 대체됨
   - 예산 알림 월 ₩1,000 (메일)
 - 사진·예약 서류: 앱에서 올리면 줄여서 Firestore 문서에 직접 저장 (Storage 는 카드 등록이 필요해 안 씀). `photos/` 폴더는 예전 방식 사진만
 
@@ -48,7 +48,7 @@ main 에 올리면 GitHub Actions 가 둘 다 돌린다 (`.github/workflows/test
 - 관리자(사이트 주인, `OWNER_UID`): 내 계정 메뉴 → "관리자 · 모든 여행"(`#/admin`, `js/views/admin.js`). 동행 목록에 들어가지 않고 모든 여행을 보고·고치고·지우고 동행을 관리한다 (규칙의 `isSiteOwner()`). 동행이 아닌 여행에서는 "관리자로 보는 중" 표시가 나에게만 보인다
 - `firestore.rules` 보안 규칙. 게시는 `npm run deploy:rules` (처음 한 번 `npx firebase login`). 문서에 새 필드를 쓰면 규칙의 필드 목록·`tests-rules/` 도 함께 고친다
 - `manifest.webmanifest`, `sw.js`, `icons/` 홈 화면 앱(PWA). 서비스 워커는 설치 때 앱 파일을 전부 받아 두므로, JS 파일을 더하거나 지우면 `npm run sw:precache` (테스트가 알려 준다). 아이콘은 `node scripts/make-icons.js`로 `favicon.svg`에서 다시 만든다
-- `js/firebase-sdk.js` Firebase SDK 버전은 여기 한 곳. `js/walk-routes.js` Routes API 도보 경로
+- `js/firebase-sdk.js` Firebase SDK 버전은 여기 한 곳
 - `app-config.json` 앱 최소 지원 버전 (위 "옛 앱 막기")
 - 날씨는 Open-Meteo(키 없음, 오늘부터 15일 안의 날짜만), 도착 예상 시간은 `js/lib/timeline.js`
 - 구글 지도 짧은 공유 링크(maps.app.goo.gl): 앱은 네이티브(`SharePlugin.resolveLink`)로, 웹은 중계 `relay/maps-link.gs`(사이트 주인 구글 계정의 Apps Script 웹 앱 "여행 로그 지도 링크 중계", 주소는 `js/firebase-config.js` 의 `MAPS_LINK_RELAY`)로 따라간다. 중계 코드를 고치면 Apps Script 편집기에 붙여넣고 "배포 관리 → 수정 → 새 버전"으로 올린다 (주소는 그대로)

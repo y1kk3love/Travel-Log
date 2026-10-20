@@ -43,7 +43,6 @@ const PRECACHE = [
   "js/lib/nav.js",
   "js/lib/order.js",
   "js/lib/overlays.js",
-  "js/lib/polyline.js",
   "js/lib/pool.js",
   "js/lib/profile.js",
   "js/lib/quota.js",
@@ -92,7 +91,6 @@ const PRECACHE = [
   "js/views/trip.js",
   "js/views/trips.js",
   "js/views/usage-dialog.js",
-  "js/walk-routes.js",
   "js/weather.js"
 ];
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'www.gstatic.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];

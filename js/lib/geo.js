@@ -20,12 +20,9 @@ export function walkMinutes(km) {
   return Math.max(1, Math.ceil((km / WALK_KMH) * 60));
 }
 
-// route: 저장된 구글 도보 경로 { seconds, meters } (있으면 직선 추정 대신 실제 길 기준으로 표시)
-export function legLabel(a, b, route = null) {
+// 직선거리 기준 표시 (실제 길은 일정의 "길찾기"로 본다)
+export function legLabel(a, b) {
   if (!hasCoords(a) || !hasCoords(b)) return null;
-  if (route && Number.isFinite(route.seconds) && Number.isFinite(route.meters)) {
-    return `도보 ${Math.max(1, Math.ceil(route.seconds / 60))}분 · ${(route.meters / 1000).toFixed(1)}km`;
-  }
   const km = distanceKm(a, b);
   if (km <= WALK_LIMIT_KM) return `도보 ${walkMinutes(km)}분 · ${km.toFixed(1)}km`;
   return `거리 ${km.toFixed(1)}km`;
@@ -39,6 +36,14 @@ export function locateErrorMessage(err, { native = false } = {}) {
   }
   if (err?.message === 'unsupported') return '이 브라우저는 위치를 지원하지 않아요';
   return '위치를 가져오지 못했어요';
+}
+
+// 좌표가 있는 장소들을 순서대로 이어 구간 목록으로 만든다 (지도의 점선)
+export function splitLegs(places) {
+  const pts = places.filter(hasCoords);
+  const legs = [];
+  for (let i = 1; i < pts.length; i++) legs.push({ from: pts[i - 1], to: pts[i] });
+  return legs;
 }
 
 // 같은 자리(약 10m 안)에 있는 장소들을 한 핀으로 묶는다. 호텔처럼 여러 날 반복되는 장소가 겹쳐 보이지 않게.

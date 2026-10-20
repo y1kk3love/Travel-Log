@@ -1,5 +1,5 @@
 import { el, clear, toast, confirmDialog, icon, CATEGORY_LABELS, linkedText } from '../ui.js';
-import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations, updatePlace, movePlaceToDay } from '../db.js';
+import { watchDays, watchPlaces, addDay, deleteDay, reorderPlaces, watchReservations, movePlaceToDay } from '../db.js';
 import { formatShort } from '../lib/dates.js';
 import { legLabel, hasCoords, distanceKm, locateErrorMessage } from '../lib/geo.js';
 import { isNative } from '../native.js';
@@ -10,7 +10,7 @@ import { openPlaceSheet } from './place-sheet.js';
 import { openActionMenu } from './action-menu.js';
 import { takeShareTarget } from './share.js';
 import { refreshAlarms } from '../alarms.js';
-import { estimateTimes, routeBetween, pickNext } from '../lib/timeline.js';
+import { estimateTimes, pickNext } from '../lib/timeline.js';
 import { weatherLabel, pickDayLocation, forecastWindow } from '../lib/weather.js';
 import { fetchDailyForecast } from '../weather.js';
 import { toDateStr } from '../lib/dates.js';
@@ -59,11 +59,6 @@ export function mount(content, ctx) {
     if (ok) locateBtn.classList.add('active');
   }
   map.onSelect((placeId) => highlight(placeId));
-  // 새로 받은 도보 경로는 출발 장소 문서에 30일간 저장해 다른 기기·동행이 다시 요청하지 않게 한다
-  map.onRoute((placeId, route) => {
-    if (!state.places.some((p) => p.id === placeId)) return;
-    updatePlace(tripId, placeId, { routeToNext: route }).catch((err) => console.warn('routeToNext 저장 실패', err));
-  });
   requestAnimationFrame(() => map.invalidate());
 
   const unsubs = [
@@ -188,7 +183,7 @@ export function mount(content, ctx) {
     labeled.forEach((p, i) => {
       if (!isNote(p)) {
         if (prevPlace) {
-          const label = legLabel(prevPlace, p, routeBetween(prevPlace, p)); // 구글 도보 시간이 저장돼 있으면 그걸로
+          const label = legLabel(prevPlace, p); // 직선거리 추정. 실제 길은 옆의 "길찾기"
           // 두 장소 모두 위치가 있으면 Google 지도 길찾기(3km 이하 도보, 그 밖은 대중교통)를 연다
           const dir = hasCoords(prevPlace) && hasCoords(p) ? el('a', {
             class: 'btn tl-leg-btn', target: '_blank', rel: 'noopener', title: `${prevPlace.name} → ${p.name} 길찾기`,

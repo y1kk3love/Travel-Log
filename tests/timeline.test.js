@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { estimateTimes, addMinutes, pickNext } from '../js/lib/timeline.js';
-import { legKey } from '../js/lib/polyline.js';
 
 test('addMinutes: HH:MM에 분을 더한다 (자정 넘김 유지)', () => {
   assert.equal(addMinutes('09:30', 45), '10:15');
@@ -53,18 +52,15 @@ test('estimateTimes: 메모 항목은 시간 흐름에 끼어들지 않는다', 
   ]);
 });
 
-test('estimateTimes: 저장된 구글 도보 시간(routeToNext)이 있으면 직선 추정 대신 그 시간을 쓴다', () => {
+test('estimateTimes: 예전 앱이 저장한 구글 도보 시간(routeToNext)은 쓰지 않고 늘 직선거리로 추정한다', () => {
   const now = Date.now();
   const a = { id: 'a', time: '09:00', stayMinutes: 60, lat: 35, lng: 135 };
   const b = { id: 'b', time: null, stayMinutes: null, lat: 35.009, lng: 135 }; // 직선 기준 14분
-  a.routeToNext = { key: legKey(a, b), encoded: 'abc', seconds: 21 * 60 + 10, meters: 1400, at: now - 1000 }; // 구글 21분 10초 → 22분
-  assert.deepEqual(estimateTimes([a, b], now), [
+  a.routeToNext = { key: '35,135>35.009,135', encoded: 'abc', seconds: 21 * 60 + 10, meters: 1400, at: now - 1000 }; // 구글 22분
+  assert.deepEqual(estimateTimes([a, b]), [
     { id: 'a', time: '09:00', estimated: false },
-    { id: 'b', time: '10:22', estimated: true },
+    { id: 'b', time: '10:14', estimated: true },
   ]);
-  // 구간이 바뀌었으면(키 불일치) 직선 추정으로 돌아간다
-  a.routeToNext = { ...a.routeToNext, key: 'x>y' };
-  assert.equal(estimateTimes([a, b], now)[1].time, '10:14');
 });
 
 test('pickNext: 지금 시각을 기준으로 현재 장소와 다음 장소를 고른다', () => {

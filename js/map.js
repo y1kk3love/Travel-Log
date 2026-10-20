@@ -1,14 +1,10 @@
 // 지도: Google Maps JavaScript API (Dynamic Maps, 하루 로드 한도 320건).
-// 한국어 지명은 로더의 language=ko 로 받는다. 구간은 Routes API 도보 경로(3km 이하)로 그리고, 못 받으면 직선.
+// 한국어 지명은 로더의 language=ko 로 받는다. 장소 사이는 점선 직선으로 잇는다. 실제 길은 일정의 "길찾기"(구글 지도 앱·웹, 요금 없음)로 본다.
 //
 // 요청을 아끼는 규칙
 // - 지도 인스턴스는 페이지 안에서 하나만 만들고(= 지도 로드 1건) 화면을 오갈 때 재사용한다.
-// - 구간 경로는 출발 장소 문서(routeToNext)에 30일간 저장된 것을 먼저 쓰고, 없을 때만 Routes API 를 부른다.
 import { importLibrary } from './gmaps.js';
-import { distanceKm, groupOverlapping } from './lib/geo.js';
-import { splitLegs } from './lib/polyline.js';
-import { walkingRoute, storedRoute } from './walk-routes.js';
-import { isKnownNoRoute } from './lib/polyline.js';
+import { groupOverlapping, splitLegs } from './lib/geo.js';
 import { escapeHtml, toast } from './ui.js';
 import { notifyQuota } from './quota.js';
 import { MAPS_MAP_ID } from './firebase-config.js';
@@ -19,7 +15,6 @@ const ME_COLOR = '#34C759';
 const POOL_COLOR = '#8E8E93'; // 보관함(날짜 미정) 핀
 const DEFAULT_VIEW = { center: { lat: 36.5, lng: 127.8 }, zoom: 6 };
 const MAX_FIT_ZOOM = 15;
-const WALK_ROUTE_KM = 3; // 이보다 먼 구간은 (대중교통일 테니) 경로를 묻지 않고 직선으로
 
 // 페이지 전체에서 공유하는 지도 인스턴스 (탭을 오가도 다시 만들지 않는다)
 let shared = null; // { div, map, g, AdvancedMarkerElement, infoWindow }
@@ -77,9 +72,7 @@ export function createMap(container, { pinScope = 'pins' } = {}) {
   let markers = new Map();
   let lines = [];
   let selectCb = null;
-  let routeCb = null;
   let openPopupId = null;
-  let routeGen = 0;
   let closeListener = null;
 
   const ready = acquireMap(container)
@@ -130,40 +123,23 @@ export function createMap(container, { pinScope = 'pins' } = {}) {
     lines = [];
   }
 
-  function drawLine(path, { dashed }) {
-    const line = new g.Polyline({
-      map, path, strokeColor: ROUTE_COLOR, strokeOpacity: dashed ? 0 : 0.9, strokeWeight: 4,
-      icons: dashed ? [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeWeight: 3, scale: 3 }, offset: '0', repeat: '14px' }] : [],
-    });
-    lines.push(line);
-    return line;
+  // 실제 길이 아니라는 뜻으로 점선 (실선이면 걸어갈 길처럼 보인다)
+  function drawLine(from, to) {
+    lines.push(new g.Polyline({
+      map, path: [{ lat: from.lat, lng: from.lng }, { lat: to.lat, lng: to.lng }], strokeColor: ROUTE_COLOR, strokeOpacity: 0, strokeWeight: 4,
+      icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeWeight: 3, scale: 3 }, offset: '0', repeat: '14px' }],
+    }));
   }
 
-  const toPath = (points) => points.map(([lat, lng]) => ({ lat, lng }));
-
-  // 구간마다: 저장된 경로가 있으면 바로 실선, 없으면 점선을 긋고 Routes API 결과가 오면 실선으로 바꾼다
-  function drawLegs(groups, gen) {
+  function drawLegs(groups) {
     for (const group of groups) {
-      for (const leg of splitLegs(group)) {
-        const stored = storedRoute(leg.from, leg.key);
-        if (stored) { drawLine(toPath(stored.points), { dashed: false }); continue; }
-        const line = drawLine([{ lat: leg.from.lat, lng: leg.from.lng }, { lat: leg.to.lat, lng: leg.to.lng }], { dashed: true });
-        if (distanceKm(leg.from, leg.to) > WALK_ROUTE_KM) continue;
-        if (isKnownNoRoute(leg.from.routeToNext, leg.key)) continue; // 도보 경로가 없다고 저장된 구간은 다시 묻지 않는다
-        walkingRoute(leg.key, leg.from, leg.to).then((route) => {
-          if (route?.none) { routeCb?.(leg.from.id, { key: route.key, none: true, at: route.at }); return; }
-          if (!route?.points?.length) return;
-          if (gen === routeGen && lines.includes(line)) line.setOptions({ path: toPath(route.points), strokeOpacity: 0.9, icons: [] });
-          routeCb?.(leg.from.id, { key: route.key, encoded: route.encoded, meters: route.meters, seconds: route.seconds, at: route.at });
-        });
-      }
+      for (const leg of splitLegs(group)) drawLine(leg.from, leg.to);
     }
   }
 
   // extras: 일정에 없는 장소(보관함) — 번호 없는 회색 핀, 경로에는 안 들어간다
   function setRoutes(groups, { fit = true, extras = [] } = {}) {
     whenReady(() => {
-      const gen = ++routeGen;
       const keepPopup = openPopupId;
       markers.forEach((m) => { m.marker.map = null; });
       markers = new Map();
@@ -202,7 +178,7 @@ export function createMap(container, { pinScope = 'pins' } = {}) {
         for (const p of spot.items) markers.set(p.id, entry);
         bounds.extend(position);
       }
-      drawLegs(groups, gen);
+      drawLegs(groups);
       if (fit && (spots.length || extras.length)) {
         map.fitBounds(bounds, 48);
         g.event.addListenerOnce(map, 'idle', () => { if (map.getZoom() > MAX_FIT_ZOOM) map.setZoom(MAX_FIT_ZOOM); });
@@ -264,8 +240,6 @@ export function createMap(container, { pinScope = 'pins' } = {}) {
     locateStop,
     isLocating: () => watchId != null,
     onSelect: (cb) => { selectCb = cb; },
-    // Routes API 에서 새로 받은 구간 경로를 알려준다 (출발 장소 id, 저장용 route). 호출한 쪽이 문서에 저장한다.
-    onRoute: (cb) => { routeCb = cb; },
     invalidate: () => { if (map) g.event.trigger(map, 'resize'); },
     // 공유 지도는 없애지 않고 마커·선만 걷어낸 뒤 화면에서 떼어 둔다 (다음에 다시 붙여 쓴다)
     destroy: () => {
@@ -277,7 +251,6 @@ export function createMap(container, { pinScope = 'pins' } = {}) {
         clearLines();
         infoWindow.close();
         closeListener?.remove();
-        routeGen++;
       }
       map = null;
       if (shared && shared.div.parentNode === container) shared.div.remove();

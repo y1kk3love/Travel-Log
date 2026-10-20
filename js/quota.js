@@ -4,7 +4,6 @@ import { toast } from './ui.js';
 import { isQuotaError, quotaResetLabel, sameQuotaDay } from './lib/quota.js';
 
 const QUOTA_KINDS = {
-  routes: { label: '도보 경로', fallback: '그동안 구간은 직선으로 표시돼요' },
   places: { label: '장소 검색', fallback: '그동안 OpenStreetMap 검색으로 대신해요' },
   details: { label: '장소 상세', fallback: '그동안 OpenStreetMap 검색으로 대신해요' },
   map: { label: '지도 표시', fallback: '지도가 잠시 표시되지 않아요' },

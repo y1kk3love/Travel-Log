@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planAlarms, alarmId, tripsForAlarms } from '../js/lib/alarms.js';
-import { legKey } from '../js/lib/polyline.js';
 
 // planAlarms 는 기기 시간대의 로컬 시각으로 계산한다. 기대값도 로컬로 만들어 CI(UTC)에서도 같아야 한다.
 const local = (y, m, d, hh, mm) => new Date(y, m - 1, d, hh, mm).getTime();
@@ -28,12 +27,13 @@ test('planAlarms: 오늘·내일, 시각 있는 장소만, 출발 = 도착 − �
   assert.equal(out[0].tripId, 't1');
 });
 
-test('planAlarms: 저장된 구글 도보 시간이 있으면 그걸 쓰고, 20개를 넘지 않는다', () => {
+test('planAlarms: 예전 앱이 저장한 구글 도보 경로(routeToNext)는 쓰지 않고 직선 추정, 20개를 넘지 않는다', () => {
   const p1 = { ...places[0], time: '09:30' }; // 아직 안 지남
   const p2 = { ...places[1], time: '10:00' };
-  p1.routeToNext = { key: legKey(p1, p2), encoded: 'x', seconds: 15 * 60, meters: 1000, at: now.getTime() };
+  // 구글 15분이 저장돼 있어도 직선 추정(~24분)으로 09:26 출발
+  p1.routeToNext = { key: '35.7141,139.7774>35.7148,139.7967', encoded: 'x', seconds: 15 * 60, meters: 1000, at: now.getTime() };
   const out = planAlarms({ trips: [trip], placesByTrip: { t1: [p1, p2] }, daysByTrip: { t1: days } }, now);
-  assert.equal(out.find((a) => a.placeId === 'p2').at, local(2026, 9, 21, 9, 35));
+  assert.equal(out.find((a) => a.placeId === 'p2').at, local(2026, 9, 21, 9, 26));
   const many = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, dayId: 'd2', name: `m${i}`, time: `${String(8 + Math.floor(i / 4)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}`, lat: 35.7, lng: 139.8, order: i }));
   assert.equal(planAlarms({ trips: [trip], placesByTrip: { t1: many }, daysByTrip: { t1: days } }, now).length, 20);
 });

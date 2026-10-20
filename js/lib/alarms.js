@@ -32,13 +32,13 @@ export function planAlarms({ trips, placesByTrip, daysByTrip }, now = new Date()
     const days = (daysByTrip[trip.id] ?? []).filter((d) => d.date === today || d.date === tomorrow);
     for (const day of days) {
       const places = (placesByTrip[trip.id] ?? []).filter((p) => p.dayId === day.id).sort((a, b) => a.order - b.order);
-      const times = estimateTimes(places, now.getTime());
+      const times = estimateTimes(places);
       let prev = null;
       places.forEach((p, i) => {
         if (p.category === 'note') return;
         const t = times[i]?.time;
         if (!t) return; // 시각을 못 정한 장소는 출발지로도 치지 않는다 (estimateTimes 와 같은 규칙)
-        const walk = walkMinutesBetween(prev, p, now.getTime());
+        const walk = walkMinutesBetween(prev, p);
         const at = atLocal(day.date, t) - (walk + LEAD_MIN) * 60000;
         if (at > now.getTime()) {
           out.push({
