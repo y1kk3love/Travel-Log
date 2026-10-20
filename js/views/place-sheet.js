@@ -1,6 +1,7 @@
 import { el, toast, confirmDialog, icon, photoPath, openLightbox, overlays, CATEGORY_LABELS, CATEGORY_ORDER, onSubmit, isTouchDevice } from '../ui.js';
 import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
 import { searchPlaces, debounce } from '../geocode.js';
+import { isSearchable, createQueryCache, pickSearchSource } from '../lib/place-search.js';
 import { createPlaceSearch } from '../places.js';
 import { notifyQuota, isQuotaHit } from '../quota.js';
 import { extractLinks, shortLabel } from '../lib/text.js';
@@ -28,7 +29,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     photos: [...(place?.photos ?? [])],
   };
 
-  const search = el('input', { class: 'input', id: 'ps-search', type: 'search', placeholder: '장소 이름이나 주소로 검색', autocomplete: 'off' });
+  const search = el('input', { class: 'input', id: 'ps-search', type: 'search', placeholder: '장소 이름이나 주소로 검색', autocomplete: 'off', enterkeyhint: 'search' });
   const results = el('div', { class: 'search-results', hidden: true });
   const name = el('input', { class: 'input', id: 'ps-name', value: draft.name, required: true, placeholder: noteMode ? '예: 점심 먹기, 12시까지 공항으로' : '장소 이름' });
   // 날짜 선택: 장소는 "보관함(날짜 미정)"에 둘 수도 있다. 메모 항목은 기존 것만 다른 Day 로 옮긴다.
@@ -180,7 +181,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       (err) => { console.error(err); toast('사진을 불러오지 못했어요', { kind: 'error' }); });
   }
 
-  // 구글 지도 링크를 적용한다. 핀 좌표가 있으면 바로, 장소 ID(장소 키에서 만든 것)만 있으면 상세 1건으로 위치를 받는다.
+  // 구글 지도 링크를 적용한다. 핀 좌표가 있으면 바로, 장소 ID(장소 키에서 만든 것)만 있으면 위치 확인 1건으로 위치를 받는다.
   // 둘 다 안 되면(한도·오프라인) 이름으로 검색해 고르게 한다. title: 공유 글 첫 줄의 깔끔한 이름 (없으면 링크 속 이름)
   async function applyLink(link, title = linkPlaceName(link.name)) {
     if (title && !name.value.trim()) name.value = title;
@@ -215,7 +216,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     if (title) {
       search.value = title;
       toast(`'${title}'(으)로 검색했어요. 결과에서 골라 주세요`, { ms: 4000 });
-      runSearch(title);
+      doSearch(title, { explicit: true });
     } else {
       search.value = '';
       toast('링크에서 위치를 찾지 못했어요. 장소 이름으로 검색해 주세요', { kind: 'error', ms: 5000 });
@@ -264,7 +265,7 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     drawLocation();
   }
 
-  // Google 자동완성 결과: 누르면 그때 위치·주소를 받아온다 (상세 조회 1건)
+  // Google 자동완성 결과: 누르면 그때 위치·주소를 받아온다 (위치 확인 1건)
   function googleResult(r) {
     const btn = el('button', {
       type: 'button', class: 'search-result',
@@ -276,8 +277,8 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
           console.error(err);
           btn.disabled = false; drawLocation();
           if (notifyQuota('details', err)) {
-            // 오늘 장소 상세 한도를 다 썼다: 같은 이름으로 OpenStreetMap 에서 다시 찾는다 (이후 검색도 OpenStreetMap)
-            search.value = r.name; lastQuery = null; runSearch(r.name);
+            // 오늘 위치 확인 한도를 다 썼다: 같은 이름으로 OpenStreetMap 에서 다시 찾는다 (이후 검색도 OpenStreetMap)
+            search.value = r.name; doSearch(r.name, { explicit: true });
           } else toast('위치를 가져오지 못했어요. 다시 골라 주세요', { kind: 'error' });
         }
       },
@@ -285,43 +286,79 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     return btn;
   }
 
+  function osmResult(r) {
+    return el('button', { type: 'button', class: 'search-result', onClick: () => pickResult(r) },
+      el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address }));
+  }
+
+  // OpenStreetMap(Nominatim)은 입력할 때마다 찾는 자동완성을 금지한다: 엔터나 이 버튼을 눌러야 찾는다
+  function osmPrompt(query) {
+    return el('button', { type: 'button', class: 'search-result', onClick: () => doSearch(query, { explicit: true }) },
+      el('strong', { text: `'${query}' 찾기` }),
+      el('span', { class: 'muted', text: '오늘은 구글 검색을 쓸 수 없어 OpenStreetMap 에서 찾아요. 엔터를 누르거나 여기를 눌러 주세요' }));
+  }
+
+  function showResults(items, { osm = false } = {}) {
+    results.replaceChildren(...(items.length ? items : [el('p', { class: 'muted', text: '검색 결과가 없어요' })]),
+      ...(osm && items.length ? [el('p', { class: 'muted search-credit', text: '검색 © OpenStreetMap 기여자' })] : []));
+    results.hidden = false;
+  }
+
   let searchSeq = 0; // 늦게 도착한 이전 검색 응답이 최신 결과를 덮지 않도록
-  let lastQuery = null; // 같은 검색어로는 다시 요청하지 않는다 (붙여넣기 두 번, 글자 지웠다 다시 치기)
-  const runSearch = debounce(async (q) => {
+  const cache = createQueryCache(); // 이 창에서 받은 결과 (지웠다 다시 치기·같은 말 다시 검색은 요청하지 않는다)
+  // explicit: 엔터·버튼·링크 이름처럼 사용자가 "찾아 줘"라고 한 검색. 아니면 입력 중 자동 검색
+  async function doSearch(q, { explicit = false } = {}) {
     const seq = ++searchSeq;
-    const query = q.trim();
-    if (query.length < 2) { results.hidden = true; lastQuery = null; return; }
+    const query = String(q ?? '').trim();
+    if (query.length < 2) { results.hidden = true; return; }
     if (query === handledText) return; // paste 에서 이미 처리한 링크
     if (applyPastedCoords(q)) return;
-    if (query === lastQuery) { results.hidden = results.childElementCount === 0; return; }
-    lastQuery = query;
-    let items = null;
-    const osmItems = async () => (await searchPlaces(query)).map((r) => el('button', { type: 'button', class: 'search-result', onClick: () => pickResult(r) },
-      el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address })));
-    try {
-      // 오늘 장소 상세 한도를 다 썼으면 Google 결과는 골라도 위치를 못 받으니 처음부터 OpenStreetMap 으로
-      items = isQuotaHit('details') ? await osmItems() : (await placeSearch.suggest(query, { near })).map(googleResult);
-    } catch (err) {
-      // Google 검색이 안 되면(하루 한도 초과, 네트워크) OpenStreetMap 으로 대신 찾는다
-      console.warn('places search', err);
-      notifyQuota('places', err);
-      try {
-        items = await osmItems();
-      } catch (err2) {
-        console.error(err2);
-        if (seq === searchSeq) toast('검색에 실패했어요. 잠시 후 다시 시도해 주세요', { kind: 'error' });
+    const runOsm = async () => {
+      let found = cache.get('osm', query);
+      if (!found) {
+        try { found = await searchPlaces(query); cache.set('osm', query, found); }
+        catch (err) {
+          console.error(err);
+          if (seq === searchSeq) toast('검색에 실패했어요. 잠시 후 다시 시도해 주세요', { kind: 'error' });
+          return;
+        }
+      }
+      if (seq === searchSeq) showResults(found.map(osmResult), { osm: true });
+    };
+    // 오늘 구글 자동완성이나 위치 확인 한도를 다 썼으면 처음부터 OpenStreetMap (구글 결과는 골라도 위치를 못 받는다)
+    if (pickSearchSource({ placesHit: isQuotaHit('places'), detailsHit: isQuotaHit('details') }) === 'osm') {
+      if (explicit || cache.get('osm', query)) await runOsm();
+      else showResults([osmPrompt(query)]);
+      return;
+    }
+    if (!explicit && !isSearchable(query)) return; // "센소ㅈ" 처럼 아직 치는 중이면 지난 결과를 그대로 둔다
+    let found = cache.get('google', query);
+    if (!found) {
+      try { found = await placeSearch.suggest(query, { near }); cache.set('google', query, found); }
+      catch (err) {
+        // 구글 검색이 안 되면(하루 한도 초과, 네트워크) OpenStreetMap 으로. 입력 중이면 엔터를 기다린다
+        console.warn('places search', err);
+        notifyQuota('places', err);
+        if (seq !== searchSeq) return;
+        if (explicit) await runOsm();
+        else showResults([osmPrompt(query)]);
         return;
       }
     }
-    if (seq !== searchSeq) return;
-    results.replaceChildren(...(items.length ? items : [el('p', { class: 'muted', text: '검색 결과가 없어요' })]));
-    results.hidden = false;
-  }, 600);
+    if (seq === searchSeq) showResults(found.map(googleResult));
+  }
+  const runSearch = debounce((q) => doSearch(q), 600);
   // 붙여넣기는 paste(바로 처리)와 input(0.6초 뒤 검색) 두 이벤트로 온다. paste 에서 처리한 링크는 검색 쪽에서 다시 처리하지 않는다
   // (안 그러면 같은 링크를 두 번 따라가 안내가 두 번 뜬다). 같은 링크를 다시 붙여넣으면 paste 가 다시 처리한다.
   let handledText = null;
   const handlePasted = (text) => { if (!applyPastedCoords(text)) return false; handledText = String(text).trim(); return true; };
   search.addEventListener('input', () => runSearch(search.value));
+  // 검색칸의 엔터는 장소 저장이 아니라 바로 검색 (한글 조합을 확정하는 엔터는 확정만)
+  search.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (!e.isComposing) doSearch(search.value, { explicit: true });
+  });
   search.addEventListener('paste', () => setTimeout(() => handlePasted(search.value), 0));
   // 이미 위치가 정해진 장소면 Google 지도의 그 장소 페이지(사진·평점·영업시간)를 바로 연다
   const googleBtn = el('a', {
@@ -504,6 +541,6 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     handle.addEventListener('pointercancel', end);
   }
   // 공유로 받은 텍스트: 좌표·짧은 링크면 그대로 처리, 아니면(그냥 장소 이름 등) 그 텍스트로 검색
-  if (sharedText && !noteMode) { search.value = sharedText; setTimeout(() => { if (!handlePasted(sharedText)) runSearch(sharedText); }, 0); }
+  if (sharedText && !noteMode) { search.value = sharedText; setTimeout(() => { if (!handlePasted(sharedText)) doSearch(sharedText, { explicit: true }); }, 0); }
   return close;
 }

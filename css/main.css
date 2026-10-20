@@ -272,6 +272,7 @@ dialog > p + .dialog-actions .btn { flex: 1; }
 .search-result:last-child { border-bottom: 0; }
 @media (hover: hover) and (pointer: fine) { .search-result:hover { background: var(--line-soft); } }
 .search-result span { font-size: 12px; }
+.search-results .search-credit { font-size: 11px; padding: 6px 14px; }
 .ps-location { font-size: 12px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--field); font-size: 13px; font-weight: 600; color: var(--seg-ink); cursor: pointer; transition: background .2s, color .2s, transform .2s var(--ease-out); }

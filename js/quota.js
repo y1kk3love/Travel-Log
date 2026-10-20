@@ -5,7 +5,7 @@ import { isQuotaError, quotaResetLabel, sameQuotaDay } from './lib/quota.js';
 
 const QUOTA_KINDS = {
   places: { label: '장소 검색', fallback: '그동안 OpenStreetMap 검색으로 대신해요' },
-  details: { label: '장소 상세', fallback: '그동안 OpenStreetMap 검색으로 대신해요' },
+  details: { label: '장소 위치 확인', fallback: '그동안 OpenStreetMap 검색으로 대신해요' },
   map: { label: '지도 표시', fallback: '지도가 잠시 표시되지 않아요' },
 };
 

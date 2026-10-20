@@ -43,6 +43,7 @@ const PRECACHE = [
   "js/lib/nav.js",
   "js/lib/order.js",
   "js/lib/overlays.js",
+  "js/lib/place-search.js",
   "js/lib/pool.js",
   "js/lib/profile.js",
   "js/lib/quota.js",

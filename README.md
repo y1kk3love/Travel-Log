@@ -5,8 +5,8 @@
 - 사이트: https://y1kk3love.github.io/Travel-Log/
 - 데이터: Firebase 프로젝트 `travel-log-d6cc9` (Firestore + Google 로그인, 무료 Spark). 로그인은 사이트 주인과 초대 목록(`allowedUsers`)의 계정만. 구조는 `docs/data-model.md`
 - 지도: Google Maps Platform, 별도 Cloud 프로젝트 `travel-log-maps` (Firebase 와 분리해 Firebase 는 무료 요금제 유지)
-  - Maps JavaScript(지도), Places API New(검색 자동완성 + 위치·주소만 조회). 도보 경로(Routes API)는 쓰지 않는다: 지도는 장소 사이를 점선 직선으로 잇고, 실제 길은 일정의 "길찾기"(구글 지도 앱·웹으로 연결, 요금 없음)로 본다. 옛 앱이 부르지 않게 콘솔에서 Routes API 는 사용 중지
-  - 키는 사이트 주소로 제한. 콘솔 할당량에 하루 한도를 걸어 둠: 지도 로드·자동완성 각 320 (월 무료 10,000건 아래), 장소 상세 32 (키가 악용돼 가장 비싼 등급으로 불려도 월 무료 1,000건 아래), 앱이 쓰지 않는 메서드(텍스트 검색·주변 검색·사진·경로 행렬 등)는 0. 한도를 넘으면 그 기능만 멈추고 검색은 OpenStreetMap 으로 대체됨
+  - Maps JavaScript(지도), Places API New(검색 자동완성), Geocoding(고른 장소의 위치·주소를 장소 ID 로, 지도 라이브러리의 Geocoder). 장소 상세(Places Details)는 쓰지 않는다. 도보 경로(Routes API)는 쓰지 않는다: 지도는 장소 사이를 점선 직선으로 잇고, 실제 길은 일정의 "길찾기"(구글 지도 앱·웹으로 연결, 요금 없음)로 본다. 옛 앱이 부르지 않게 콘솔에서 Routes API 는 사용 중지
+  - 키는 사이트 주소로 제한. 콘솔 할당량에 하루 한도를 걸어 둠: 지도 로드·자동완성·Geocoding(v3) 각 320 (월 무료 10,000건 아래. Geocoding 은 요금 등급이 하나라 키가 악용돼도 이 안), 앱이 쓰지 않는 메서드(장소 상세·텍스트 검색·주변 검색·사진·경로 행렬·Geocoding v4 등)는 0. 키의 API 제한은 Maps JavaScript·Places API (New)·Geocoding 셋. 한도를 넘으면 그 기능만 멈추고 검색은 OpenStreetMap(Nominatim)으로 대체됨. Nominatim 은 입력 중 검색을 금지해서 엔터나 버튼을 눌러야 찾는다
   - 예산 알림 월 ₩1,000 (메일)
 - 사진·예약 서류: 앱에서 올리면 줄여서 Firestore 문서에 직접 저장 (Storage 는 카드 등록이 필요해 안 씀). `photos/` 폴더는 예전 방식 사진만
 
