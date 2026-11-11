@@ -48,15 +48,24 @@ test('모서리: --radius-* 여섯 단계와 알약(999px)·원(50%)만 쓴다',
   }
 });
 
-test('간격: 안쪽 여백·사이 간격은 짝수 눈금(2·4·6·8…)만 쓴다', () => {
-  // 도장 자리를 비우는 76px 처럼 다른 요소 크기에 맞춘 값은 그대로 둔다
-  const odd = [];
+test('간격: 안쪽 여백·사이 간격은 4px 눈금(4·8·12·16·20…). 작은 컨트롤 안의 미세 조정(1·2·6·10)만 예외', () => {
+  const off = [];
   for (const [, prop, value] of rulesOnly.matchAll(/(padding[\w-]*|gap): ?([^;}]+)/g)) {
     for (const [, n] of value.matchAll(/(?<![\w.-])(\d+(?:\.\d+)?)px/g)) {
-      if (Number(n) % 2 !== 0 && Number(n) !== 1) odd.push(`${prop}: ${value.trim()}`);
+      if (Number(n) % 4 !== 0 && ![1, 2, 6, 10].includes(Number(n))) off.push(`${prop}: ${value.trim()}`);
     }
   }
-  assert.deepEqual(odd, []);
+  assert.deepEqual(off, []);
+});
+
+test('다듬기: 색 그림자·색에서 색으로 가는 그라데이션이 없고, 아이콘 크기는 두 가지, 작은 글자에 좁힌 자간이 없다', () => {
+  assert.ok(!/box-shadow: [^;]*rgba\(10, 108, 255[^;]*\d+px/.test(css.replace(/@keyframes pulse-dot[^\n]*/, '').replace(/\.today-banner-text::before[^\n]*/, '')), '파란 그림자 (오늘 배너의 "지금" 점만 예외)');
+  assert.ok(!/--cover-hue[^)]*\) \+/.test(css), '대표 사진 없는 카드는 한 색 안에서 밝기만 달라진다');
+  const icons = [...new Set([...css.matchAll(/svg \{ width: (\d+)px/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
+  assert.deepEqual(icons, [16, 20]);
+  assert.ok(!/font-size: var\(--fs-(micro|2xs|xs|sm|md|lg)\)[^}]*letter-spacing: -/.test(css), '17px 이하 글자에 음수 자간');
+  // 일정의 시각은 정보라 본문 색, 파랑은 누르는 것과 지도 핀 번호에
+  assert.match(css, /\.tl-meta > \.muted:first-child \{ color: var\(--ink\);/);
 });
 
 test('더하기 버튼은 화면마다 같은 연파랑(틴트) 하나', () => {

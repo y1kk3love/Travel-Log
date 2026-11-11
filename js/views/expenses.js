@@ -122,7 +122,7 @@ function draw(main, tripId, state) {
       el('div', { class: 'receipt-section' },
         row('총 지출', formatKRW(s.totalKRW), 'receipt-total'),
         row('1인당', formatKRW(perHead))),
-      el('div', { class: 'receipt-foot', text: '★ 즐거운 여행 되세요 ★' })));
+      el('div', { class: 'receipt-foot', text: '즐거운 여행 되세요' })));
   }
 
   // 날짜별 목록 (최근 날짜부터)

@@ -302,7 +302,7 @@ export function mount(content, ctx) {
     if (next.nextIndex == null) {
       return el('div', { class: `today-banner${next.done ? ' done' : ''}` },
         el('strong', { text: next.done ? '오늘 일정을 모두 마쳤어요' : '오늘 일정이에요' }),
-        el('span', { class: 'muted', text: next.done ? '수고했어요!' : '장소에 시간을 적으면 다음 목적지를 알려드려요' }));
+        el('span', { class: 'muted', text: next.done ? '수고했어요' : '장소에 시간을 적으면 다음 목적지를 알려드려요' }));
     }
     const p = places[next.nextIndex];
     const t = times[next.nextIndex].time;
