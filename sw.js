@@ -20,6 +20,7 @@ const PRECACHE = [
   "js/alarms.js",
   "js/app.js",
   "js/auth.js",
+  "js/boot-guard.js",
   "js/db.js",
   "js/firebase-config.js",
   "js/firebase-sdk.js",

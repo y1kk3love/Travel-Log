@@ -199,3 +199,32 @@ test('넓은 화면: 지출은 두 단이고 정산 영수증은 종이 폭을 �
   noProblems();
   await page.close();
 });
+
+test('시작 실패: 모듈 하나가 옛 파일이라 앱이 시작하지 못하면 한 번 스스로 다시 열어 정상으로 돌아온다', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.route((url) => url.hostname !== '127.0.0.1', (route) => route.abort());
+  // 배포 직후처럼: 첫 번째로 받는 router.js 는 app.js 가 찾는 이름이 없는 "옛 파일"
+  let served = 0;
+  await page.route('**/js/router.js', (route) => {
+    served += 1;
+    if (served === 1) route.fulfill({ contentType: 'text/javascript; charset=utf-8', body: 'export const old = true;' });
+    else route.continue();
+  });
+  await page.goto(`${base}#/`);
+  await page.locator('.trip-feature').first().waitFor(); // 스스로 다시 연 뒤 홈이 뜬다
+  assert.ok(served >= 2, '다시 받아 왔다');
+  assert.equal(await page.evaluate(() => window.__tlBooted), true);
+  await page.close();
+});
+
+test('시작 실패: 다시 열어도 안 되면 계속 돌지 않고 "다시 열기" 안내를 보여 준다', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.route((url) => url.hostname !== '127.0.0.1', (route) => route.abort());
+  let served = 0;
+  await page.route('**/js/router.js', (route) => { served += 1; route.fulfill({ contentType: 'text/javascript; charset=utf-8', body: 'export const old = true;' }); });
+  await page.goto(`${base}#/`);
+  await page.getByRole('button', { name: '다시 열기' }).waitFor();
+  await page.waitForTimeout(1800);
+  assert.equal(served, 2, '한 번만 스스로 다시 열었다');
+  await page.close();
+});

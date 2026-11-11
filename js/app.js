@@ -15,6 +15,8 @@ import * as tripView from './views/trip.js';
 import * as adminView from './views/admin.js';
 import { installImageFade } from './motion.js';
 
+// 여기까지 왔으면 모듈이 모두 이어져 앱이 시작한 것이다 (js/boot-guard.js 는 그 전의 실패에만 다시 연다)
+window.__tlBooted = true;
 const app = document.getElementById('app');
 installImageFade(); // 사진이 뚝 뜨지 않고 부드럽게
 
