@@ -5,10 +5,10 @@ import { imageFilesFrom } from '../lib/clipboard.js';
 
 const COVER = { maxSide: 800, maxBytes: 200 * 1024 };
 
-// 대표 사진 창. 사이트 주인만 연다(호출하는 쪽에서 막는다).
+// 대표 사진 창. 여행을 만든 사람과 사이트 주인이 연다 (호출하는 쪽에서 막는다).
 export function openCoverDialog(trip) {
   const bytes = coverBytes(trip);
-  let url = bytes ? bytesToObjectUrl(bytes) : null;
+  const url = bytes ? bytesToObjectUrl(bytes) : null;
   const preview = el('div', { class: 'cover-preview' },
     url ? el('img', { src: url, alt: '' }) : el('span', { class: 'muted', text: '아직 대표 사진이 없어요' }));
   const fileInput = el('input', { type: 'file', accept: 'image/*', class: 'visually-hidden' });

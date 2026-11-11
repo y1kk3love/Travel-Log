@@ -8,7 +8,7 @@
   - Maps JavaScript(지도), Places API New(검색 자동완성), Geocoding(고른 장소의 위치·주소를 장소 ID 로, 지도 라이브러리의 Geocoder). 장소 상세(Places Details)는 쓰지 않는다. 도보 경로(Routes API)는 쓰지 않는다: 지도는 장소 사이를 점선 직선으로 잇고, 실제 길은 일정의 "길찾기"(구글 지도 앱·웹으로 연결, 요금 없음)로 본다. 옛 앱이 부르지 않게 콘솔에서 Routes API 는 사용 중지
   - 키는 사이트 주소로 제한. 콘솔 할당량에 하루 한도를 걸어 둠: 지도 로드·자동완성·Geocoding(v3) 각 320 (월 무료 10,000건 아래. Geocoding 은 요금 등급이 하나라 키가 악용돼도 이 안), 앱이 쓰지 않는 메서드(장소 상세·텍스트 검색·주변 검색·사진·경로 행렬·Geocoding v4 등)는 0. 키의 API 제한은 Maps JavaScript·Places API (New)·Geocoding 셋. 한도를 넘으면 그 기능만 멈추고 검색은 OpenStreetMap(Nominatim)으로 대체됨. Nominatim 은 입력 중 검색을 금지해서 엔터나 버튼을 눌러야 찾는다
   - 예산 알림 월 ₩1,000 (메일)
-- 사진·예약 서류: 앱에서 올리면 줄여서 Firestore 문서에 직접 저장 (Storage 는 카드 등록이 필요해 안 씀). `photos/` 폴더는 예전 방식 사진만
+- 사진·예약 서류: 앱에서 올리면 줄여서 Firestore 문서에 직접 저장 (Storage 는 카드 등록이 필요해 안 씀). 사진은 원본(긴 변 1280px)과 작은 썸네일(240px)을 함께 저장하고, 장소 창은 썸네일만 받는다 (원본은 눌러 크게 볼 때만). `photos/` 폴더는 예전 방식의 흔적으로 지금은 쓰지 않는다
 
 ## 안드로이드 앱
 
@@ -38,13 +38,35 @@ npm test
 npm run test:rules
 ```
 
-main 에 올리면 GitHub Actions 가 둘 다 돌린다 (`.github/workflows/test.yml`).
+화면 테스트 (실제 화면 코드를 가짜 데이터로 띄워 주요 흐름을 눌러 본다. 설치된 크롬·엣지를 쓰고, 이 컴퓨터 밖으로 나가는 요청은 막는다):
+
+```bash
+npm run test:ui
+```
+
+코드 검사 (ESLint: 안 쓰는 import·선언 안 한 이름 같은 실수):
+
+```bash
+npm run lint
+```
+
+## 배포
+
+main 에 올리면 GitHub Actions(`.github/workflows/test.yml`)가 코드 검사·단위 테스트·규칙 테스트·화면 테스트를 돌리고, **모두 통과했을 때만** 앱 파일을 모아(`scripts/build-site.js`) GitHub Pages 에 올린다. 하나라도 실패하면 사이트는 이전 상태로 남는다.
+
+- 저장소 Settings → Pages → Source 가 "GitHub Actions" 여야 한다. "Deploy from a branch" 로 두면 검사와 상관없이 올리는 즉시 배포된다.
+- 보안 규칙은 따로 게시한다 (`npm run deploy:rules`). 새 필드·새 모음을 쓰는 변경은 **규칙을 먼저 게시하고** 웹을 올린다 (반대로 하면 그 저장이 `permission-denied` 로 막힌다).
+
+## 화면 확인 (로그인 없이)
+
+`http://localhost:8080/harness/` 는 `index.html` 과 같은 화면 코드를 가짜 데이터로 띄운다 (import map 이 `js/firebase.js`·`db.js`·`auth.js` 를 `harness/fake-*.js` 로 바꾼다). 화면 테스트도 이걸 쓴다. `js/db.js` 에 내보내는 함수를 더하면 `harness/fake-db.js` 에도 같은 이름을 더한다 (테스트가 알려 준다). 사이트에는 배포되지 않는다.
 
 ## 구조
 
 - `js/app.js` 로그인 분기 → `js/router.js` 해시 라우팅 → `js/views/*`
 - `js/db.js` Firestore 접근 전부
 - `js/lib/*` 순수 계산 (테스트 대상)
+- 장소 창은 `js/views/place-sheet.js`(보기·편집·저장) + `place-location.js`(검색·링크) + `place-photos.js`(사진·썸네일) + `js/sheet-swipe.js`(끌어 닫기). 있는 장소를 열면 읽기 화면이 먼저 뜨고 "편집"을 눌러야 입력 폼이 된다
 - 관리자(사이트 주인, `OWNER_UID`): 내 계정 메뉴 → "관리자 · 모든 여행"(`#/admin`, `js/views/admin.js`). 동행 목록에 들어가지 않고 모든 여행을 보고·고치고·지우고 동행을 관리한다 (규칙의 `isSiteOwner()`). 동행이 아닌 여행에서는 "관리자로 보는 중" 표시가 나에게만 보인다
 - `firestore.rules` 보안 규칙. 게시는 `npm run deploy:rules` (처음 한 번 `npx firebase login`). 문서에 새 필드를 쓰면 규칙의 필드 목록·`tests-rules/` 도 함께 고친다
 - `manifest.webmanifest`, `sw.js`, `icons/` 홈 화면 앱(PWA). 서비스 워커는 설치 때 앱 파일을 전부 받아 두므로, JS 파일을 더하거나 지우면 `npm run sw:precache` (테스트가 알려 준다). 아이콘은 `node scripts/make-icons.js`로 `favicon.svg`에서 다시 만든다

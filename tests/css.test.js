@@ -28,6 +28,51 @@ test('글꼴·움직임: Pretendard 를 쓰고, 움직임 줄이기 설정을 �
   assert.match(css, /::view-transition/);
 });
 
+// 규칙 부분: 토큰을 정하는 :root 블록(밝은 화면·어두운 화면)을 뺀 나머지
+const rulesOnly = css.replace(/\r\n/g, '\n').replace(/:root \{[\s\S]*?\n\s*\}/g, '');
+
+test('글자 크기: 규칙에는 px 를 직접 적지 않고 --fs-* 토큰만 쓴다 (아홉 단계 + 장식용 micro)', () => {
+  const tokens = [...css.matchAll(/--fs-[\w-]+: (\d+)px/g)].map((m) => Number(m[1]));
+  assert.deepEqual(tokens, [10, 11, 12, 13, 15, 17, 20, 22, 28, 34]);
+  const sizes = [...rulesOnly.matchAll(/font-size: ?([^;}]+)/g)].map((m) => m[1].trim());
+  assert.ok(sizes.length > 100);
+  for (const v of sizes) assert.match(v, /^(var\(--fs-[\w-]+\)|calc\(var\(--fs-micro\) \* \.85\))$/, `font-size: ${v} — 토큰을 쓸 것`);
+});
+
+test('모서리: --radius-* 여섯 단계와 알약(999px)·원(50%)만 쓴다', () => {
+  assert.match(css, /--radius-xs: 6px; --radius-sm: 8px; --radius-md: 10px; --radius: 12px; --radius-lg: 16px; --radius-xl: 22px;/);
+  const allowed = /^(var\(--radius(-\w+)?\)|999px|50%|0)$/;
+  for (const [, v] of rulesOnly.matchAll(/border-radius: ?([^;}]+)/g)) {
+    if (v.trim() === '4px 8px 8px 4px') continue; // D-day 수하물 태그 모양
+    for (const part of v.trim().split(/\s+/)) assert.match(part, allowed, `border-radius: ${v.trim()}`);
+  }
+});
+
+test('간격: 안쪽 여백·사이 간격은 짝수 눈금(2·4·6·8…)만 쓴다', () => {
+  // 도장 자리를 비우는 76px 처럼 다른 요소 크기에 맞춘 값은 그대로 둔다
+  const odd = [];
+  for (const [, prop, value] of rulesOnly.matchAll(/(padding[\w-]*|gap): ?([^;}]+)/g)) {
+    for (const [, n] of value.matchAll(/(?<![\w.-])(\d+(?:\.\d+)?)px/g)) {
+      if (Number(n) % 2 !== 0 && Number(n) !== 1) odd.push(`${prop}: ${value.trim()}`);
+    }
+  }
+  assert.deepEqual(odd, []);
+});
+
+test('더하기 버튼은 화면마다 같은 연파랑(틴트) 하나', () => {
+  assert.match(css, /\.btn-tint \{ background: var\(--accent-soft\); color: var\(--accent-text\); \}/);
+  assert.ok(!css.includes('btn-dashed'), '옛 이름 btn-dashed 가 남아 있음');
+  const views = ['planner', 'reservations', 'expenses', 'checklist'].map((v) => fs.readFileSync(new URL(`../js/views/${v}.js`, import.meta.url), 'utf8'));
+  assert.ok(views[0].includes("class: 'btn btn-tint'"), '일정의 장소·메모 추가');
+  for (const src of views.slice(1)) assert.ok(src.includes('tabHead('), '탭 화면은 ui.js tabHead (건수와 틴트 추가 버튼 한 줄)');
+});
+
+test('일정: Day 탭은 스크롤해도 위에 붙어 있고, 넓은 화면의 정산 영수증은 종이 폭을 넘지 않는다', () => {
+  assert.match(css, /\.day-tabs \{[^}]*position: sticky; top: 0;/);
+  assert.match(css, /\.receipt \{[^}]*max-width: 440px;/);
+  assert.match(css, /\.expenses-layout \{ grid-template-columns: minmax\(0, 1fr\) 400px;/);
+});
+
 test('테마 색: index.html 과 manifest 의 theme_color 가 강조색과 같다', () => {
   assert.ok(html.includes('name="theme-color" content="#0A6CFF"'));
   assert.ok(manifest.includes('"theme_color": "#0A6CFF"'));

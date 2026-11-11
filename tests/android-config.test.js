@@ -61,7 +61,7 @@ test('오래된 WebView: 최소 버전보다 낮으면 안내 페이지를 띄�
   assert.ok(config.android?.minWebViewVersion >= 85, '??= 같은 문법은 크롬 85 이상');
   const errorPath = config.server?.errorPath;
   assert.ok(errorPath && fs.existsSync(errorPath), 'server.errorPath 파일이 저장소에 있어야 한다');
-  assert.match(read('scripts/build-web.js'), new RegExp(`'${errorPath.replace('.', '\.')}'`), '앱 빌드(dist)에 복사돼야 한다');
+  assert.match(read('scripts/build-web.js'), new RegExp(`'${errorPath.replace('.', '\\.')}'`), '앱 빌드(dist)에 복사돼야 한다');
 });
 
 test('앱 백업에 로그인 정보·기기 캐시가 들어가지 않게 allowBackup=false', () => {

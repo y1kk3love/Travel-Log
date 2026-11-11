@@ -10,6 +10,8 @@ import { planScheduleChange } from './lib/schedule.js';
 import { settleSoon, preferWithin } from './lib/settle.js';
 import { withoutPlaces, linkedIds, linkFields } from './lib/reservation-links.js';
 import { chunk } from './lib/pool.js';
+import { addCleanup, removeCleanup, parseCleanups } from './lib/cleanup.js';
+import { isPersonalByDefault } from './lib/checklist.js';
 
 // 현재 로그인 사용자 (여행 소유자·동행 판정에 쓴다)
 function me() {
@@ -48,6 +50,49 @@ const save = (write) => settleSoon(write, { ms: WRITE_WAIT_MS, onLateError: (err
 // 쓰기 전에 필요한 읽기(순서 계산·함께 지울 문서 찾기): 서버가 늦거나 안 되면 기기 캐시로
 const readDocs = (q) => preferWithin(getDocs(q), () => getDocsFromCache(q), READ_WAIT_MS);
 const readDoc = (ref) => preferWithin(getDoc(ref), () => getDocFromCache(ref), READ_WAIT_MS);
+
+// ---------- 나중에 마저 지우기 ----------
+// 장소·Day·예약을 지울 때 딸린 사진·썸네일·서류는 먼저 "무엇이 있는지" 읽어야 지운다. 오프라인이거나 망이 느려 기기 캐시로
+// 읽으면, 이 기기에서 한 번도 안 연 사진은 목록에 없어 서버에 남는다(안 보이는데 저장 공간만 차지).
+// 캐시로 읽었으면 적어 두었다가(lib/cleanup.js) 연결된 뒤 서버에서 다시 찾아 지운다. 지우기 자체는 오프라인에서도 된다.
+const CLEANUP_KEY = 'tl.cleanup';
+const loadCleanups = () => { try { return parseCleanups(globalThis.localStorage?.getItem(CLEANUP_KEY)); } catch { return []; } };
+const storeCleanups = (list) => { try { globalThis.localStorage?.setItem(CLEANUP_KEY, JSON.stringify(list)); } catch { /* 저장 못 해도 지우기는 계속 */ } };
+async function readForDelete(q, entry) {
+  let fromCache = false;
+  const snap = await preferWithin(getDocs(q), () => { fromCache = true; return getDocsFromCache(q); }, READ_WAIT_MS);
+  if (fromCache || snap.metadata?.fromCache) storeCleanups(addCleanup(loadCleanups(), entry)); // 오프라인이면 getDocs 도 캐시로 답한다
+  return snap;
+}
+// 앱을 열 때와 다시 연결됐을 때 부른다. 아직 오프라인이면 그대로 두고 다음에 다시 한다
+let sweeping = false;
+export async function sweepCleanups() {
+  if (sweeping) return;
+  sweeping = true;
+  try {
+    for (const e of loadCleanups()) {
+      try {
+        const snap = await getDocsFromServer(query(sub(e.tripId, e.col), where(e.field, '==', e.value)));
+        for (const part of chunk(snap.docs, 400)) {
+          const batch = writeBatch(db);
+          part.forEach((d) => batch.delete(d.ref));
+          await batch.commit();
+        }
+        storeCleanups(removeCleanup(loadCleanups(), e));
+      } catch (err) {
+        // 여행이 지워졌거나 내가 동행에서 빠졌으면 더 할 일이 없다. 그 밖(오프라인 등)은 다음 기회에
+        if (err?.code === 'permission-denied' || err?.code === 'not-found') storeCleanups(removeCleanup(loadCleanups(), e));
+        else { logError(err); return; }
+      }
+    }
+  } finally { sweeping = false; }
+}
+// 장소들에 딸린 사진과 썸네일을 배치에 "지우기"로 더한다
+async function deletePlaceBlobs(batch, tripId, placeIds) {
+  const snaps = await Promise.all(placeIds.flatMap((pid) => ['photos', 'thumbs'].map((name) => readForDelete(
+    query(sub(tripId, name), where('placeId', '==', pid)), { tripId, col: name, field: 'placeId', value: pid }))));
+  snaps.forEach((s) => s.docs.forEach((d) => batch.delete(d.ref)));
+}
 
 // ---------- trips ----------
 // 내가 동행으로 들어 있는 여행만. (array-contains + orderBy는 복합 색인이 필요해서 정렬은 클라이언트에서)
@@ -135,12 +180,13 @@ export async function createTrip({ title, startDate, endDate }) {
   const batch = writeBatch(db);
   const { uid, email } = me();
   batch.set(ref, {
-    title: title.trim(), startDate, endDate, coverPhoto: null, createdAt: serverTimestamp(),
+    title: title.trim(), startDate, endDate, createdAt: serverTimestamp(),
     ownerUid: uid, ownerEmail: email, memberEmails: [email],
   });
   for (const day of days) batch.set(doc(sub(ref.id, 'days')), day);
   DEFAULT_CHECKLIST.forEach((g, groupOrder) => g.items.forEach((text, order) => {
-    batch.set(doc(sub(ref.id, 'checklist')), { group: g.group, groupOrder, order, text, done: false });
+    // 여권·짐처럼 사람마다 챙길 것은 "각자" 항목으로 (lib/checklist.js)
+    batch.set(doc(sub(ref.id, 'checklist')), { group: g.group, groupOrder, order, text, done: false, ...(isPersonalByDefault(text) ? { personal: true, doneBy: [] } : {}) });
   }));
   await save(batch.commit());
   return ref.id;
@@ -157,8 +203,7 @@ export async function updateTripSchedule(tripId, { title, startDate, endDate }) 
   plan.add.forEach((d) => batch.set(doc(sub(tripId, 'days')), d));
   for (const dayId of plan.remove) {
     const placesSnap = await readDocs(query(sub(tripId, 'places'), where('dayId', '==', dayId)));
-    const photoSnaps = await Promise.all(placesSnap.docs.map((p) => readDocs(query(sub(tripId, 'photos'), where('placeId', '==', p.id)))));
-    photoSnaps.forEach((s) => s.docs.forEach((ph) => batch.delete(ph.ref)));
+    await deletePlaceBlobs(batch, tripId, placesSnap.docs.map((p) => p.id));
     placesSnap.docs.forEach((p) => batch.delete(p.ref));
     if (placesSnap.size) await unlinkReservations(batch, tripId, placesSnap.docs.map((d) => d.id));
     batch.delete(doc(sub(tripId, 'days'), dayId));
@@ -188,7 +233,7 @@ export function coverBytes(trip) {
 // 지울 문서 목록은 서버에서만 읽는다 (느린 망에서 기기 캐시로 넘어가면 캐시에 없던 사진·서류가 지워지지 않고 남는다).
 // 오프라인이면 code 'unavailable' 로 실패한다.
 export async function deleteTrip(tripId) {
-  const snaps = await Promise.all(['days', 'places', 'photos', 'checklist', 'reservations', 'expenses', 'files'].map((name) => getDocsFromServer(sub(tripId, name))));
+  const snaps = await Promise.all(['days', 'places', 'photos', 'thumbs', 'checklist', 'reservations', 'expenses', 'files'].map((name) => getDocsFromServer(sub(tripId, name))));
   const refs = snaps.flatMap((s) => s.docs.map((d) => d.ref));
   const groups = chunk(refs, 450);
   for (const [i, group] of groups.entries()) {
@@ -266,8 +311,7 @@ export async function deleteDay(tripId, dayId) {
   const remaining = docsOf(daysSnap).filter((d) => d.id !== dayId);
   if (remaining.length === 0) throw new Error('last-day');
   const batch = writeBatch(db);
-  const photoSnaps = await Promise.all(placesSnap.docs.map((d) => readDocs(query(sub(tripId, 'photos'), where('placeId', '==', d.id))))); // 장소마다 차례로 기다리지 않게
-  photoSnaps.forEach((s) => s.docs.forEach((p) => batch.delete(p.ref)));
+  await deletePlaceBlobs(batch, tripId, placesSnap.docs.map((d) => d.id));
   placesSnap.docs.forEach((d) => batch.delete(d.ref));
   if (placesSnap.size) await unlinkReservations(batch, tripId, placesSnap.docs.map((d) => d.id));
   batch.delete(doc(sub(tripId, 'days'), dayId));
@@ -290,7 +334,7 @@ export async function addPlace(tripId, data) {
   const ref = doc(sub(tripId, 'places')); // 아이디는 기기에서 바로 정해진다 (오프라인에서도 사진을 이어 붙일 수 있게)
   await save(setDoc(ref, {
     name: '', time: null, stayMinutes: null, category: 'sight', memo: '',
-    lat: null, lng: null, address: null, photos: [],
+    lat: null, lng: null, address: null,
     ...data, order: data.order ?? nextOrder(sameDay), // 자리를 정해 주면(예약→일정) 그대로, 아니면 그 날의 끝
   }));
   return ref.id;
@@ -301,9 +345,8 @@ export function updatePlace(tripId, placeId, data) {
 }
 
 export async function deletePlace(tripId, placeId) {
-  const photosSnap = await readDocs(query(sub(tripId, 'photos'), where('placeId', '==', placeId)));
   const batch = writeBatch(db);
-  photosSnap.docs.forEach((p) => batch.delete(p.ref));
+  await deletePlaceBlobs(batch, tripId, [placeId]);
   await unlinkReservations(batch, tripId, [placeId]);
   batch.delete(doc(sub(tripId, 'places'), placeId));
   await save(batch.commit());
@@ -318,29 +361,60 @@ export async function movePlaceToDay(tripId, placeId, dayId) {
 // ---------- photos ----------
 // 사진은 긴 변 1280px JPEG 바이트를 Firestore 문서에 직접 저장한다 (Storage는 카드 등록이 필요해서 쓰지 않는다).
 // trips/{tripId}/photos/{photoId}: { placeId, data: Bytes, width, height, size, createdAt } (size 는 바이트 길이, 예전 사진엔 없음)
-export function watchPhotos(tripId, placeId, cb, onError = logError) {
-  return onSnapshot(query(sub(tripId, 'photos'), where('placeId', '==', placeId)), (s) => {
-    const photos = docsOf(s)
-      .map((p) => ({ ...p, bytes: p.data instanceof Bytes ? p.data.toUint8Array() : new Uint8Array() }))
-      .sort((a, b) => (a.createdAt?.toMillis?.() ?? 0) - (b.createdAt?.toMillis?.() ?? 0));
-    cb(photos);
-  }, onError);
+// trips/{tripId}/thumbs/{photoId}: { placeId, data: Bytes(작게 줄인 것), width, height, size, createdAt } — 사진과 같은 아이디.
+// 장소 창은 썸네일만 받아 보여 주고, 원본(수백 KB)은 눌러 크게 볼 때만 받는다 (로밍 중 데이터·기기 캐시를 아낀다).
+const byCreated = (a, b) => (a.createdAt?.toMillis?.() ?? Infinity) - (b.createdAt?.toMillis?.() ?? Infinity); // 방금 올린 것(서버 시각 전)은 맨 뒤
+const blobOf = (p) => ({ id: p.id, width: p.width, height: p.height, createdAt: p.createdAt ?? null, bytes: p.data instanceof Bytes ? p.data.toUint8Array() : new Uint8Array() });
+
+// cb(썸네일 목록, { fromCache }): fromCache 면 아직 서버 답이 아니라 기기 캐시에 있던 것만 온 것이다
+export function watchThumbs(tripId, placeId, cb, onError = logError) {
+  return onSnapshot(query(sub(tripId, 'thumbs'), where('placeId', '==', placeId)),
+    (s) => cb(docsOf(s).map(blobOf).sort(byCreated), { fromCache: !!s.metadata?.fromCache }), onError);
 }
 
-export async function addPhoto(tripId, { placeId, bytes, width, height }) {
+// 그 장소의 원본 사진 전부 (썸네일이 없는 예전 사진에 썸네일을 만들어 줄 때만 쓴다)
+export async function listPhotos(tripId, placeId) {
+  const snap = await readDocs(query(sub(tripId, 'photos'), where('placeId', '==', placeId)));
+  return docsOf(snap).map(blobOf).sort(byCreated);
+}
+
+// 원본 한 장 (한 번 받은 사진은 오프라인에서도 캐시로 열린다). 없으면 null
+export async function getPhoto(tripId, photoId) {
+  const s = await readDoc(doc(sub(tripId, 'photos'), photoId));
+  return s.exists() ? blobOf({ id: s.id, ...s.data() }) : null;
+}
+
+const thumbDoc = (placeId, thumb, createdAt) => ({
+  placeId, data: Bytes.fromUint8Array(thumb.bytes), width: thumb.width, height: thumb.height, size: thumb.bytes.length, createdAt,
+});
+
+// thumb: { bytes, width, height } (js/photo.js makeThumb). 못 만들었으면 null — 다음에 장소 창을 열 때 다시 만든다
+export async function addPhoto(tripId, { placeId, bytes, width, height, thumb = null }) {
   const batch = writeBatch(db);
   const ref = doc(sub(tripId, 'photos'));
   batch.set(ref, { placeId, data: Bytes.fromUint8Array(bytes), width, height, size: bytes.length, createdAt: serverTimestamp() });
+  if (thumb) batch.set(doc(sub(tripId, 'thumbs'), ref.id), thumbDoc(placeId, thumb, serverTimestamp()));
   batch.update(doc(sub(tripId, 'places'), placeId), { photoCount: increment(1) });
   await save(batch.commit());
   return ref.id;
 }
 
+// 예전 사진(썸네일 없음)에 썸네일을 채운다. 순서가 바뀌지 않게 원본의 올린 시각을 그대로 쓴다
+export function addThumb(tripId, photoId, { placeId, thumb, createdAt = null }) {
+  return save(setDoc(doc(sub(tripId, 'thumbs'), photoId), thumbDoc(placeId, thumb, createdAt ?? serverTimestamp())));
+}
+
 export async function deletePhoto(tripId, photoId, placeId) {
   const batch = writeBatch(db);
   batch.delete(doc(sub(tripId, 'photos'), photoId));
+  batch.delete(doc(sub(tripId, 'thumbs'), photoId));
   batch.update(doc(sub(tripId, 'places'), placeId), { photoCount: increment(-1) });
   await save(batch.commit());
+}
+
+// 원본이 이미 지워진 썸네일만 남았을 때 (옛 앱은 썸네일을 모르고 원본만 지운다)
+export function deleteThumb(tripId, photoId) {
+  return save(deleteDoc(doc(sub(tripId, 'thumbs'), photoId)));
 }
 
 export async function reorderPlaces(tripId, updates) {
@@ -355,12 +429,19 @@ export function watchChecklist(tripId, cb, onError = logError) {
   return onSnapshot(sub(tripId, 'checklist'), (s) => cb(docsOf(s)), onError);
 }
 
-// order·done 을 주면 그대로 (지운 항목 되돌리기), 아니면 그룹 맨 끝에 체크 안 된 채로
-export async function addChecklistItem(tripId, { group, groupOrder, text, order = null, done = false }) {
+// order·done 을 주면 그대로 (지운 항목 되돌리기), 아니면 그룹 맨 끝에 체크 안 된 채로.
+// personal: 사람마다 따로 체크하는 "각자" 항목 (doneBy 에 체크한 사람 이메일, lib/checklist.js)
+export async function addChecklistItem(tripId, { group, groupOrder, text, order = null, done = false, personal = false, doneBy = [] }) {
   const inGroup = order == null ? docsOf(await readDocs(query(sub(tripId, 'checklist'), where('group', '==', group)))) : [];
   const ref = doc(sub(tripId, 'checklist'));
-  await save(setDoc(ref, { group, groupOrder, order: order ?? nextOrder(inGroup), text, done: !!done }));
+  await save(setDoc(ref, { group, groupOrder, order: order ?? nextOrder(inGroup), text, done: !!done, ...(personal ? { personal: true, doneBy } : {}) }));
   return ref.id;
+}
+
+// "각자" 항목에서 내 체크만 넣고 뺀다 (동행이 동시에 체크해도 서로 지우지 않게 배열 연산으로). done: 그 뒤 동행 모두가 체크했나
+export function setMyCheck(tripId, itemId, { checked, done }) {
+  const { email } = me();
+  return save(updateDoc(doc(sub(tripId, 'checklist'), itemId), { doneBy: checked ? arrayUnion(email) : arrayRemove(email), done: !!done }));
 }
 
 export function updateChecklistItem(tripId, itemId, data) {
@@ -392,11 +473,12 @@ export function watchReservations(tripId, cb, onError = logError) {
 
 // 예약을 저장하면서 자동으로 만든 일정 장소도 같은 배치로 (예약 저장이 실패하면 장소만 남던 것을 막는다).
 // newPlaces: [{ dayId, time, name, category, memo, order, ... }]. 만든 장소들은 예약의 연결(linkedPlaceIds)이 된다.
+// 있는 예약(id)을 고칠 때 data 는 바뀐 필드만 준다 (동행이 그 사이 고친 다른 필드를 덮어쓰지 않게, lib/changes.js).
 export async function saveReservation(tripId, id, data, newPlaces = []) {
   const batch = writeBatch(db);
   const placeIds = newPlaces.map((p) => {
     const ref = doc(sub(tripId, 'places'));
-    batch.set(ref, { name: '', time: null, stayMinutes: null, category: 'sight', memo: '', lat: null, lng: null, address: null, photos: [], ...p });
+    batch.set(ref, { name: '', time: null, stayMinutes: null, category: 'sight', memo: '', lat: null, lng: null, address: null, ...p });
     return ref.id;
   });
   const full = placeIds.length ? { ...data, ...linkFields(placeIds) } : data;
@@ -408,7 +490,7 @@ export async function saveReservation(tripId, id, data, newPlaces = []) {
 }
 
 export async function deleteReservation(tripId, id) {
-  const files = await readDocs(query(sub(tripId, 'files'), where('reservationId', '==', id)));
+  const files = await readForDelete(query(sub(tripId, 'files'), where('reservationId', '==', id)), { tripId, col: 'files', field: 'reservationId', value: id });
   const batch = writeBatch(db);
   files.docs.forEach((f) => batch.delete(f.ref));
   batch.delete(doc(sub(tripId, 'reservations'), id));
@@ -474,17 +556,18 @@ export async function deleteReservationFile(tripId, reservationId, meta) {
   await save(batch.commit());
 }
 
-// 사이트 주인용: 내가 볼 수 있는 모든 여행의 문서 크기를 합산 (Firestore 저장 한도 1 GiB 대비). 작은 문서 수만큼 읽기를 쓰므로 버튼으로만 부른다.
-export async function estimateStorage() {
+// 사이트 주인용: 여행들의 문서 크기를 합산 (Firestore 저장 한도 1 GiB 대비). 작은 문서 수만큼 읽기를 쓰므로 버튼으로만 부른다.
+// all: 사이트 주인은 동행이 아닌 여행(초대 계정이 만든 것)까지 전부 센다. 아니면 내가 동행인 여행만 (규칙이 그것만 허용한다)
+export async function estimateStorage({ all = false } = {}) {
   const { docSize, aggregateSize } = await import('./lib/firestore-size.js');
-  const trips = await getDocs(query(tripsCol(), where('memberEmails', 'array-contains', me().email)));
+  const trips = await getDocs(all ? tripsCol() : query(tripsCol(), where('memberEmails', 'array-contains', me().email)));
   let bytes = 0, docs = 0;
   const add = (snap) => snap.docs.forEach((d) => { bytes += docSize(d.ref.path, d.data()); docs += 1; });
   add(trips);
   await Promise.all(trips.docs.map(async (t) => {
     (await Promise.all(['days', 'places', 'checklist', 'reservations', 'expenses'].map((name) => getDocs(sub(t.id, name))))).forEach(add);
-    // 사진·서류: 바이트를 내려받지 않고 서버에 개수와 size 합계만 묻는다
-    await Promise.all(['photos', 'files'].map(async (name) => {
+    // 사진·썸네일·서류: 바이트를 내려받지 않고 서버에 개수와 size 합계만 묻는다
+    await Promise.all(['photos', 'thumbs', 'files'].map(async (name) => {
       const [all, sized] = await Promise.all([
         getCountFromServer(sub(t.id, name)),
         getAggregateFromServer(query(sub(t.id, name), where('size', '>=', 0)), { count: count(), bytes: sum('size') }),

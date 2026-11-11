@@ -1,4 +1,4 @@
-import { el, clear, toast, openModal, icon, photoPath, onSubmit } from '../ui.js';
+import { el, clear, toast, openModal, icon, onSubmit } from '../ui.js';
 import { topbar } from './topbar.js';
 import { watchTrips, createTrip, tripStats, coverBytes, myAllowedEntry } from '../db.js';
 import { bytesToObjectUrl } from '../photo.js';
@@ -9,6 +9,7 @@ import { isSiteOwner } from '../auth.js';
 import { navigate } from '../router.js';
 import { appDownloadCard } from './app-download.js';
 import { stampLabel } from '../lib/stamp.js';
+import { coverHue } from '../lib/trip-color.js';
 import { enter, countUp, growBar, skeleton } from '../motion.js';
 import { morphFromCard, morphArrive } from '../morph.js';
 
@@ -70,8 +71,10 @@ function cover(trip, className) {
     const url = bytesToObjectUrl(bytes);
     return el('img', { class: className, src: url, alt: '', onLoad: () => URL.revokeObjectURL(url) });
   }
-  if (trip.coverPhoto) return el('img', { class: className, src: photoPath(trip.id, trip.coverPhoto), alt: '' });
-  return el('div', { class: `${className} cover-empty`, text: canEditTripInfo(trip, auth.currentUser, isSiteOwner(auth.currentUser)) ? '대표 사진 없음 · 여행 화면에서 추가' : '대표 사진 없음' });
+  // 대표 사진이 없으면 여행마다 다른 색 바탕 (lib/trip-color.js). 고칠 수 있는 사람에게만 위쪽에 작게 안내한다
+  // (가운데에 두면 폰에서 D-day·동행 태그와 겹쳤다)
+  return el('div', { class: `${className} cover-empty`, style: `--cover-hue: ${coverHue(trip.id)}` },
+    canEditTripInfo(trip, auth.currentUser, isSiteOwner(auth.currentUser)) ? el('span', { class: 'cover-hint', text: '여행 화면 ⋯ 에서 대표 사진을 넣을 수 있어요' }) : null);
 }
 
 function membersTag(trip) {

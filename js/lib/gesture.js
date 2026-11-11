@@ -76,3 +76,18 @@ export function liftAbove(footTop, viewportHeight, { base = 28, gap = 12 } = {})
   const bottom = Math.round(viewportHeight - footTop + gap);
   return bottom > base + gap ? bottom : null;
 }
+
+// 순서를 끌어 옮길 때: 손가락이 보이는 영역의 위·아래 가장자리(zone px)에 가까우면 그쪽으로 스크롤할 속도(px/프레임).
+// 가장자리에 가까울수록 빠르고, 영역 밖으로 나가면 최고 속도. 가운데에서는 0. 위로는 음수
+export function edgeScroll(y, top, bottom, { zone = 72, max = 18 } = {}) {
+  if (bottom - top < zone * 2) return 0; // 영역이 너무 작으면 늘 가장자리라 스크롤하지 않는다
+  if (y < top + zone) return -Math.round(max * Math.min(1, (top + zone - y) / zone));
+  if (y > bottom - zone) return Math.round(max * Math.min(1, (y - (bottom - zone)) / zone));
+  return 0;
+}
+
+// 끌어 놓을 자리: 줄들의 가운데 y(mids, 위에서부터) 중 손가락 y 보다 아래에 있는 첫 줄 앞. 모두 위에 있으면 맨 끝(mids.length)
+export function dropIndex(mids, y) {
+  const i = mids.findIndex((m) => y < m);
+  return i === -1 ? mids.length : i;
+}

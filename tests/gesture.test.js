@@ -80,3 +80,21 @@ test('createCountdown: 알림 타이머는 멈췄다 이어 가며, 남은 시�
   timers[1].fn();
   assert.equal(done, 1);
 });
+
+test('edgeScroll: 가운데에서는 0, 가장자리에 가까울수록 빠르게, 위로는 음수', async () => {
+  const { edgeScroll } = await import('../js/lib/gesture.js');
+  assert.equal(edgeScroll(400, 100, 800), 0);
+  assert.equal(edgeScroll(100, 100, 800), -18); // 맨 위
+  assert.equal(edgeScroll(50, 100, 800), -18);  // 영역 밖도 최고 속도까지만
+  assert.equal(edgeScroll(800, 100, 800), 18);
+  assert.ok(edgeScroll(760, 100, 800) > 0 && edgeScroll(760, 100, 800) < 18);
+  assert.equal(edgeScroll(120, 100, 200), 0); // 영역이 좁으면 스크롤하지 않는다
+});
+
+test('dropIndex: 손가락보다 아래에 가운데가 있는 첫 줄 앞, 없으면 맨 끝', async () => {
+  const { dropIndex } = await import('../js/lib/gesture.js');
+  assert.equal(dropIndex([30, 90, 150], 10), 0);
+  assert.equal(dropIndex([30, 90, 150], 100), 2);
+  assert.equal(dropIndex([30, 90, 150], 500), 3);
+  assert.equal(dropIndex([], 5), 0);
+});

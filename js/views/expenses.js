@@ -1,8 +1,9 @@
-import { el, clear, toast, confirmDialog, openModal, icon, linkedText, onSubmit } from '../ui.js';
+import { el, clear, toast, confirmDialog, openModal, linkedText, onSubmit, tabHead } from '../ui.js';
 import { watchTrip, watchExpenses, addExpense, updateExpense, deleteExpense, setTripRates, getProfiles } from '../db.js';
 import { CURRENCIES, EXPENSE_CATEGORIES, summarize, settle, toKRW, formatKRW, formatAmount } from '../lib/expenses.js';
 import { fetchKrwRates } from '../rates.js';
 import { displayNameFor } from '../lib/profile.js';
+import { changedFields, hasChanges } from '../lib/changes.js';
 import { formatShort, toDateStr } from '../lib/dates.js';
 import { auth } from '../firebase.js';
 import { enter, countUp, skeleton } from '../motion.js';
@@ -65,23 +66,28 @@ function draw(main, tripId, state) {
   const s = summarize(state.expenses, members, rates);
   const perHead = members.length ? s.totalKRW / members.length : s.totalKRW;
 
-  main.append(el('div', { class: 'page-head' },
-    el('div', {}, el('h2', { class: 'checklist-title', text: '지출' }), el('p', { class: 'muted', text: `${state.expenses.length}건` })),
-    el('button', { class: 'btn', onClick: () => openDialog(tripId, state) }, icon('plus'), '지출 추가')));
+  main.append(tabHead({ title: '지출', count: `지출 ${state.expenses.length}건`, addLabel: '지출 추가', onAdd: () => openDialog(tripId, state) }));
+  // 폰: 요약 → 지출 목록 → 환율·정산 영수증 (자주 보는 목록이 긴 영수증 아래로 밀리지 않게).
+  // 넓은 화면: 왼쪽에 목록, 오른쪽에 요약·환율·영수증 (css .expenses-layout)
+  const listBox = el('div', { class: 'expense-list' });
+  const side = el('div', { class: 'expense-side' });
+  const layout = el('div', { class: 'expenses-layout' });
+  main.append(layout);
 
   // 요약
-  main.append(el('section', { class: 'card expense-summary' },
+  layout.append(el('section', { class: 'card expense-summary' },
     stat('총 지출', counted(`${tripId}:total`, s.totalKRW)),
     members.length > 1 ? stat('1인당', counted(`${tripId}:perHead`, perHead)) : null,
     ...Object.entries(s.byCurrency).filter(([c]) => c !== 'KRW').map(([c, v]) => stat(`${c} 합계`, formatAmount(v, c))),
     el('div', { class: 'stat' }, el('span', { class: 'muted', text: '분류별' }),
       el('div', { class: 'expense-chips' }, ...Object.entries(s.byCategory).sort((a, b) => b[1] - a[1])
-        .map(([k, v]) => el('span', { class: 'tag', text: `${EXPENSE_CATEGORIES[k] ?? k} ${formatKRW(v)}` }))))));
+        .map(([k, v]) => el('span', { class: 'tag', text: `${EXPENSE_CATEGORIES[k] ?? k} ${formatKRW(v)}` }))))),
+    listBox, side);
 
   // 환율 (쓰인 외화만)
   const used = [...new Set(state.expenses.map((e) => e.currency).filter((c) => c && c !== 'KRW'))];
   if (used.length) {
-    main.append(el('section', { class: 'card expense-rates' },
+    side.append(el('section', { class: 'card expense-rates' },
       el('span', { class: 'muted', text: '환율 (외화 1단위당 원화)' }),
       ...used.map((c) => {
         const input = el('input', { class: 'input', type: 'number', step: '0.0001', min: '0', value: rates[c] ?? '', placeholder: '직접 입력', 'aria-label': `${c} 환율` });
@@ -101,7 +107,7 @@ function draw(main, tripId, state) {
     const who = (m) => `${nameOf(state, m)}${s.former.includes(m) ? ' (나간 동행)' : ''}`;
     const row = (label, value, cls = '') => el('div', { class: `receipt-row ${cls}` },
       el('span', { class: 'receipt-label', text: label }), el('span', { class: 'receipt-dots' }), el('span', { class: 'receipt-amount', text: value }));
-    main.append(el('section', { class: 'card receipt' },
+    side.append(el('section', { class: 'card receipt' },
       el('div', { class: 'receipt-head' },
         el('div', { class: 'receipt-title', text: '정산 영수증' }),
         el('div', { class: 'muted', text: `${state.trip?.title ?? ''} · ${members.length}명` })),
@@ -127,7 +133,7 @@ function draw(main, tripId, state) {
     byDate.get(key).push(e);
   }
   if (!state.expenses.length) {
-    main.append(el('p', { class: 'muted expense-empty', text: '식비, 교통비, 입장료를 적어 두면 여행 경비 합계와 동행 정산이 자동으로 계산돼요.' }));
+    listBox.append(el('p', { class: 'muted expense-empty', text: '식비, 교통비, 입장료를 적어 두면 여행 경비 합계와 동행 정산이 자동으로 계산돼요.' }));
     return;
   }
   const rows = [];
@@ -135,7 +141,7 @@ function draw(main, tripId, state) {
     const dayTotal = list.reduce((sum, e) => sum + (toKRW(e.amount, e.currency, rates) ?? 0), 0);
     const els = list.map((e) => row(tripId, state, e, rates));
     list.forEach((e, i) => rows.push({ el: els[i], key: e.id }));
-    main.append(el('section', { class: 'expense-day' },
+    listBox.append(el('section', { class: 'expense-day' },
       el('div', { class: 'expense-day-head' }, el('strong', { text: date ? formatShort(date) : '날짜 없음' }), el('span', { class: 'muted', text: formatKRW(dayTotal) })),
       ...els));
   }
@@ -172,7 +178,9 @@ function openDialog(tripId, state, existing = null) {
   const me = (auth.currentUser?.email ?? '').toLowerCase();
   const title = el('input', { class: 'input', id: 'ex-title', value: existing?.title ?? '', required: true, placeholder: '예: 이치란 라멘' });
   const amount = el('input', { class: 'input', id: 'ex-amount', type: 'number', step: 'any', min: '0', inputmode: 'decimal', value: existing?.amount ?? '', required: true, placeholder: '금액' });
-  const lastCurrency = state.expenses[0]?.currency ?? 'KRW';
+  // 가장 최근에 적은 지출의 통화를 기본으로 (목록은 문서 아이디 순서라 첫 항목이 최근 것이 아니다)
+  const latest = state.expenses.reduce((a, b) => (!a || (b.createdAt?.toMillis?.() ?? Infinity) >= (a.createdAt?.toMillis?.() ?? Infinity) ? b : a), null);
+  const lastCurrency = latest?.currency ?? 'KRW';
   const currency = el('select', { class: 'input', id: 'ex-currency' },
     ...CURRENCIES.map((c) => el('option', { value: c, selected: (existing?.currency ?? lastCurrency) === c, text: c })));
   const inTrip = toDateStr(new Date()) >= trip.startDate && toDateStr(new Date()) <= trip.endDate;
@@ -230,7 +238,11 @@ function openDialog(tripId, state, existing = null) {
     if (!(data.amount > 0)) { toast('금액을 입력해 주세요', { kind: 'error' }); amount.focus(); return; }
     if (people.length > 1 && !sharedWith.length) { toast('나누는 사람을 한 명 이상 골라 주세요', { kind: 'error' }); return; }
     try {
-      if (existing) await updateExpense(tripId, existing.id, data); else await addExpense(tripId, data);
+      if (existing) {
+        // 바꾼 필드만 저장한다 (그 사이 동행이 고친 다른 필드를 옛 값으로 덮어쓰지 않게)
+        const changes = changedFields(existing, data);
+        if (hasChanges(changes)) await updateExpense(tripId, existing.id, changes);
+      } else await addExpense(tripId, data);
       dialog.close();
     } catch (err) { console.error(err); toast('저장하지 못했어요', { kind: 'error' }); }
   });

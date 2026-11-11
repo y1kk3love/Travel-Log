@@ -33,6 +33,14 @@ export async function compressImage(file, { maxSide = MAX_SIDE, maxBytes = MAX_B
   return { bytes: new Uint8Array(await blob.arrayBuffer()), width, height };
 }
 
+// 장소 창의 작은 미리보기용 썸네일 (긴 변 240px, 십몇 KB). 원본 JPEG 바이트에서 만든다.
+// 반환: { bytes, width, height }. 문서 한도(규칙 60 KiB)를 넘으면 품질을 낮춘다
+const THUMB_SIDE = 240;
+const THUMB_MAX_BYTES = 48 * 1024;
+export function makeThumb(bytes) {
+  return compressImage(new Blob([bytes], { type: 'image/jpeg' }), { maxSide: THUMB_SIDE, maxBytes: THUMB_MAX_BYTES });
+}
+
 // Firestore에서 읽은 바이트를 <img>에 쓸 수 있는 object URL로 바꾼다. 다 쓰면 URL.revokeObjectURL로 해제.
 export function bytesToObjectUrl(uint8) {
   return URL.createObjectURL(new Blob([uint8], { type: 'image/jpeg' }));

@@ -1,37 +1,32 @@
-import { el, toast, confirmDialog, icon, photoPath, openLightbox, overlays, CATEGORY_LABELS, CATEGORY_ORDER, onSubmit, isTouchDevice } from '../ui.js';
-import { addPlace, updatePlace, deletePlace, movePlaceToDay, watchPhotos, addPhoto, deletePhoto } from '../db.js';
-import { searchPlaces, debounce } from '../geocode.js';
-import { isSearchable, createQueryCache, pickSearchSource } from '../lib/place-search.js';
-import { createPlaceSearch } from '../places.js';
-import { notifyQuota, isQuotaHit } from '../quota.js';
+import { el, toast, confirmDialog, icon, overlays, CATEGORY_LABELS, CATEGORY_ORDER, onSubmit, linkedText } from '../ui.js';
+import { addPlace, updatePlace, deletePlace, movePlaceToDay } from '../db.js';
 import { extractLinks, shortLabel } from '../lib/text.js';
-import { parseCoordsInput, parseShareText, googleMapsSearchUrl, googleMapsPlaceUrl, googleMapsDirectionsUrl, parseMapsLink, linkPlaceName } from '../lib/coords.js';
-import { resolveMapsLink } from '../native.js';
-import { resolveShortLink, relayResolver } from '../lib/short-link.js';
-import { MAPS_LINK_RELAY } from '../firebase-config.js';
-import { compressImage, bytesToObjectUrl } from '../photo.js';
-import { imageFilesFrom } from '../lib/clipboard.js';
+import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from '../lib/coords.js';
+import { changedFields, hasChanges } from '../lib/changes.js';
 import { formatShort } from '../lib/dates.js';
-import { rubberBand, velocity, shouldDismiss } from '../lib/gesture.js';
 import { sheetBackdrop, restyle } from '../motion.js';
+import { enableSwipeClose } from '../sheet-swipe.js';
+import { createLocationField } from './place-location.js';
+import { createPhotoSection } from './place-photos.js';
 
+// 장소 창. 있는 장소를 열면 먼저 "보기"(메모·사진·길찾기)가 뜨고, "편집"을 눌러야 입력 폼으로 바뀐다
+// (여행 중에는 고치려는 게 아니라 읽으려고 연다). 새 장소·메모는 바로 입력 폼.
+// 검색 칸은 place-location.js, 사진 칸은 place-photos.js, 끌어 닫기는 sheet-swipe.js.
 // kind: 'place'(기본) 또는 'note'(장소 없는 메모 항목). days를 주면 기존 항목을 다른 Day로 옮길 수 있다.
 // near: 검색 결과를 우선 보여줄 기준 좌표 (보통 그 날의 마지막 장소)
 // sharedText: 앱의 공유 시트로 받은 텍스트 (검색창에 붙여넣은 것처럼 처리)
+let sheetSeq = 0;
 export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = 'place', days = [], near = null, sharedText = null }) {
-  const placeSearch = createPlaceSearch();
   const noteMode = kind === 'note' || place?.category === 'note';
   const draft = {
-    name: place?.name ?? '', time: place?.time ?? '', stayMinutes: place?.stayMinutes ?? '',
-    category: place?.category ?? (noteMode ? 'note' : 'sight'), memo: place?.memo ?? '',
+    category: place?.category ?? (noteMode ? 'note' : 'sight'),
     lat: place?.lat ?? null, lng: place?.lng ?? null, address: place?.address ?? null,
     placeId: place?.placeId ?? null, // 구글 장소 ID (검색으로 고른 장소만)
-    photos: [...(place?.photos ?? [])],
   };
+  let dirty = false; // 저장하지 않은 편집이 있나 (닫을 때 물어본다)
+  const markDirty = () => { dirty = true; };
 
-  const search = el('input', { class: 'input', id: 'ps-search', type: 'search', placeholder: '장소 이름이나 주소로 검색', autocomplete: 'off', enterkeyhint: 'search' });
-  const results = el('div', { class: 'search-results', hidden: true });
-  const name = el('input', { class: 'input', id: 'ps-name', value: draft.name, required: true, placeholder: noteMode ? '예: 점심 먹기, 12시까지 공항으로' : '장소 이름' });
+  const name = el('input', { class: 'input', id: 'ps-name', value: place?.name ?? '', required: true, placeholder: noteMode ? '예: 점심 먹기, 12시까지 공항으로' : '장소 이름' });
   // 날짜 선택: 장소는 "보관함(날짜 미정)"에 둘 수도 있다. 메모 항목은 기존 것만 다른 Day 로 옮긴다.
   const currentDayId = place ? (place.dayId ?? null) : (dayId ?? null);
   const showDaySelect = noteMode ? (place && days.length > 1) : days.length > 0;
@@ -39,345 +34,83 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     ...(noteMode ? [] : [el('option', { value: '', selected: currentDayId == null, text: '보관함 (날짜 미정)' })]),
     ...days.map((d, i) => el('option', { value: d.id, selected: d.id === currentDayId, text: `Day ${i + 1} · ${formatShort(d.date)}` }))) : null;
   const chosenDayId = () => (daySelect ? (daySelect.value || null) : currentDayId);
-  const time = el('input', { class: 'input', id: 'ps-time', type: 'time', value: draft.time });
-  const stay = el('input', { class: 'input', id: 'ps-stay', type: 'number', min: '0', step: '5', value: draft.stayMinutes, placeholder: '분' });
+  const time = el('input', { class: 'input', id: 'ps-time', type: 'time', value: place?.time ?? '' });
+  const stay = el('input', { class: 'input', id: 'ps-stay', type: 'number', min: '0', step: '5', value: place?.stayMinutes ?? '', placeholder: '분' });
   const memo = el('textarea', { class: 'input', id: 'ps-memo', rows: '3', placeholder: '메모 (링크를 넣으면 바로 열 수 있어요)' });
-  memo.value = draft.memo;
+  memo.value = place?.memo ?? '';
   // 메모 속 링크를 버튼으로 (블로그 글, 예약 페이지 등)
+  const linkButtons = (text) => extractLinks(text).map((href) => el('a', { class: 'btn btn-sm', href, target: '_blank', rel: 'noopener', text: shortLabel(href) }));
   const memoLinks = el('div', { class: 'memo-links' });
-  function drawMemoLinks() {
-    memoLinks.replaceChildren(...extractLinks(memo.value).map((href) => el('a', { class: 'btn btn-sm', href, target: '_blank', rel: 'noopener', text: shortLabel(href) })));
-  }
+  const drawMemoLinks = () => memoLinks.replaceChildren(...linkButtons(memo.value));
   memo.addEventListener('input', drawMemoLinks);
   drawMemoLinks();
-  const location = el('p', { class: 'muted ps-location' });
-  const photoList = el('div', { class: 'photo-list' });
-  const fileInput = el('input', { type: 'file', id: 'ps-photo', accept: 'image/*', multiple: true, class: 'visually-hidden' });
-  const uploadBtn = el('button', { type: 'button', class: 'btn btn-sm', onClick: () => fileInput.click() }, icon('plus'), '사진 올리기');
-  const photoStatus = el('span', { class: 'muted ps-photo-status' });
+
   const categoryRow = el('div', { class: 'chips' });
-
-  // 저장된 사진(Firestore)과 아직 저장 전인 사진(새 장소일 때 대기열)
-  let savedPhotos = [];
-  let pendingPhotos = [];
-  let dirty = false; // 저장하지 않은 편집이 있나 (닫을 때 물어본다)
-  const markDirty = () => { dirty = true; };
-  const objectUrls = new Set();
-  let unsubPhotos = null;
-  const urlFor = (bytes) => { const u = bytesToObjectUrl(bytes); objectUrls.add(u); return u; };
-  const revokeAll = () => { objectUrls.forEach((u) => URL.revokeObjectURL(u)); objectUrls.clear(); };
-
-  function drawLocation() {
-    location.textContent = draft.lat != null ? `위치 설정됨 · ${draft.address ?? `${draft.lat.toFixed(4)}, ${draft.lng.toFixed(4)}`}` : '위치 없음 · 검색해서 고르면 지도에 표시돼요';
-    googleBtn.replaceChildren(icon('map'), draft.placeId || draft.lat != null ? 'Google 지도에서 보기' : 'Google 지도에서 찾기');
-    // 위치가 있으면 현재 위치에서 이 장소까지 길찾기 (Google 지도 앱이 열린다)
-    directionsBtn.hidden = draft.lat == null;
-    if (draft.lat != null) directionsBtn.href = googleMapsDirectionsUrl({ to: { lat: draft.lat, lng: draft.lng, placeId: draft.placeId } });
-  }
-
   function drawCategories() {
     categoryRow.replaceChildren(...CATEGORY_ORDER.map((key) => el('button', {
       type: 'button', class: `chip${draft.category === key ? ' active' : ''}`, 'aria-pressed': String(draft.category === key),
       onClick: () => { draft.category = key; markDirty(); drawCategories(); },
     }, CATEGORY_LABELS[key])));
   }
+  drawCategories();
 
-  function photoChip(src, label, onRemove) {
-    return el('div', { class: 'photo-chip' },
-      el('button', { type: 'button', class: 'photo-open', 'aria-label': `${label} 크게 보기`, onClick: (e) => openLightbox(src, e.currentTarget.querySelector('img')) }, el('img', { src, alt: '' })),
-      el('button', { type: 'button', class: 'photo-remove', 'aria-label': `${label} 삭제`, onClick: onRemove }, icon('close')));
+  const location = noteMode ? null : createLocationField({ draft, name, near, onDirty: markDirty });
+  const photos = noteMode ? null : createPhotoSection({ tripId, place, onDirty: markDirty });
+
+  // ---- 보기 화면 (있는 장소·메모): 여행 중에 읽는 것 먼저 — 시간·분류, 길찾기, 메모, (그 아래 사진) ----
+  function viewBox() {
+    const dayIdx = days.findIndex((d) => d.id === place.dayId);
+    const where = dayIdx < 0 ? '보관함' : `Day ${dayIdx + 1} · ${formatShort(days[dayIdx].date)}`;
+    const hasCoords = place.lat != null && place.lng != null;
+    return el('div', { class: 'place-view' },
+      el('div', { class: 'place-view-meta' },
+        place.time ? el('span', { class: 'place-view-time', text: place.time }) : null,
+        el('span', { class: 'tag', text: CATEGORY_LABELS[place.category] ?? '기타' }),
+        place.stayMinutes ? el('span', { class: 'muted', text: `${place.stayMinutes}분 머무름` }) : null,
+        el('span', { class: 'muted', text: where })),
+      !noteMode && place.address ? el('p', { class: 'muted place-view-address', text: place.address }) : null,
+      hasCoords ? el('div', { class: 'place-view-actions' },
+        el('a', { class: 'btn btn-tint', target: '_blank', rel: 'noopener', href: googleMapsDirectionsUrl({ to: { lat: place.lat, lng: place.lng, placeId: place.placeId } }) }, icon('navigation'), '여기로 길찾기'),
+        el('a', { class: 'btn btn-tint', target: '_blank', rel: 'noopener', href: googleMapsPlaceUrl({ placeId: place.placeId, name: place.name, lat: place.lat, lng: place.lng }) }, icon('map'), 'Google 지도')) : null,
+      place.memo
+        ? el('div', { class: 'place-view-memo' }, el('p', { class: 'pre-wrap' }, linkedText(place.memo))) // 링크는 글 안에서 바로 눌린다
+        : el('p', { class: 'muted place-view-empty', text: noteMode ? '자세한 내용이 없어요' : '메모가 없어요. "편집"에서 적어 둘 수 있어요' }));
   }
 
-  function drawPhotos() {
-    revokeAll();
-    const saved = savedPhotos.map((p, i) => photoChip(urlFor(p.bytes), `사진 ${i + 1}`, async () => {
-      if (!(await confirmDialog('이 사진을 삭제할까요?'))) return;
-      await deletePhoto(tripId, p.id, place.id).catch((err) => { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); });
-    }));
-    const pending = pendingPhotos.map((p, i) => photoChip(urlFor(p.bytes), `대기 중 사진 ${i + 1}`, () => {
-      pendingPhotos = pendingPhotos.filter((x) => x !== p); markDirty(); drawPhotos();
-    }));
-    // 예전 방식(GitHub photos 폴더 파일명)으로 남아 있는 사진은 그대로 보여 준다.
-    const legacy = draft.photos.map((file) => el('div', { class: 'photo-chip' },
-      el('img', { src: photoPath(tripId, file), alt: '', onError: (e) => { e.target.replaceWith(el('span', { class: 'photo-missing', text: file })); } }),
-      el('button', { type: 'button', class: 'photo-remove', 'aria-label': `${file} 제거`, onClick: () => { draft.photos = draft.photos.filter((f) => f !== file); drawPhotos(); } }, icon('close'))));
-    photoList.replaceChildren(...saved, ...pending, ...legacy);
-    photoStatus.textContent = pendingPhotos.length ? `저장하면 사진 ${pendingPhotos.length}장이 함께 올라가요` : '';
-  }
+  // ---- 편집 폼 ----
+  const dayField = daySelect ? el('div', { class: 'field' }, el('label', { for: 'ps-day', text: noteMode ? '날짜 (다른 Day로 옮기기)' : '날짜' }), daySelect) : null;
+  const editBox = noteMode
+    ? el('div', { class: 'place-edit' },
+      el('div', { class: 'field' }, el('label', { for: 'ps-name', text: '메모 내용' }), name),
+      el('div', { class: 'field' }, el('label', { for: 'ps-time', text: '시간 (선택)' }), time),
+      dayField,
+      el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '자세한 내용 (선택)' }), memo))
+    : el('div', { class: 'place-edit' },
+      location.field,
+      el('div', { class: 'field' }, el('label', { for: 'ps-name', text: '이름' }), name),
+      el('div', { class: 'form-grid' },
+        el('div', { class: 'field' }, el('label', { for: 'ps-time', text: '시간' }), time),
+        el('div', { class: 'field' }, el('label', { for: 'ps-stay', text: '머무는 시간(분)' }), stay)),
+      dayField,
+      el('div', { class: 'field' }, el('label', { text: '분류' }), categoryRow),
+      el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '메모' }), memo, memoLinks));
 
-  // 하나씩 올리고, 올라간 사진은 대기 목록에서 뺀다 (중간에 실패해 다시 저장하면 남은 것만 올린다)
-  async function uploadPhotos(placeId, items) {
-    const list = [...items];
-    try {
-      for (let i = 0; i < list.length; i++) {
-        photoStatus.textContent = `사진 올리는 중 ${i + 1} / ${list.length}`;
-        await addPhoto(tripId, { placeId, bytes: list[i].bytes, width: list[i].width, height: list[i].height });
-        pendingPhotos = pendingPhotos.filter((x) => x !== list[i]);
-      }
-    } finally {
-      drawPhotos(); // 중간에 실패해도 올라간 사진은 대기 칩에서 빼고, 남은 장수를 다시 보여 준다
-    }
-  }
-  // 새 장소를 만든 뒤 사진 올리기가 실패하면, 다시 저장할 때 또 만들지 않고 이 장소를 고친다 (그 사이 날짜를 바꾸면 그 날 끝으로 옮긴다)
-  let createdId = null;
-  let createdDayId = null;
+  const where = currentDayId == null ? '보관함' : `Day ${dayIndex + 1}`;
+  const editTitle = place ? (noteMode ? '메모 편집' : '장소 편집') : `${noteMode ? '메모' : '장소'} 추가 · ${where}`;
+  const titleId = `sheet-title-${++sheetSeq}`;
+  const heading = el('h2', { id: titleId });
+  const view = place ? viewBox() : null;
+  const body = el('div', { class: 'sheet-body' }, view, editBox, photos?.field);
 
-  async function handleFiles(files) {
-    if (!files.length) return;
-    const compressed = [];
-    for (let i = 0; i < files.length; i++) {
-      photoStatus.textContent = `사진 줄이는 중 ${i + 1} / ${files.length}`;
-      try { compressed.push(await compressImage(files[i])); }
-      catch (err) { console.error(err); toast(`${files[i].name}은(는) 열 수 없는 사진이에요`, { kind: 'error' }); }
-    }
-    if (!compressed.length) { photoStatus.textContent = ''; return; }
-    if (place) {
-      try { await uploadPhotos(place.id, compressed); toast(`사진 ${compressed.length}장을 올렸어요`); }
-      catch (err) { console.error(err); photoStatus.textContent = ''; toast('사진을 올리지 못했어요', { kind: 'error' }); }
-    } else {
-      pendingPhotos = [...pendingPhotos, ...compressed]; markDirty();
-      drawPhotos();
-    }
-  }
-
-  fileInput.addEventListener('change', () => {
-    const files = [...fileInput.files];
-    fileInput.value = '';
-    handleFiles(files);
-  });
-
-  // 클립보드 사진: 시트가 열린 동안 Ctrl+V(폰은 붙여넣기)로 들어오는 이미지 파일을 받는다.
-  const onPaste = (e) => {
-    const files = imageFilesFrom(e.clipboardData?.files);
-    if (!files.length) return;
-    e.preventDefault();
-    handleFiles(files);
-  };
-  document.addEventListener('paste', onPaste);
-
-  // 버튼으로 클립보드 읽기 (Chrome·Safari: 권한 요청이 뜰 수 있음)
-  const clipboardBtn = el('button', {
-    type: 'button', class: 'btn btn-sm',
-    onClick: async () => {
-      if (!navigator.clipboard?.read) { toast(isTouchDevice() ? '이 기기에서는 복사한 사진을 읽을 수 없어요. 사진 추가로 골라 주세요' : '이 브라우저는 클립보드 읽기를 지원하지 않아요. Ctrl+V로 붙여넣어 보세요', { kind: 'error', ms: 4000 }); return; }
-      try {
-        const items = await navigator.clipboard.read();
-        const files = [];
-        for (const item of items) {
-          const type = item.types.find((t) => t.startsWith('image/'));
-          if (type) files.push(new File([await item.getType(type)], `clipboard.${type.split('/')[1] || 'png'}`, { type }));
-        }
-        if (!files.length) { toast('클립보드에 사진이 없어요'); return; }
-        await handleFiles(files);
-      } catch (err) {
-        console.error(err);
-        toast(err?.name === 'NotAllowedError' ? (isTouchDevice() ? '복사한 사진에 접근할 수 없어요. 사진 추가로 골라 주세요' : '클립보드 접근이 거부됐어요. Ctrl+V로 붙여넣어 보세요') : '클립보드를 읽지 못했어요', { kind: 'error', ms: 4000 });
-      }
-    },
-  }, '클립보드에서 붙여넣기');
-
-  if (place) {
-    unsubPhotos = watchPhotos(tripId, place.id, (photos) => { savedPhotos = photos; drawPhotos(); },
-      (err) => { console.error(err); toast('사진을 불러오지 못했어요', { kind: 'error' }); });
-  }
-
-  // 구글 지도 링크를 적용한다. 핀 좌표가 있으면 바로, 장소 ID(장소 키에서 만든 것)만 있으면 위치 확인 1건으로 위치를 받는다.
-  // 둘 다 안 되면(한도·오프라인) 이름으로 검색해 고르게 한다. title: 공유 글 첫 줄의 깔끔한 이름 (없으면 링크 속 이름)
-  async function applyLink(link, title = linkPlaceName(link.name)) {
-    if (title && !name.value.trim()) name.value = title;
-    if (link.lat != null) {
-      draft.lat = link.lat; draft.lng = link.lng; draft.placeId = link.placeId; markDirty();
-      draft.address = title ? `구글 지도 링크 · ${title}` : `붙여넣은 좌표 ${link.lat.toFixed(5)}, ${link.lng.toFixed(5)}`;
-      results.hidden = true; search.value = '';
-      drawLocation();
-      toast(title ? `'${title}' 위치를 가져왔어요` : '좌표를 가져왔어요. 이름을 적어 주세요');
-      return;
-    }
-    if (link.placeId && !isQuotaHit('details')) {
-      location.textContent = '위치 확인 중…';
-      try {
-        const r = await placeSearch.byId(link.placeId);
-        draft.lat = r.lat; draft.lng = r.lng; draft.address = r.address; draft.placeId = r.placeId; markDirty();
-        results.hidden = true; search.value = '';
-        drawLocation();
-        toast(title ? `'${title}' 위치를 가져왔어요` : '위치를 가져왔어요. 이름을 적어 주세요');
-        return;
-      } catch (err) {
-        console.error(err);
-        notifyQuota('details', err);
-        drawLocation();
-      }
-    }
-    searchByName(title);
-  }
-
-  // 링크에서 위치를 바로 못 받았을 때: 이름으로 검색해 결과에서 고르게 한다
-  function searchByName(title) {
-    if (title) {
-      search.value = title;
-      toast(`'${title}'(으)로 검색했어요. 결과에서 골라 주세요`, { ms: 4000 });
-      doSearch(title, { explicit: true });
-    } else {
-      search.value = '';
-      toast('링크에서 위치를 찾지 못했어요. 장소 이름으로 검색해 주세요', { kind: 'error', ms: 5000 });
-    }
-  }
-
-  // 구글 지도 앱이 공유한 짧은 링크: 앱은 네이티브로, 웹은 중계(Apps Script)로 따라가 긴 주소(핀 좌표나 장소 키)를 받는다. 안 되면 이름 검색.
-  let resolvingLink = null; // 붙여넣기와 검색이 같은 링크를 두 번 따라가지 않게
-  async function applyShortLink(share) {
-    if (resolvingLink === share.link) return;
-    resolvingLink = share.link;
-    if (share.name && !name.value.trim()) name.value = share.name;
-    location.textContent = '공유 링크 여는 중…';
-    const long = await resolveShortLink(share.link, [resolveMapsLink, relayResolver(MAPS_LINK_RELAY)]);
-    resolvingLink = null;
-    const link = long ? parseMapsLink(long) : null;
-    if (link && (link.lat != null || link.placeId)) { await applyLink(link, share.name ?? linkPlaceName(link.name)); return; }
-    drawLocation();
-    searchByName(share.name);
-  }
-
-  // Google 지도 링크나 "위도, 경도"를 붙여넣으면 검색 대신 위치를 바로 채운다 (처리했으면 true)
-  function applyPastedCoords(text) {
-    const link = parseMapsLink(text);
-    if (link && (link.lat != null || link.placeId)) { applyLink(link); return true; }
-    const coords = parseCoordsInput(text);
-    if (coords) {
-      draft.lat = coords.lat; draft.lng = coords.lng; draft.placeId = null; markDirty();
-      draft.address = `붙여넣은 좌표 ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
-      results.hidden = true; search.value = '';
-      drawLocation();
-      toast('좌표를 가져왔어요. 이름을 적어 주세요');
-      if (!name.value.trim()) name.focus();
-      return true;
-    }
-    const share = parseShareText(text);
-    if (!share) return false;
-    applyShortLink(share);
-    return true;
-  }
-
-  function pickResult(r) {
-    draft.lat = r.lat; draft.lng = r.lng; draft.address = r.address; draft.placeId = r.placeId ?? null; markDirty();
-    if (!name.value.trim()) name.value = r.name;
-    results.hidden = true; search.value = '';
-    drawLocation();
-  }
-
-  // Google 자동완성 결과: 누르면 그때 위치·주소를 받아온다 (위치 확인 1건)
-  function googleResult(r) {
-    const btn = el('button', {
-      type: 'button', class: 'search-result',
-      onClick: async () => {
-        btn.disabled = true;
-        location.textContent = '위치 확인 중…';
-        try { pickResult(await placeSearch.resolve(r)); }
-        catch (err) {
-          console.error(err);
-          btn.disabled = false; drawLocation();
-          if (notifyQuota('details', err)) {
-            // 오늘 위치 확인 한도를 다 썼다: 같은 이름으로 OpenStreetMap 에서 다시 찾는다 (이후 검색도 OpenStreetMap)
-            search.value = r.name; doSearch(r.name, { explicit: true });
-          } else toast('위치를 가져오지 못했어요. 다시 골라 주세요', { kind: 'error' });
-        }
-      },
-    }, el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address }));
-    return btn;
-  }
-
-  function osmResult(r) {
-    return el('button', { type: 'button', class: 'search-result', onClick: () => pickResult(r) },
-      el('strong', { text: r.name }), el('span', { class: 'muted', text: r.address }));
-  }
-
-  // OpenStreetMap(Nominatim)은 입력할 때마다 찾는 자동완성을 금지한다: 엔터나 이 버튼을 눌러야 찾는다
-  function osmPrompt(query) {
-    return el('button', { type: 'button', class: 'search-result', onClick: () => doSearch(query, { explicit: true }) },
-      el('strong', { text: `'${query}' 찾기` }),
-      el('span', { class: 'muted', text: '오늘은 구글 검색을 쓸 수 없어 OpenStreetMap 에서 찾아요. 엔터를 누르거나 여기를 눌러 주세요' }));
-  }
-
-  function showResults(items, { osm = false } = {}) {
-    results.replaceChildren(...(items.length ? items : [el('p', { class: 'muted', text: '검색 결과가 없어요' })]),
-      ...(osm && items.length ? [el('p', { class: 'muted search-credit', text: '검색 © OpenStreetMap 기여자' })] : []));
-    results.hidden = false;
-  }
-
-  let searchSeq = 0; // 늦게 도착한 이전 검색 응답이 최신 결과를 덮지 않도록
-  const cache = createQueryCache(); // 이 창에서 받은 결과 (지웠다 다시 치기·같은 말 다시 검색은 요청하지 않는다)
-  // explicit: 엔터·버튼·링크 이름처럼 사용자가 "찾아 줘"라고 한 검색. 아니면 입력 중 자동 검색
-  async function doSearch(q, { explicit = false } = {}) {
-    const seq = ++searchSeq;
-    const query = String(q ?? '').trim();
-    if (query.length < 2) { results.hidden = true; return; }
-    if (query === handledText) return; // paste 에서 이미 처리한 링크
-    if (applyPastedCoords(q)) return;
-    const runOsm = async () => {
-      let found = cache.get('osm', query);
-      if (!found) {
-        try { found = await searchPlaces(query); cache.set('osm', query, found); }
-        catch (err) {
-          console.error(err);
-          if (seq === searchSeq) toast('검색에 실패했어요. 잠시 후 다시 시도해 주세요', { kind: 'error' });
-          return;
-        }
-      }
-      if (seq === searchSeq) showResults(found.map(osmResult), { osm: true });
-    };
-    // 오늘 구글 자동완성이나 위치 확인 한도를 다 썼으면 처음부터 OpenStreetMap (구글 결과는 골라도 위치를 못 받는다)
-    if (pickSearchSource({ placesHit: isQuotaHit('places'), detailsHit: isQuotaHit('details') }) === 'osm') {
-      if (explicit || cache.get('osm', query)) await runOsm();
-      else showResults([osmPrompt(query)]);
-      return;
-    }
-    if (!explicit && !isSearchable(query)) return; // "센소ㅈ" 처럼 아직 치는 중이면 지난 결과를 그대로 둔다
-    let found = cache.get('google', query);
-    if (!found) {
-      try { found = await placeSearch.suggest(query, { near }); cache.set('google', query, found); }
-      catch (err) {
-        // 구글 검색이 안 되면(하루 한도 초과, 네트워크) OpenStreetMap 으로. 입력 중이면 엔터를 기다린다
-        console.warn('places search', err);
-        notifyQuota('places', err);
-        if (seq !== searchSeq) return;
-        if (explicit) await runOsm();
-        else showResults([osmPrompt(query)]);
-        return;
-      }
-    }
-    if (seq === searchSeq) showResults(found.map(googleResult));
-  }
-  const runSearch = debounce((q) => doSearch(q), 600);
-  // 붙여넣기는 paste(바로 처리)와 input(0.6초 뒤 검색) 두 이벤트로 온다. paste 에서 처리한 링크는 검색 쪽에서 다시 처리하지 않는다
-  // (안 그러면 같은 링크를 두 번 따라가 안내가 두 번 뜬다). 같은 링크를 다시 붙여넣으면 paste 가 다시 처리한다.
-  let handledText = null;
-  const handlePasted = (text) => { if (!applyPastedCoords(text)) return false; handledText = String(text).trim(); return true; };
-  search.addEventListener('input', () => runSearch(search.value));
-  // 검색칸의 엔터는 장소 저장이 아니라 바로 검색 (한글 조합을 확정하는 엔터는 확정만)
-  search.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    if (!e.isComposing) doSearch(search.value, { explicit: true });
-  });
-  search.addEventListener('paste', () => setTimeout(() => handlePasted(search.value), 0));
-  // 이미 위치가 정해진 장소면 Google 지도의 그 장소 페이지(사진·평점·영업시간)를 바로 연다
-  const googleBtn = el('a', {
-    class: 'btn btn-sm', target: '_blank', rel: 'noopener', href: googleMapsSearchUrl(''),
-    onClick: (e) => {
-      const q = name.value.trim() || search.value.trim();
-      e.currentTarget.href = draft.placeId || draft.lat != null
-        ? googleMapsPlaceUrl({ placeId: draft.placeId, name: q, lat: draft.lat, lng: draft.lng })
-        : googleMapsSearchUrl(search.value.trim() || q);
-    },
-  }, icon('map'), 'Google 지도에서 찾기');
-  const directionsBtn = el('a', { class: 'btn btn-sm', target: '_blank', rel: 'noopener', href: '#', hidden: true, title: '현재 위치에서 여기까지' }, '여기로 길찾기');
-  const hint = el('p', { class: 'muted ps-hint', text: 'Google 지도 앱에서 "공유"로 복사한 내용을 붙여넣으면 그 이름으로 검색해요. 주소창의 긴 링크나 "위도, 경도"는 바로 핀이 찍혀요.' });
   const overlay = el('div', { class: 'sheet-overlay' });
-  let sheetHead = null;
-  const form = el('form', { class: 'sheet' });
+  // 화면 낭독기·키보드에 "대화상자"로 알린다. 뒤 화면(#app)은 창이 열린 동안 inert 로 잠가 포커스가 창 밖으로 나가지 않는다
+  const form = el('form', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabindex: '-1' });
   const onKey = (e) => { if (e.key === 'Escape' && sheetEntry.isTop()) requestClose(); }; // 위에 확인 창·사진이 떠 있으면 그것만 닫힌다
-  form.addEventListener('input', (e) => { if (e.target !== search) markDirty(); }); // 검색어 입력은 편집이 아니다
-  form.addEventListener('change', (e) => { if (e.target !== search && e.target !== fileInput) markDirty(); });
+  form.addEventListener('input', (e) => { if (e.target !== location?.search) markDirty(); }); // 검색어 입력은 편집이 아니다
+  form.addEventListener('change', (e) => { if (e.target !== location?.search && e.target.type !== 'file') markDirty(); });
+
+  const app = document.getElementById('app');
+  const opener = document.activeElement; // 닫으면 포커스를 연 자리(일정의 그 항목)로 돌려준다
   let closed = false;
   const backdrop = sheetBackdrop(); // 폰: 시트가 올라오면 뒤 화면이 살짝 작아진다
   // 바로 닫기 (저장 뒤, 다른 장소를 열 때, 화면을 떠날 때). 아래로 내려가며 사라진다
@@ -386,14 +119,20 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
     closed = true;
     sheetEntry.release();
     document.removeEventListener('keydown', onKey);
-    document.removeEventListener('paste', onPaste);
-    if (unsubPhotos) unsubPhotos();
+    photos?.dispose();
+    if (app) app.inert = false;
+    // 저장하면 일정이 다시 그려져 연 버튼이 새 것으로 바뀌므로, 한 박자 뒤에 지금 화면의 그 항목을 찾아 돌려준다
+    requestAnimationFrame(() => {
+      if (document.querySelector('.sheet-overlay.open')) return; // 그 사이 다른 창이 열렸다
+      const item = place ? document.querySelector(`[data-id="${place.id}"] .tl-open, [data-id="${place.id}"] .tl-body`) : null;
+      (item ?? (opener?.isConnected ? opener : null))?.focus?.({ preventScroll: true });
+    });
     overlay.style.background = '';
     form.style.transition = ''; overlay.style.transition = ''; form.style.transform = ''; // 끄던 자리에서 그대로 아래로 내려간다
     overlay.classList.remove('open');
     overlay.classList.add('closing');
     backdrop.close();
-    setTimeout(() => { overlay.remove(); revokeAll(); }, 320);
+    setTimeout(() => overlay.remove(), 320);
   }
   // 사용자가 닫을 때 (바깥·닫기·취소·Esc·뒤로가기·아래로 쓸기): 저장 안 한 편집이 있으면 한 번 묻는다
   async function requestClose() {
@@ -409,31 +148,39 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
   let sheetEntry = overlays.push(() => requestClose()); // 안드로이드 뒤로가기로 닫힌다
   document.addEventListener('keydown', onKey);
 
+  // 창을 연 시점의 값. 저장할 때 이것과 달라진 필드만 쓴다 — 그 사이 동행이 고친 다른 필드(메모 등)를 덮어쓰지 않게
+  const base = place ? {
+    name: place.name ?? '', time: place.time ?? null, stayMinutes: place.stayMinutes ?? null, category: place.category ?? 'sight', memo: place.memo ?? '',
+    lat: place.lat ?? null, lng: place.lng ?? null, address: place.address ?? null, placeId: place.placeId ?? null,
+  } : null;
+
   onSubmit(form, async (e) => { // 저장 중 연타 막기
     e.preventDefault();
+    if (mode === 'view') return;
     const data = noteMode
-      ? { name: name.value.trim(), time: time.value || null, stayMinutes: null, category: 'note', memo: memo.value, lat: null, lng: null, address: null, photos: [] }
+      ? { name: name.value.trim(), time: time.value || null, stayMinutes: null, category: 'note', memo: memo.value, lat: null, lng: null, address: null }
       : {
         name: name.value.trim(), time: time.value || null,
         stayMinutes: stay.value === '' ? null : Number(stay.value),
         category: draft.category, memo: memo.value,
-        lat: draft.lat, lng: draft.lng, address: draft.address, placeId: draft.placeId, photos: draft.photos,
+        lat: draft.lat, lng: draft.lng, address: draft.address, placeId: draft.placeId,
       };
     if (!data.name) { toast(noteMode ? '메모 내용을 입력해 주세요' : '장소 이름을 입력해 주세요', { kind: 'error' }); name.focus(); return; }
     try {
       const target = chosenDayId();
       const moved = place && target !== (place.dayId ?? null);
       if (place) {
-        await updatePlace(tripId, place.id, data);
+        const changes = changedFields(base, data);
+        if (hasChanges(changes)) await updatePlace(tripId, place.id, changes);
         if (moved) await movePlaceToDay(tripId, place.id, target);
       } else if (createdId) {
         await updatePlace(tripId, createdId, data);
         if (target !== createdDayId) { await movePlaceToDay(tripId, createdId, target); createdDayId = target; }
-        if (pendingPhotos.length) await uploadPhotos(createdId, pendingPhotos);
+        if (photos?.hasPending()) await photos.uploadPending(createdId);
       } else {
         createdId = await addPlace(tripId, { dayId: target, ...data });
         createdDayId = target;
-        if (pendingPhotos.length) await uploadPhotos(createdId, pendingPhotos);
+        if (photos?.hasPending()) await photos.uploadPending(createdId);
       }
       close(); // 먼저 닫아야 알림이 (내려가는) 시트 버튼 위가 아닌 제자리에 뜬다
       toast(place ? (moved ? (target ? '다른 날로 옮겼어요' : '보관함으로 옮겼어요') : '저장했어요')
@@ -443,104 +190,58 @@ export function openPlaceSheet({ tripId, dayId, dayIndex, place = null, kind = '
       toast('저장하지 못했어요', { kind: 'error' });
     }
   });
+  // 새 장소를 만든 뒤 사진 올리기가 실패하면, 다시 저장할 때 또 만들지 않고 이 장소를 고친다 (그 사이 날짜를 바꾸면 그 날 끝으로 옮긴다)
+  let createdId = null;
+  let createdDayId = null;
 
-  const dayField = daySelect ? el('div', { class: 'field' }, el('label', { for: 'ps-day', text: noteMode ? '날짜 (다른 Day로 옮기기)' : '날짜' }), daySelect) : null;
-  const where = currentDayId == null ? '보관함' : `Day ${dayIndex + 1}`;
-  const title = place ? (noteMode ? '메모 편집' : '장소 편집') : `${noteMode ? '메모' : '장소'} 추가 · ${where}`;
-  const body = noteMode
-    ? el('div', { class: 'sheet-body' },
-      el('div', { class: 'field' }, el('label', { for: 'ps-name', text: '메모 내용' }), name),
-      el('div', { class: 'field' }, el('label', { for: 'ps-time', text: '시간 (선택)' }), time),
-      dayField,
-      el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '자세한 내용 (선택)' }), memo))
-    : el('div', { class: 'sheet-body' },
-      el('div', { class: 'field' },
-        el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-search', text: '장소 검색' }), el('div', { class: 'ps-head-actions' }, directionsBtn, googleBtn)),
-        search, results, location, hint),
-      el('div', { class: 'field' }, el('label', { for: 'ps-name', text: '이름' }), name),
-      el('div', { class: 'form-grid' },
-        el('div', { class: 'field' }, el('label', { for: 'ps-time', text: '시간' }), time),
-        el('div', { class: 'field' }, el('label', { for: 'ps-stay', text: '머무는 시간(분)' }), stay)),
-      dayField,
-      el('div', { class: 'field' }, el('label', { text: '분류' }), categoryRow),
-      el('div', { class: 'field' }, el('label', { for: 'ps-memo', text: '메모' }), memo, memoLinks),
-      el('div', { class: 'field' },
-        el('div', { class: 'ps-search-head' }, el('label', { for: 'ps-photo', text: '사진' }), el('div', { class: 'ps-photo-actions' }, uploadBtn, clipboardBtn)),
-        photoList, fileInput, photoStatus,
-        el('p', { class: 'muted ps-hint', text: isTouchDevice() ? '긴 변 1280px로 줄여서 저장돼요.' : '긴 변 1280px로 줄여서 저장돼요. 복사한 사진은 Ctrl+V로도 붙여넣을 수 있어요.' })));
-  form.append(
-    sheetHead = el('div', { class: 'sheet-head' },
-      el('h2', { text: title }),
-      el('button', { type: 'button', class: 'btn btn-icon', 'aria-label': '닫기', onClick: () => requestClose() }, icon('close'))),
-    body,
-    el('div', { class: 'sheet-foot' },
-      place ? el('button', {
-        type: 'button', class: 'btn btn-danger',
-        onClick: async () => {
-          if (!(await confirmDialog(`'${place.name}'을(를) 일정에서 삭제할까요?`))) return;
-          try { await deletePlace(tripId, place.id); close(); toast('삭제했어요'); }
-          catch (err) { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); }
-        },
-      }, '삭제') : el('span'),
-      el('div', { class: 'sheet-foot-right' },
-        el('button', { type: 'button', class: 'btn', onClick: () => requestClose() }, '취소'),
-        el('button', { type: 'submit', class: 'btn btn-primary' }, place ? '저장' : (noteMode ? '메모 추가' : '추가')))));
+  // 보기 ↔ 편집. 버튼 줄도 함께 바뀐다: 보기는 [닫기] [편집], 편집은 [삭제] … [취소] [저장]
+  const deleteBtn = place ? el('button', {
+    type: 'button', class: 'btn btn-danger',
+    onClick: async () => {
+      if (!(await confirmDialog(`'${place.name}'을(를) 일정에서 삭제할까요?`))) return;
+      try { await deletePlace(tripId, place.id); close(); toast('삭제했어요'); }
+      catch (err) { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); }
+    },
+  }, '삭제') : el('span');
+  const cancelBtn = el('button', { type: 'button', class: 'btn', onClick: () => requestClose() }, '취소');
+  const saveBtn = el('button', { type: 'submit', class: 'btn btn-primary' }, place ? '저장' : (noteMode ? '메모 추가' : '추가'));
+  const closeBtn = el('button', { type: 'button', class: 'btn', onClick: () => requestClose() }, '닫기');
+  const editBtn = el('button', { type: 'button', class: 'btn btn-primary', onClick: () => setMode('edit') }, icon('edit'), '편집');
+  const foot = el('div', { class: 'sheet-foot' });
+  let mode = null;
+  function setMode(next) {
+    mode = next;
+    const viewing = mode === 'view';
+    form.classList.toggle('viewing', viewing);
+    if (view) view.hidden = !viewing;
+    editBox.hidden = viewing;
+    heading.textContent = viewing ? (place.name || (noteMode ? '메모' : '(이름 없음)')) : editTitle;
+    foot.replaceChildren(...(viewing
+      ? [el('span'), el('div', { class: 'sheet-foot-right' }, closeBtn, editBtn)]
+      : [deleteBtn, el('div', { class: 'sheet-foot-right' }, cancelBtn, saveBtn)]));
+    if (!viewing && place) { body.scrollTop = 0; form.focus({ preventScroll: true }); }
+  }
 
-  drawLocation(); drawCategories(); drawPhotos();
+  const sheetHead = el('div', { class: 'sheet-head' }, heading,
+    el('button', { type: 'button', class: 'btn btn-icon', 'aria-label': '닫기', onClick: () => requestClose() }, icon('close')));
+  form.append(sheetHead, body, foot);
+  setMode(place ? 'view' : 'edit');
+
   overlay.append(form);
   document.body.append(overlay);
+  if (app) app.inert = true;
   restyle(form);
   overlay.classList.add('open');
   backdrop.open();
-  enableSwipeClose(sheetHead);
-  // 새로 추가할 때만 입력칸에 커서 (있는 장소를 보려고 열었을 때 키보드가 화면 절반을 가리지 않게)
-  if (!place) (noteMode ? name : search).focus();
+  // 폰(아래 시트): 머리 부분을 끌어 닫는다. 저장 안 한 편집이 있으면 제자리에서 한 번 묻는다
+  enableSwipeClose({
+    handle: sheetHead, sheet: form, overlay, backdrop, isClosed: () => closed,
+    onDismiss: (settle) => { if (dirty) { settle(); requestClose(); } else close(); },
+  });
+  // 새로 추가할 때만 입력칸에 커서 (있는 장소를 보려고 열었을 때 키보드가 화면 절반을 가리지 않게). 그 밖에는 창 자체에 포커스
+  if (!place) (noteMode ? name : location.search).focus();
+  else form.focus({ preventScroll: true });
 
-  // 폰(아래 시트): 머리 부분을 끌어 닫는다 (Vaul 방식). 높이의 25% 넘게 끌거나 아래로 휙 튕기면 닫히고, 아니면 제자리로.
-  // 손가락을 1:1 로 따라오고, 위로 끌면 고무줄처럼 버틴다. 끄는 만큼 배경 어둡기와 뒤 화면 줄어듦이 풀린다
-  function enableSwipeClose(handle) {
-    let startY = null;
-    let dy = 0;
-    let samples = [];
-    let height = 1;
-    const follow = (offset) => {
-      form.style.transform = `translateY(${offset}px)`;
-      const shown = 1 - Math.min(Math.max(offset, 0) / height, 1); // 1 = 다 올라옴
-      overlay.style.background = `rgba(0, 0, 0, ${(0.3 * shown).toFixed(3)})`;
-      backdrop.drag(shown);
-    };
-    const settle = () => { // 제자리로 (transition 을 되살려 부드럽게)
-      form.style.transition = ''; overlay.style.transition = '';
-      form.style.transform = ''; overlay.style.background = '';
-      backdrop.release(1);
-    };
-    handle.addEventListener('pointerdown', (e) => {
-      if (closed || !globalThis.matchMedia?.('(max-width: 900px)').matches || e.target.closest('button')) return;
-      startY = e.clientY; dy = 0;
-      samples = [{ t: e.timeStamp, y: e.clientY }];
-      height = form.getBoundingClientRect().height || 1;
-      form.style.transition = 'none'; overlay.style.transition = 'none';
-      try { handle.setPointerCapture(e.pointerId); } catch { /* 합성 이벤트면 무시 */ }
-    });
-    handle.addEventListener('pointermove', (e) => {
-      if (startY == null || closed) return; // 끄는 도중에 닫혔으면(뒤로가기·화면 이동) 따라가지 않는다
-      dy = e.clientY - startY;
-      samples.push({ t: e.timeStamp, y: e.clientY });
-      if (samples.length > 20) samples.shift();
-      follow(dy >= 0 ? dy : rubberBand(dy, 40));
-    });
-    const end = (e) => {
-      if (startY == null) return;
-      startY = null;
-      if (closed) return;
-      if (!shouldDismiss({ distance: dy, velocity: velocity(samples, 100, e.timeStamp), size: height })) { settle(); return; }
-      if (dirty) { settle(); requestClose(); return; } // 저장 안 한 편집이 있으면 제자리에서 한 번 묻는다
-      close();
-    };
-    handle.addEventListener('pointerup', end);
-    handle.addEventListener('pointercancel', end);
-  }
-  // 공유로 받은 텍스트: 좌표·짧은 링크면 그대로 처리, 아니면(그냥 장소 이름 등) 그 텍스트로 검색
-  if (sharedText && !noteMode) { search.value = sharedText; setTimeout(() => { if (!handlePasted(sharedText)) doSearch(sharedText, { explicit: true }); }, 0); }
+  if (sharedText && location) location.applyShared(sharedText);
   return close;
 }

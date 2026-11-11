@@ -44,6 +44,7 @@ const ID = 'x'.repeat(20);
 const TS = { seconds: 0, nanoseconds: 0 };
 const BLOB_TEMPLATES = {
   photos: { placeId: ID, data: new Uint8Array(0), width: 0, height: 0, createdAt: TS, size: 0 },
+  thumbs: { placeId: ID, data: new Uint8Array(0), width: 0, height: 0, createdAt: TS, size: 0 },
   files: { reservationId: ID, name: 'x'.repeat(30), type: 'application/pdf', size: 0, data: new Uint8Array(0), createdAt: TS },
 };
 

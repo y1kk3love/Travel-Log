@@ -1,5 +1,7 @@
-name: Test
-# main 에 올리면 웹(GitHub Pages)에 바로 배포되므로, 올릴 때마다 테스트를 돌려 깨진 걸 바로 알 수 있게 한다.
+name: Test and deploy
+# main 에 올리면 검사(코드 검사·단위 테스트·보안 규칙·화면 테스트)를 돌리고, 모두 통과했을 때만 웹(GitHub Pages)에 배포한다.
+# 하나라도 실패하면 배포하지 않아 사이트는 이전 상태 그대로 남는다. PR 에서는 검사만 돈다.
+# (저장소 Settings → Pages → Source 가 "GitHub Actions" 여야 한다. "Deploy from a branch" 면 검사와 상관없이 바로 배포된다)
 on:
   push:
     branches: [main]
@@ -14,6 +16,7 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: 24, cache: npm }
       - run: npm ci
+      - run: npm run lint
       - run: npm test
 
   # 보안 규칙 테스트: Firestore 에뮬레이터(Java 21)에서 demo 프로젝트로 돈다 (로그인·과금 없음)
@@ -31,3 +34,41 @@ jobs:
           key: firebase-emulators-${{ hashFiles('package-lock.json') }}
       - run: npm ci
       - run: npm run test:rules
+
+  # 화면 테스트: 실제 화면 코드를 가짜 데이터(harness/)로 띄워 주요 흐름을 눌러 본다. 러너에 있는 크롬을 쓴다 (내려받지 않음)
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npm run test:ui
+        env:
+          PW_CHANNEL: chrome
+
+  # 배포: 위 검사가 모두 통과한 main 만. 앱 파일만 모아(scripts/build-site.js) Pages 에 올린다
+  deploy:
+    needs: [test, rules, ui]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 24 }
+      - run: node scripts/build-site.js _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with: { path: _site }
+      - id: deployment
+        uses: actions/deploy-pages@v4

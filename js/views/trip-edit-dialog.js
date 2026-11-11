@@ -3,7 +3,7 @@ import { updateTripSchedule, countPlacesInDays, watchDays } from '../db.js';
 import { dayList } from '../lib/dates.js';
 import { planScheduleChange } from '../lib/schedule.js';
 
-// 여행 제목·기간 수정 창 (사이트 주인만 연다).
+// 여행 제목·기간 수정 창 (여행을 만든 사람과 사이트 주인이 연다, lib/members.js canEditTripInfo).
 export function openTripEditDialog(trip) {
   const title = el('input', { class: 'input', id: 'te-title', value: trip.title, required: true });
   const start = el('input', { class: 'input', id: 'te-start', type: 'date', value: trip.startDate, required: true });

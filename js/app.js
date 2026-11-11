@@ -1,7 +1,7 @@
 import { watchAuth, signIn, signOut, isSiteOwner } from './auth.js';
 import { el, clear, toast, confirmDialog, closeTopOverlay } from './ui.js';
 import { startRouter } from './router.js';
-import { canUseApp, ensureProfile, onLateWriteError } from './db.js';
+import { canUseApp, ensureProfile, onLateWriteError, sweepCleanups } from './db.js';
 import { isNative, takeSharedText, onResume, onNotificationTap, onBackButton, exitApp } from './native.js';
 import { isHomeHash } from './lib/nav.js';
 import { shareFromQuery } from './lib/share.js';
@@ -72,10 +72,15 @@ function renderApp() {
   refreshAlarms();
   checkMinVersion();
   checkForUpdate();
+  // 오프라인·느린 망에서 지운 장소·예약에 딸려 서버에 남은 사진·서류를 마저 지운다 (지금, 그리고 다시 연결될 때)
+  const sweep = () => { sweepCleanups().catch((err) => console.warn('cleanup', err)); };
+  sweep();
+  window.addEventListener('online', sweep);
+  disposers.push(() => window.removeEventListener('online', sweep));
   // 로그아웃→로그인을 반복해도 리스너가 쌓이지 않게, 라우터와 함께 정리한다
   disposers.push(
     onNotificationTap(({ tripId, placeId }) => { if (tripId) navigate(placeId ? `/trip/${tripId}/planner/${placeId}` : `/trip/${tripId}`); }),
-    onResume(() => { goShare(); refreshAlarms(); checkMinVersion(); checkForUpdate(); }));
+    onResume(() => { goShare(); refreshAlarms(); checkMinVersion(); checkForUpdate(); sweep(); }));
   stopApp = () => { disposers.forEach((d) => d?.()); stopApp = () => {}; };
 }
 
@@ -110,5 +115,5 @@ watchAuth(async (user) => {
   if (!allowed) return renderNoAccess(user);
   await ensureProfile(user); // 첫 로그인이면 Google 이름을 기본 닉네임으로
   if (seq !== authSeq) return;
-  renderApp(user);
+  renderApp();
 });

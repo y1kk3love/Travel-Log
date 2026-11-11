@@ -137,8 +137,13 @@ export function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-export function photoPath(tripId, filename) {
-  return `photos/${encodeURIComponent(tripId)}/${encodeURIComponent(filename)}`;
+// 탭 화면(예약·지출·체크리스트)의 머리 줄: 건수와 추가 버튼을 한 줄에. 큰 제목은 탭 이름과 겹쳐서 화면 낭독기용으로만 둔다
+// (폰에서 첫 내용이 화면 중간에서야 시작하던 것을 줄인다). 추가 버튼은 일정의 "장소 추가"와 같은 연파랑
+export function tabHead({ title, count, addLabel, onAdd }) {
+  return el('div', { class: 'tab-head' },
+    el('h2', { class: 'visually-hidden', text: title }),
+    el('p', { class: 'muted tab-count', text: count }),
+    el('button', { type: 'button', class: 'btn btn-tint btn-sm tab-add', onClick: onAdd }, icon('plus'), addLabel));
 }
 
 // 알림(토스트)은 js/toast.js (쌓기·밀어 닫기·멈춤). 여기서 그대로 내보내 기존 import 를 유지한다

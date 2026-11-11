@@ -1,4 +1,4 @@
-import { el, clear, toast, confirmDialog, openModal, icon, linkedText, openLightbox, onSubmit } from '../ui.js';
+import { el, clear, toast, confirmDialog, openModal, icon, linkedText, openLightbox, onSubmit, tabHead } from '../ui.js';
 import {
   watchReservations, saveReservation, deleteReservation, watchPlaces, watchDays,
   addReservationFile, getReservationFile, deleteReservationFile, FILE_MAX_BYTES, updatePlace,
@@ -10,6 +10,7 @@ import { compressImage } from '../photo.js';
 import { diffDays } from '../lib/dates.js';
 import { safeFileType } from '../lib/file-type.js';
 import { linkedIds, chooseLink, linkFields } from '../lib/reservation-links.js';
+import { changedFields, hasChanges } from '../lib/changes.js';
 import { enter, skeleton } from '../motion.js';
 
 const FILE_ACCEPT = 'image/*,application/pdf';
@@ -61,9 +62,7 @@ function draw(main, tripId, state) {
   const sorted = [...state.reservations].sort((a, b) => String(a.datetime ?? '9').localeCompare(String(b.datetime ?? '9')));
   const cards = sorted.map((r) => card(tripId, state, r));
   main.append(
-    el('div', { class: 'page-head' },
-      el('div', {}, el('h2', { class: 'checklist-title', text: '예약' }), el('p', { class: 'muted', text: `${sorted.length}건` })),
-      el('button', { class: 'btn', onClick: () => openDialog(tripId, state) }, icon('plus'), '예약 추가')),
+    tabHead({ title: '예약', count: `예약 ${sorted.length}건`, addLabel: '예약 추가', onAdd: () => openDialog(tripId, state) }),
     el('div', { class: 'reservation-list' }, ...cards),
     ...(sorted.length === 0 ? [el('p', { class: 'muted', text: '항공, 숙소, 식당 예약을 적어 두면 여행 중에 바로 찾을 수 있어요.' })] : []));
   enter(state.scope, sorted.map((r, i) => ({ el: cards[i], key: r.id })));
@@ -182,16 +181,25 @@ function keyCard(tripId, r, linked, actions) {
 }
 
 // 예약 서류: 항공권 PDF·바우처·여권 사본을 붙여 두고 여행 중에 바로 연다 (한 번 연 서류는 오프라인에서도 열린다)
+// 올리는 중 표시 (예약 아이디 → 글자). 서류 하나가 올라갈 때마다 목록이 다시 그려져 카드가 새로 만들어지므로,
+// 화면 요소가 아니라 여기에 두고 지금 화면의 그 카드에 적는다 (예전에는 둘째 서류부터 진행 표시가 사라졌다)
+const uploading = new Map();
+function setUploading(tripId, reservationId, text) {
+  const key = `${tripId}/${reservationId}`;
+  if (text) uploading.set(key, text); else uploading.delete(key);
+  document.querySelectorAll(`.reservation[data-id="${reservationId}"] .file-status`).forEach((n) => { n.textContent = text; });
+}
+
 function filesField(tripId, r) {
   const files = r.files ?? [];
   const input = el('input', { type: 'file', accept: FILE_ACCEPT, multiple: true, class: 'visually-hidden' });
-  const status = el('span', { class: 'muted' });
+  const status = el('span', { class: 'muted file-status', 'aria-live': 'polite', text: uploading.get(`${tripId}/${r.id}`) ?? '' });
   input.addEventListener('change', async () => {
     const list = [...input.files];
     input.value = '';
     for (let i = 0; i < list.length; i++) {
       const file = list[i];
-      status.textContent = `올리는 중 ${i + 1} / ${list.length}`;
+      setUploading(tripId, r.id, `올리는 중 ${i + 1} / ${list.length}`);
       try {
         const payload = await prepareFile(file);
         await addReservationFile(tripId, r.id, payload);
@@ -201,7 +209,7 @@ function filesField(tripId, r) {
           : err?.message === 'unsupported' ? `'${file.name}'은(는) 사진이나 PDF가 아니에요` : `'${file.name}'을(를) 올리지 못했어요`, { kind: 'error', ms: 5000 });
       }
     }
-    status.textContent = '';
+    setUploading(tripId, r.id, '');
   });
   return el('div', { class: 'file-field' },
     el('div', { class: 'file-chips' },
@@ -348,7 +356,9 @@ function openDialog(tripId, state, existing = null) {
         // 하나짜리 연결에서 일시를 고쳤으면 연결된 일정의 시각(날짜가 바뀌면 Day 도)을 따라 옮긴다. 여러 개짜리는 손대지 않는다
         await updatePlace(tripId, data.linkedPlaceId, { time: specs[0].time, dayId: specs[0].dayId });
       }
-      await saveReservation(tripId, existing?.id ?? null, data, newPlaces);
+      // 있는 예약은 바꾼 필드만 저장한다 (그 사이 동행이 고친 메모·예약번호를 옛 값으로 덮어쓰지 않게)
+      const payload = existing ? changedFields(existing, data) : data;
+      if (!existing || hasChanges(payload) || newPlaces.length) await saveReservation(tripId, existing?.id ?? null, payload, newPlaces);
       if (newPlaces.length) {
         const dayNums = newPlaces.map((p) => state.days.findIndex((d) => d.id === p.dayId) + 1);
         toast(newPlaces.length === 1 ? `Day ${dayNums[0]} 일정에 넣었어요` : `Day ${dayNums[0]}~${dayNums[dayNums.length - 1]} 일정에 ${newPlaces.length}개 넣었어요`);

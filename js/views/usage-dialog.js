@@ -5,6 +5,8 @@ import { alarmsStatus } from '../alarms.js';
 import { appVersion, isNative } from '../native.js';
 import { estimateStorage } from '../db.js';
 import { firebaseConfig } from '../firebase-config.js';
+import { auth } from '../firebase.js';
+import { isSiteOwner } from '../auth.js';
 import { formatBytes, storagePercent, STORAGE_LIMIT_BYTES } from '../lib/firestore-size.js';
 
 // 사이트 주인용: Google 지도 API 하루 한도와 콘솔 바로가기.
@@ -40,7 +42,7 @@ function storageSection(link) {
     onClick: async () => {
       calcBtn.disabled = true; status.textContent = '계산 중…';
       try {
-        const r = await estimateStorage();
+        const r = await estimateStorage({ all: isSiteOwner(auth.currentUser) }); // 사이트 주인은 동행이 아닌 여행까지 전부
         const c = { ...r, at: Date.now() };
         try { localStorage.setItem(STORAGE_CACHE, JSON.stringify(c)); } catch { /* 저장 못 해도 됨 */ }
         show(c); calcBtn.textContent = '다시 계산';

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<!-- 화면 확인용: 로그인·Firebase 없이 실제 화면 코드를 가짜 데이터로 띄운다 (http://localhost:8080/harness/).
+     index.html 과 같되, 아래 import map 이 js/firebase.js·db.js·auth.js 를 가짜(harness/fake-*.js)로 바꾼다. 사이트에는 배포되지 않는다 -->
+<script type="importmap">{ "imports": { "/js/firebase.js": "/harness/fake-firebase.js", "/js/db.js": "/harness/fake-db.js", "/js/auth.js": "/harness/fake-auth.js" } }</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>여행 로그</title>
+<meta name="description" content="날짜별 일정, 지도 동선, 체크리스트와 예약, 지출까지 한 곳에서 관리하는 여행 플래너">
+<!-- 카카오톡·슬랙 등 링크 미리보기 (Open Graph). 이미지는 절대 주소여야 한다 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="여행 로그">
+<meta property="og:title" content="여행 로그">
+<meta property="og:description" content="날짜별 일정, 지도 동선, 체크리스트와 예약, 지출까지 한 곳에서 관리하는 여행 플래너">
+<meta property="og:url" content="https://y1kk3love.github.io/Travel-Log/">
+<meta property="og:image" content="https://y1kk3love.github.io/Travel-Log/icons/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="여행 로그">
+<meta name="twitter:description" content="날짜별 일정, 지도 동선, 체크리스트와 예약, 지출까지 한 곳에서 관리하는 여행 플래너">
+<meta name="twitter:image" content="https://y1kk3love.github.io/Travel-Log/icons/og-image.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<meta name="theme-color" content="#0A6CFF">
+<meta name="color-scheme" content="light dark"><!-- CSS 가 오기 전에도 다크 모드 폰에서 흰 화면이 번쩍이지 않게 -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="여행 로그">
+<!-- 글꼴: Pretendard (한국어에서 iOS 기본 글꼴과 가장 비슷)와 도장·영수증용 Do Hyeon.
+     화면을 막지 않게 늦게 붙인다(그 사이엔 기기 글꼴). crossorigin 이라 서비스 워커가 캐시해 오프라인에서도 쓴다.
+     안드로이드 앱은 빌드 때 이 둘을 받아 APK 안에 넣는다 (scripts/build-web.js vendorFonts) -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap" crossorigin="anonymous" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div id="app"><div class="screen-center"><p class="muted">불러오는 중…</p></div></div>
+<div id="toast-root" popover="manual" aria-live="polite"></div>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

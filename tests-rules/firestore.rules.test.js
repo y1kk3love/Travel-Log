@@ -39,7 +39,7 @@ beforeEach(async () => {
   });
 });
 
-const as = (uid, email) => env.authenticatedContext(uid, { email }).firestore();
+const as = (uid, email, verified = true) => env.authenticatedContext(uid, { email, email_verified: verified }).firestore(); // Google 로그인은 늘 확인된 이메일
 const owner = () => as(OWNER_UID, OWNER);
 const friend = () => as('friend-uid', FRIEND);
 const creator = () => as('creator-uid', CREATOR);
@@ -199,4 +199,56 @@ test('관리자 권한은 사이트 주인만: 여행 만들기 켜진 계정도
   await assertFails(getDoc(doc(creator(), 'trips', 'O1')));
   await assertFails(getDocs(collection(friend(), 'trips', 'O1', 'places')));
   await assertFails(deleteDoc(doc(friend(), 'trips', 'O1')));
+});
+
+test('이메일이 확인되지 않은 계정은 동행 이메일을 써도 여행을 볼 수 없다 (다른 로그인 방식이 켜져도 사칭 못 하게)', async () => {
+  const fake = as('fake-uid', FRIEND, false);
+  await assertFails(getDoc(doc(fake, 'trips', 'T1')));
+  await assertFails(getDocs(collection(fake, 'trips', 'T1', 'places')));
+  await assertFails(setDoc(doc(fake, 'trips', 'T1', 'places', 'X'), place()));
+});
+
+test('썸네일: 사진과 같은 필드, 60 KiB 까지, size 는 실제 길이', async () => {
+  const db = friend();
+  const thumb = (n, size = n) => ({ placeId: 'P1', data: bytes(n), width: 240, height: 180, size, createdAt: serverTimestamp() });
+  await assertSucceeds(setDoc(doc(db, 'trips', 'T1', 'thumbs', 'PH1'), thumb(12000)));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'thumbs', 'PH2'), thumb(60 * 1024 + 1)));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'thumbs', 'PH3'), thumb(1000, 5)));
+  await assertFails(setDoc(doc(stranger(), 'trips', 'T1', 'thumbs', 'PH4'), thumb(1000)));
+  // 사진·썸네일·장소의 사진 수를 한 배치로 (사진 올리기 흐름)
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'trips', 'T1', 'photos', 'PH9'), { placeId: 'P1', data: bytes(5000), width: 1280, height: 960, size: 5000, createdAt: serverTimestamp() });
+  batch.set(doc(db, 'trips', 'T1', 'thumbs', 'PH9'), thumb(900));
+  batch.update(doc(db, 'trips', 'T1', 'places', 'P1'), { photoCount: 1 });
+  await assertSucceeds(batch.commit());
+  await assertSucceeds(deleteDoc(doc(db, 'trips', 'T1', 'thumbs', 'PH9')));
+});
+
+test('체크리스트 "각자" 항목: personal·doneBy 를 쓸 수 있고, 모양이 다르면 막는다', async () => {
+  const db = friend();
+  const item = (extra = {}) => ({ group: '짐', groupOrder: 0, order: 0, text: '여권', done: false, ...extra });
+  await assertSucceeds(setDoc(doc(db, 'trips', 'T1', 'checklist', 'C1'), item({ personal: true, doneBy: [] })));
+  await assertSucceeds(updateDoc(doc(db, 'trips', 'T1', 'checklist', 'C1'), { doneBy: [FRIEND], done: false }));
+  await assertSucceeds(setDoc(doc(db, 'trips', 'T1', 'checklist', 'C2'), item())); // 예전 모양(필드 없음)도 그대로
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'checklist', 'C3'), item({ personal: 'yes' })));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'checklist', 'C4'), item({ personal: true, doneBy: 'me' })));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'checklist', 'C5'), item({ personal: true, doneBy: Array.from({ length: 31 }, (_, i) => `u${i}@x.com`) })));
+});
+
+test('형식: 좌표·순서·머무는 시간은 숫자, 예약 일시·지출 통화는 짧은 글자만', async () => {
+  const db = friend();
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'places', 'B1'), place({ lat: '34.6', lng: 135.5 })));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'places', 'B2'), place({ order: 'first' })));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'places', 'B3'), place({ stayMinutes: '90' })));
+  await assertSucceeds(setDoc(doc(db, 'trips', 'T1', 'places', 'G1'), place({ lat: 34.6, lng: 135.5, stayMinutes: 90, order: 1.5, photoCount: 2 })));
+  const resv = (extra = {}) => ({ type: 'etc', title: '식당', datetime: '2027-02-14T18:00', code: '', note: '', ...extra });
+  await assertSucceeds(setDoc(doc(db, 'trips', 'T1', 'reservations', 'G2'), resv()));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'reservations', 'B4'), resv({ datetime: 12345 })));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'reservations', 'B5'), resv({ fromAirport: 'x'.repeat(101) })));
+  const expense = (extra = {}) => ({ title: '라멘', amount: 3000, currency: 'JPY', category: 'food', date: '2027-02-14', paidBy: FRIEND, sharedWith: [FRIEND], note: '', createdAt: serverTimestamp(), ...extra });
+  await assertSucceeds(setDoc(doc(db, 'trips', 'T1', 'expenses', 'G3'), expense()));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'expenses', 'B6'), expense({ currency: 'x'.repeat(11) })));
+  await assertFails(setDoc(doc(db, 'trips', 'T1', 'expenses', 'B7'), expense({ date: 20270214 })));
+  // 환율 표는 통화 40개까지
+  await assertFails(updateDoc(doc(db, 'trips', 'T1'), { rates: Object.fromEntries(Array.from({ length: 41 }, (_, i) => [`C${i}`, 1])) }));
 });

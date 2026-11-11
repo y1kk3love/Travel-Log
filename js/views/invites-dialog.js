@@ -9,7 +9,7 @@ import { inviteShareButton, invitedToast } from './invite-share.js';
 export function openInvitesDialog() {
   const list = el('div', { class: 'member-list' });
   const input = el('input', { class: 'input', id: 'iv-email', type: 'email', placeholder: '초대할 Google 이메일', autocomplete: 'off' });
-  let profiles = {};
+  const profiles = {};
   let users = [];
 
   function draw() {
