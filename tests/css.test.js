@@ -28,6 +28,16 @@ test('글꼴·움직임: Pretendard 를 쓰고, 움직임 줄이기 설정을 �
   assert.match(css, /::view-transition/);
 });
 
+test('화면 전환(홈 ↔ 여행): 속도·흐림·블러·밀리는 거리는 --nav-* 변수 (harness 조절 창에서 골라 정한 값)', () => {
+  assert.match(css, /--nav-dur: 1s; --nav-fade: \.15; --nav-blur: 16px; --nav-shift: -60%;/);
+  assert.match(css, /::view-transition-old\(root\), ::view-transition-new\(root\) \{ animation-duration: var\(--nav-dur\);/);
+  assert.match(css, /@keyframes vt-out-left \{[^\n]*translateX\(var\(--nav-shift\)\); opacity: var\(--nav-fade\); filter: blur\(var\(--nav-blur\)\);/);
+  assert.match(css, /::view-transition-group\(trip-title\) \{ animation-duration: var\(--nav-dur\);/); // 제목이 이어지는 시간도 같이 간다
+  // 조절 창의 "처음 값"이 css 기본값과 같다
+  const tune = fs.readFileSync(new URL('../harness/tune-motion.js', import.meta.url), 'utf8');
+  assert.match(tune, /const DEFAULTS = \{ dur: 1000, fade: 0\.15, blur: 16, shift: 60 \};/);
+});
+
 // 규칙 부분: 토큰을 정하는 :root 블록(밝은 화면·어두운 화면)을 뺀 나머지
 const rulesOnly = css.replace(/\r\n/g, '\n').replace(/:root \{[\s\S]*?\n\s*\}/g, '');
 

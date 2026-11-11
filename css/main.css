@@ -18,6 +18,9 @@
   /* 움직임 기준 (Emil Kowalski·Apple HIG·Material 3): 열기는 빠르게 시작해 감속, 닫기는 더 짧게 가속, 시트·화면 전환은 iOS 곡선 */
   --ease-out: cubic-bezier(.23, 1, .32, 1); --ease-exit: cubic-bezier(.3, 0, .8, .15); --ease-sheet: cubic-bezier(.32, .72, 0, 1);
   --shadow-float: 0 8px 24px rgba(0, 0, 0, .14);
+  /* 화면 전환(홈 ↔ 여행): 들어오는 속도, 뒤로 물러나는 화면의 흐림(남는 불투명도)·블러·밀리는 거리.
+     harness/ 의 조절 창(harness/tune-motion.js)이 이 값들을 바꿔 가며 고를 수 있게 변수로 둔다 */
+  --nav-dur: 1s; --nav-fade: .15; --nav-blur: 16px; --nav-shift: -60%;
   /* 다크 모드에서 바뀌는 면·글자 (아래 prefers-color-scheme: dark 에서 다시 정한다) */
   --field: var(--bg); /* 흰 면 안의 입력칸·칩 */
   --inverse: #111111; --on-inverse: #FFFFFF; --on-inverse-muted: rgba(255, 255, 255, .7); --on-inverse-accent: #9FC4FF; /* 선택된 Day·오늘 배너처럼 뒤집힌 면 */
@@ -454,7 +457,7 @@ dialog > p + .dialog-actions .btn { flex: 1; }
 .update-banner .btn-primary { background: #fff; color: #0058D6; }
 
 /* ---- 화면 전환 (View Transitions): 앞으로 갈 땐 오른쪽에서, 뒤로 갈 땐 왼쪽에서 ---- */
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: .42s; animation-timing-function: var(--ease-sheet); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--nav-dur); animation-timing-function: var(--ease-sheet); }
 html[data-nav="back"]::view-transition-old(root) { z-index: 1; } /* 뒤로: 나가는 화면이 위에서 오른쪽으로 빠진다 */
 html[data-nav="forward"]::view-transition-new(root), html[data-nav="back"]::view-transition-old(root) { box-shadow: -10px 0 30px rgba(0, 0, 0, .14); }
 html[data-nav="forward"]::view-transition-old(root) { animation-name: vt-out-left; }
@@ -464,8 +467,8 @@ html[data-nav="back"]::view-transition-new(root) { animation-name: vt-in-left; }
 html[data-nav="same"]::view-transition-old(root) { animation-name: vt-fade-out; animation-duration: .18s; }
 html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; animation-duration: .22s; }
 @keyframes vt-in-right { from { transform: translateX(100%); } to { transform: none; } }
-@keyframes vt-out-left { from { transform: none; opacity: 1; } to { transform: translateX(-30%); opacity: .6; } }
-@keyframes vt-in-left { from { transform: translateX(-30%); opacity: .6; } to { transform: none; opacity: 1; } }
+@keyframes vt-out-left { from { transform: none; opacity: 1; filter: blur(0); } to { transform: translateX(var(--nav-shift)); opacity: var(--nav-fade); filter: blur(var(--nav-blur)); } }
+@keyframes vt-in-left { from { transform: translateX(var(--nav-shift)); opacity: var(--nav-fade); filter: blur(var(--nav-blur)); } to { transform: none; opacity: 1; filter: blur(0); } }
 @keyframes vt-out-right { from { transform: none; } to { transform: translateX(100%); } }
 @keyframes vt-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes vt-fade-out { from { opacity: 1; } to { opacity: 0; } }
@@ -792,8 +795,8 @@ dialog:not([open])::backdrop { background-color: rgba(0, 0, 0, 0); }
 .stat strong, .trip-stats strong, .expense-summary strong { font-variant-numeric: tabular-nums; }
 .sheet-body, dialog, .sheet-menu-inner { overscroll-behavior: contain; }
 /* 여행 카드 제목 ↔ 여행 화면 큰 제목: 화면 전환과 같은 곡선으로 자리·크기가 이어진다 (js/morph.js) */
-::view-transition-group(trip-title) { animation-duration: .42s; animation-timing-function: var(--ease-sheet); }
-::view-transition-old(trip-title), ::view-transition-new(trip-title) { animation-duration: .42s; height: 100%; object-fit: contain; object-position: left center; }
+::view-transition-group(trip-title) { animation-duration: var(--nav-dur); animation-timing-function: var(--ease-sheet); }
+::view-transition-old(trip-title), ::view-transition-new(trip-title) { animation-duration: var(--nav-dur); height: 100%; object-fit: contain; object-position: left center; }
 /* 폰: 시트가 올라오면 뒤 화면(#app)이 살짝 작아지며 위가 둥글어지고 둘레는 검게 (motion.js sheetBackdrop) */
 #app { transition: transform .5s var(--ease-sheet), clip-path .5s var(--ease-sheet); }
 html.sheet-backdrop, html.sheet-backdrop body { background: #000; }
