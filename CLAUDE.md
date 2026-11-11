@@ -26,7 +26,7 @@ npm run cap:sync          # build dist/ (scripts/build-web.js) and sync into and
 node scripts/make-icons.js  # regenerate icons/ from favicon.svg
 ```
 
-Run tests from the repo root; several of them read files by cwd-relative paths. CI (`.github/workflows/test.yml`) runs lint, `npm test`, `npm run test:rules` and `npm run test:ui` on every push to main and on PRs, and **deploys the site only when all of them pass** (`deploy` job, `scripts/build-site.js` copies just the app files; Pages source must be "GitHub Actions"). Rules tests need Java 21 locally; if it is missing they only run in CI. Android releases are built by CI when a `vX.Y.Z` tag is pushed (`android-release.yml`, signing in `docs/android-signing.md`).
+Run tests from the repo root; several of them read files by cwd-relative paths. CI (`.github/workflows/test.yml`) runs lint, `npm test`, `npm run test:rules` and `npm run test:ui` on every push to any branch, and **deploys the site only when all of them pass on `main`** (`deploy` job, `scripts/build-site.js` copies just the app files; Pages source must be "GitHub Actions"). Rules tests need Java 21 locally; if it is missing they only run in CI. Android releases are built by CI when a `vX.Y.Z` tag is pushed (`android-release.yml`, signing in `docs/android-signing.md`).
 
 ## Architecture
 

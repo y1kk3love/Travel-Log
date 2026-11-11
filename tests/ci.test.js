@@ -4,9 +4,9 @@ import fs from 'node:fs';
 
 const read = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 
-test('main 에 올릴 때마다 코드 검사·단위 테스트·규칙 테스트·화면 테스트가 돈다', () => {
+test('어느 브랜치에 올리든 코드 검사·단위 테스트·규칙 테스트·화면 테스트가 돈다 (main 에 합치기 전에 결과를 본다)', () => {
   const wf = read('.github/workflows/test.yml');
-  assert.match(wf, /branches: \[main\]/);
+  assert.match(wf, /on:\n {2}push:\n {4}branches: \['\*\*'\]/);
   for (const cmd of ['npm run lint', 'npm test', 'npm run test:rules', 'npm run test:ui']) assert.ok(wf.includes(`run: ${cmd}`), `${cmd} 가 없다`);
 });
 

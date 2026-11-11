@@ -1,11 +1,11 @@
 name: Test and deploy
 # main 에 올리면 검사(코드 검사·단위 테스트·보안 규칙·화면 테스트)를 돌리고, 모두 통과했을 때만 웹(GitHub Pages)에 배포한다.
-# 하나라도 실패하면 배포하지 않아 사이트는 이전 상태 그대로 남는다. PR 에서는 검사만 돈다.
+# 하나라도 실패하면 배포하지 않아 사이트는 이전 상태 그대로 남는다.
+# 다른 브랜치에 올리면 검사만 돈다 (PR 을 만들지 않아도 main 에 합치기 전에 결과를 볼 수 있다).
 # (저장소 Settings → Pages → Source 가 "GitHub Actions" 여야 한다. "Deploy from a branch" 면 검사와 상관없이 바로 배포된다)
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: ['**']
 permissions:
   contents: read
 jobs:

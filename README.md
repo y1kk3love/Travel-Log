@@ -52,7 +52,7 @@ npm run lint
 
 ## 배포
 
-main 에 올리면 GitHub Actions(`.github/workflows/test.yml`)가 코드 검사·단위 테스트·규칙 테스트·화면 테스트를 돌리고, **모두 통과했을 때만** 앱 파일을 모아(`scripts/build-site.js`) GitHub Pages 에 올린다. 하나라도 실패하면 사이트는 이전 상태로 남는다.
+main 에 올리면 GitHub Actions(`.github/workflows/test.yml`)가 코드 검사·단위 테스트·규칙 테스트·화면 테스트를 돌리고, **모두 통과했을 때만** 앱 파일을 모아(`scripts/build-site.js`) GitHub Pages 에 올린다. 하나라도 실패하면 사이트는 이전 상태로 남는다. 다른 브랜치에 올리면 검사만 돌아서, main 에 합치기 전에 결과를 볼 수 있다.
 
 - 저장소 Settings → Pages → Source 가 "GitHub Actions" 여야 한다. "Deploy from a branch" 로 두면 검사와 상관없이 올리는 즉시 배포된다.
 - 보안 규칙은 따로 게시한다 (`npm run deploy:rules`). 새 필드·새 모음을 쓰는 변경은 **규칙을 먼저 게시하고** 웹을 올린다 (반대로 하면 그 저장이 `permission-denied` 로 막힌다).

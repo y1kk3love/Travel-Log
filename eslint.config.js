@@ -4,7 +4,8 @@ import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
-  { ignores: ['node_modules/**', 'dist/**', 'android/**', 'js/gmaps.js'] }, // gmaps.js 는 구글이 배포하는 로더를 그대로 담고 있다
+  // gmaps.js 는 구글이 배포하는 로더를 그대로 담고 있다. _site 는 배포용 빌드 결과, unslop 은 이 PC 에 받아 둔 외부 스킬(저장소에 올리지 않는다)
+  { ignores: ['node_modules/**', 'dist/**', '_site/**', 'android/**', 'unslop/**', 'js/gmaps.js'] },
   js.configs.recommended,
   {
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },
