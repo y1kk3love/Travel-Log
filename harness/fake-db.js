@@ -136,7 +136,7 @@ export async function deleteReservation() { return 'saved'; }
 export function watchExpenses(tripId, cb) { return listen(key(tripId, 'expenses'), cb, () => clone(col(tripId, 'expenses'))); }
 export async function addExpense(tripId, data) { const e = { id: id('E'), ...data }; col(tripId, 'expenses').push(e); emit(key(tripId, 'expenses')); return e.id; }
 export async function updateExpense(tripId, eid, data) { const e = col(tripId, 'expenses').find((x) => x.id === eid); if (e) Object.assign(e, data); emit(key(tripId, 'expenses')); return 'saved'; }
-export async function deleteExpense() { return 'saved'; }
+export async function deleteExpense(tripId, eid) { const list = col(tripId, 'expenses'); const i = list.findIndex((x) => x.id === eid); if (i >= 0) list.splice(i, 1); emit(key(tripId, 'expenses')); return 'saved'; }
 export async function setTripRates() { return 'saved'; }
 export const FILE_MAX_BYTES = 950 * 1024;
 export async function addReservationFile() { return id('F'); }

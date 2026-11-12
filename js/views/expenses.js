@@ -1,6 +1,6 @@
 import { el, clear, toast, confirmDialog, openModal, linkedText, onSubmit, tabHead } from '../ui.js';
 import { watchTrip, watchExpenses, addExpense, updateExpense, deleteExpense, setTripRates, getProfiles } from '../db.js';
-import { CURRENCIES, EXPENSE_CATEGORIES, summarize, settle, toKRW, formatKRW, formatAmount } from '../lib/expenses.js';
+import { CURRENCIES, EXPENSE_CATEGORIES, summarize, settle, toKRW, formatKRW, formatAmount, TRANSFER, isTransfer, transferParties, defaultReceiver } from '../lib/expenses.js';
 import { fetchKrwRates } from '../rates.js';
 import { displayNameFor } from '../lib/profile.js';
 import { changedFields, hasChanges } from '../lib/changes.js';
@@ -66,7 +66,8 @@ function draw(main, tripId, state) {
   const s = summarize(state.expenses, members, rates);
   const perHead = members.length ? s.totalKRW / members.length : s.totalKRW;
 
-  main.append(tabHead({ title: '지출', count: `지출 ${state.expenses.length}건`, addLabel: '지출 추가', onAdd: () => openDialog(tripId, state) }));
+  const spendCount = state.expenses.filter((e) => !isTransfer(e)).length; // 보낸 돈 기록은 지출이 아니다
+  main.append(tabHead({ title: '지출', count: `지출 ${spendCount}건`, addLabel: '지출 추가', onAdd: () => openDialog(tripId, state) }));
   // 폰: 요약 → 지출 목록 → 환율·정산 영수증 (자주 보는 목록이 긴 영수증 아래로 밀리지 않게).
   // 넓은 화면: 왼쪽에 목록, 오른쪽에 요약·환율·영수증 (css .expenses-layout)
   const listBox = el('div', { class: 'expense-list' });
@@ -111,8 +112,15 @@ function draw(main, tripId, state) {
       el('div', { class: 'receipt-head' },
         el('div', { class: 'receipt-title', text: '정산 영수증' }),
         el('div', { class: 'muted', text: `${state.trip?.title ?? ''} · ${members.length}명` })),
+      // 사람 줄을 누르면 그 사람이 낸 돈의 내역이 열리고, 이미 보낸 돈(총무에게 미리 보낸 돈 등)을 누구나 적고 고칠 수 있다
       el('div', { class: 'receipt-section' },
-        ...s.participants.map((m) => row(who(m), `낸 돈 ${formatKRW(s.perPerson[m].paid)} · 부담 ${formatKRW(s.perPerson[m].share)}`))),
+        ...s.participants.map((m) => el('button', {
+          type: 'button', class: 'receipt-row receipt-person', dataset: { email: m },
+          'aria-label': `${who(m)}, 낸 돈 ${formatKRW(s.perPerson[m].paid)}, 부담 ${formatKRW(s.perPerson[m].share)}. 눌러서 낸 돈 고치기`,
+          onClick: () => openPaidDialog(tripId, state, m),
+        }, el('span', { class: 'receipt-label', text: who(m) }), el('span', { class: 'receipt-dots' }),
+        el('span', { class: 'receipt-amount', text: `낸 돈 ${formatKRW(s.perPerson[m].paid)} · 부담 ${formatKRW(s.perPerson[m].share)}` }))),
+        el('p', { class: 'muted receipt-note receipt-hint', text: '이름을 누르면 이미 보낸 돈을 적을 수 있어요' })),
       el('div', { class: 'receipt-sep' }),
       el('div', { class: 'receipt-section' },
         ...(transfers.length
@@ -138,11 +146,12 @@ function draw(main, tripId, state) {
   }
   const rows = [];
   for (const [date, list] of byDate) {
-    const dayTotal = list.reduce((sum, e) => sum + (toKRW(e.amount, e.currency, rates) ?? 0), 0);
-    const els = list.map((e) => row(tripId, state, e, rates));
+    const spend = list.filter((e) => !isTransfer(e));
+    const dayTotal = spend.reduce((sum, e) => sum + (toKRW(e.amount, e.currency, rates) ?? 0), 0);
+    const els = list.map((e) => (isTransfer(e) ? transferRow(tripId, state, e, rates) : row(tripId, state, e, rates)));
     list.forEach((e, i) => rows.push({ el: els[i], key: e.id }));
     listBox.append(el('section', { class: 'expense-day' },
-      el('div', { class: 'expense-day-head' }, el('strong', { text: date ? formatShort(date) : '날짜 없음' }), el('span', { class: 'muted', text: formatKRW(dayTotal) })),
+      el('div', { class: 'expense-day-head' }, el('strong', { text: date ? formatShort(date) : '날짜 없음' }), el('span', { class: 'muted', text: spend.length ? formatKRW(dayTotal) : '' })),
       ...els));
   }
   enter(state.scope, rows);
@@ -172,6 +181,118 @@ function row(tripId, state, e, rates) {
       e.currency !== 'KRW' ? el('span', { class: 'muted', text: krw == null ? '환율 없음' : `≈ ${formatKRW(krw)}` }) : null));
 }
 
+// 보낸 돈 기록 한 줄: 누가 누구에게 얼마 (누르면 고친다)
+function transferRow(tripId, state, e, rates) {
+  const krw = toKRW(e.amount, e.currency, rates);
+  const { from, to } = transferParties(e);
+  return el('div', { class: 'expense-row expense-transfer' },
+    el('button', { class: 'tl-body', onClick: () => openTransferDialog(tripId, state, { existing: e }) },
+      el('div', { class: 'tl-meta' }, el('span', { class: 'tag', text: '보낸 돈' })),
+      el('div', { class: 'tl-name', text: `${nameOf(state, from)} → ${to ? nameOf(state, to) : '?'}` }),
+      e.note && el('div', { class: 'muted tl-memo' }, linkedText(e.note, { firstLineOnly: true }))),
+    el('div', { class: 'expense-amount' },
+      el('strong', { text: formatAmount(e.amount, e.currency) }),
+      e.currency !== 'KRW' ? el('span', { class: 'muted', text: krw == null ? '환율 없음' : `≈ ${formatKRW(krw)}` }) : null));
+}
+
+// 정산에 나오는 사람들: 지금 동행 + 지출·보낸 돈에 남아 있는 나간 동행
+function peopleOf(state) {
+  return summarize(state.expenses, state.trip?.memberEmails ?? [], state.trip?.rates ?? {}).participants;
+}
+
+// "○○ 님이 낸 돈": 지출로 결제한 돈, 보낸 돈, 받은 돈을 나눠 보여 주고, 보낸 돈을 적거나 고친다 (동행 누구나)
+function openPaidDialog(tripId, state, person) {
+  const s = summarize(state.expenses, state.trip?.memberEmails ?? [], state.trip?.rates ?? {});
+  const p = s.perPerson[person] ?? { paid: 0, share: 0 };
+  const m = s.moved[person] ?? { sent: 0, received: 0 };
+  const sent = state.expenses.filter((e) => isTransfer(e) && e.paidBy === person)
+    .sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')));
+  const dialog = el('dialog', { class: 'paid-dialog' });
+  const line = (label, value, cls = '') => el('div', { class: `paid-line ${cls}` }, el('span', { class: 'muted', text: label }), el('strong', { text: value }));
+  const open = (args) => { dialog.close(); openTransferDialog(tripId, state, args); };
+  dialog.append(el('form', { method: 'dialog' },
+    el('h2', { text: `${nameOf(state, person)} 님이 낸 돈` }),
+    el('div', { class: 'dialog-body' },
+      el('div', { class: 'paid-lines' },
+        line('지출로 결제한 돈', formatKRW(p.paid - m.sent + m.received)),
+        line('다른 동행에게 보낸 돈', formatKRW(m.sent)),
+        m.received ? line('다른 동행에게 받은 돈', `− ${formatKRW(m.received)}`) : null,
+        line('낸 돈', formatKRW(p.paid), 'paid-total'),
+        line('부담할 돈', formatKRW(p.share))),
+      sent.length ? el('div', { class: 'paid-records' },
+        el('span', { class: 'muted paid-records-title', text: '보낸 돈 기록 (눌러서 고치기)' }),
+        ...sent.map((e) => el('button', { type: 'button', class: 'paid-record', onClick: () => open({ existing: e }) },
+          el('span', { text: `${e.date ? formatShort(e.date) : '날짜 없음'} · ${nameOf(state, transferParties(e).to)}에게` }),
+          el('strong', { text: formatAmount(e.amount, e.currency) })))) : null,
+      el('p', { class: 'muted ps-hint', text: '총무에게 미리 보낸 돈처럼 이미 주고받은 돈을 적으면 "낸 돈"에 더해지고, 남은 정산 금액이 그만큼 줄어요. 결제한 지출은 지출 목록에서 고쳐요.' })),
+    el('div', { class: 'dialog-actions' },
+      el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '닫기'),
+      el('button', { type: 'button', class: 'btn btn-primary', onClick: () => open({ from: person }) }, '보낸 돈 적기'))));
+  openModal(dialog);
+}
+
+// 보낸 돈 적기·고치기. 지출과 같은 모음에 category 'transfer' 로 저장한다 (lib/expenses.js): paidBy = 보낸 사람, sharedWith = [받은 사람]
+function openTransferDialog(tripId, state, { existing = null, from = null } = {}) {
+  const trip = state.trip;
+  const s = summarize(state.expenses, trip.memberEmails ?? [], trip.rates ?? {});
+  const people = peopleOf(state);
+  const me = (auth.currentUser?.email ?? '').toLowerCase();
+  const sender = existing?.paidBy ?? from ?? me;
+  const receiver = existing ? transferParties(existing).to : defaultReceiver(s.perPerson, sender, people);
+  const options = (selected) => people.map((m) => el('option', { value: m, selected: m === selected, text: nameOf(state, m) }));
+  const fromSel = el('select', { class: 'input', id: 'tr-from' }, ...options(sender));
+  const toSel = el('select', { class: 'input', id: 'tr-to' }, ...options(receiver));
+  const amount = el('input', { class: 'input', id: 'tr-amount', type: 'number', step: 'any', min: '0', inputmode: 'decimal', value: existing?.amount ?? '', required: true, placeholder: '금액' });
+  const currency = el('select', { class: 'input', id: 'tr-currency' },
+    ...CURRENCIES.map((c) => el('option', { value: c, selected: (existing?.currency ?? 'KRW') === c, text: c })));
+  const date = el('input', { class: 'input', id: 'tr-date', type: 'date', value: existing?.date ?? toDateStr(new Date()) });
+  const note = el('input', { class: 'input', id: 'tr-note', value: existing?.note ?? '', placeholder: '예: 숙소비 선입금' });
+  // 보내는 사람을 받는 사람과 같게 고르면 받는 사람을 다른 사람으로 옮긴다
+  fromSel.addEventListener('change', () => {
+    if (fromSel.value === toSel.value) toSel.value = defaultReceiver(s.perPerson, fromSel.value, people) ?? toSel.value;
+  });
+  const dialog = el('dialog', {});
+  const form = el('form', { method: 'dialog' },
+    el('h2', { text: existing ? '보낸 돈 고치기' : '보낸 돈 적기' }),
+    el('div', { class: 'dialog-body' },
+      el('div', { class: 'form-grid' },
+        el('div', { class: 'field' }, el('label', { for: 'tr-from', text: '보낸 사람' }), fromSel),
+        el('div', { class: 'field' }, el('label', { for: 'tr-to', text: '받은 사람' }), toSel)),
+      el('div', { class: 'form-grid' },
+        el('div', { class: 'field' }, el('label', { for: 'tr-amount', text: '금액' }), amount),
+        el('div', { class: 'field' }, el('label', { for: 'tr-currency', text: '통화' }), currency)),
+      el('div', { class: 'field' }, el('label', { for: 'tr-date', text: '보낸 날' }), date),
+      el('div', { class: 'field' }, el('label', { for: 'tr-note', text: '메모 (선택)' }), note)),
+    el('div', { class: 'dialog-actions' },
+      existing ? el('button', {
+        type: 'button', class: 'btn btn-danger',
+        onClick: async () => {
+          if (!(await confirmDialog('이 보낸 돈 기록을 삭제할까요?'))) return;
+          try { await deleteExpense(tripId, existing.id); dialog.close(); toast('삭제했어요'); } catch (err) { console.error(err); toast('삭제하지 못했어요', { kind: 'error' }); }
+        },
+      }, '삭제') : null,
+      el('button', { type: 'button', class: 'btn', onClick: () => dialog.close() }, '취소'),
+      el('button', { type: 'submit', class: 'btn btn-primary' }, existing ? '저장' : '적기')));
+  onSubmit(form, async (e) => { // 저장 중 연타 막기
+    e.preventDefault();
+    const data = {
+      title: '보낸 돈', amount: Number(amount.value), currency: currency.value, category: TRANSFER,
+      date: date.value || null, paidBy: fromSel.value, sharedWith: [toSel.value], note: note.value.trim(),
+    };
+    if (!(data.amount > 0)) { toast('금액을 입력해 주세요', { kind: 'error' }); amount.focus(); return; }
+    if (!toSel.value || fromSel.value === toSel.value) { toast('보낸 사람과 받은 사람이 같아요', { kind: 'error' }); return; }
+    try {
+      if (existing) {
+        const changes = changedFields(existing, data);
+        if (hasChanges(changes)) await updateExpense(tripId, existing.id, changes);
+      } else await addExpense(tripId, data);
+      dialog.close();
+      toast(existing ? '저장했어요' : `${nameOf(state, data.paidBy)} 님이 보낸 돈을 적었어요`);
+    } catch (err) { console.error(err); toast('저장하지 못했어요', { kind: 'error' }); }
+  });
+  dialog.append(form); openModal(dialog); amount.focus();
+}
+
 function openDialog(tripId, state, existing = null) {
   const trip = state.trip;
   const members = trip.memberEmails ?? [];
@@ -179,7 +300,7 @@ function openDialog(tripId, state, existing = null) {
   const title = el('input', { class: 'input', id: 'ex-title', value: existing?.title ?? '', required: true, placeholder: '예: 이치란 라멘' });
   const amount = el('input', { class: 'input', id: 'ex-amount', type: 'number', step: 'any', min: '0', inputmode: 'decimal', value: existing?.amount ?? '', required: true, placeholder: '금액' });
   // 가장 최근에 적은 지출의 통화를 기본으로 (목록은 문서 아이디 순서라 첫 항목이 최근 것이 아니다)
-  const latest = state.expenses.reduce((a, b) => (!a || (b.createdAt?.toMillis?.() ?? Infinity) >= (a.createdAt?.toMillis?.() ?? Infinity) ? b : a), null);
+  const latest = state.expenses.filter((e) => !isTransfer(e)).reduce((a, b) => (!a || (b.createdAt?.toMillis?.() ?? Infinity) >= (a.createdAt?.toMillis?.() ?? Infinity) ? b : a), null);
   const lastCurrency = latest?.currency ?? 'KRW';
   const currency = el('select', { class: 'input', id: 'ex-currency' },
     ...CURRENCIES.map((c) => el('option', { value: c, selected: (existing?.currency ?? lastCurrency) === c, text: c })));

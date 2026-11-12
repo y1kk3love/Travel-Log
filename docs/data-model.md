@@ -22,7 +22,7 @@
 | `thumbs` | `placeId`, `data`(Bytes, 60 KiB), `width`, `height`, `size`, `createdAt` | 사진의 작은 미리보기(긴 변 240px). 문서 아이디는 그 사진과 같다. 장소 창은 이것만 받아 보여 준다. 썸네일이 없는 예전 사진은 장소 창을 처음 열 때 한 번 원본을 받아 만들어 둔다 (`js/views/place-photos.js`) |
 | `checklist` | `group`, `groupOrder`, `order`, `text`, `done`, `personal`(bool), `doneBy`(이메일 목록, 30명) | 그룹은 이름으로 묶는다. `personal: true` 는 사람마다 따로 체크하는 "각자" 항목: 체크한 사람이 `doneBy` 에 들어가고(배열 연산으로 내 것만 넣고 뺀다), `done` 은 "지금 동행 모두가 체크했다"로 맞춰 둔다 (`js/lib/checklist.js`). 필드가 없는 예전 항목은 한 명이 체크하면 끝나는 함께 항목 |
 | `reservations` | `type`(flight·stay·food·etc…), `title`, `datetime`, `arrival`(항공 도착), `checkout`(숙소), `code`, `note`, `flightNumber`, `fromAirport`, `toAirport`, `linkedPlaceIds`, `linkedPlaceId`, `files`(서류 메타 `{ id, name, type, size }`) | 일시·공항·편명은 짧은 글자만(규칙이 길이를 본다). 연결의 기준은 `linkedPlaceIds`(숙소 여러 박이면 여러 개). `linkedPlaceId` 는 첫 연결과 같게 두는 예전 호환 필드 (`js/lib/reservation-links.js`) |
-| `expenses` | `title`, `amount`, `currency`, `category`, `date`, `paidBy`, `sharedWith`, `note`, `createdAt` | `sharedWith` 는 늘 명시해 저장한다. 비어 있는 예전 지출만 "지금 동행 전원"으로 계산 (`js/lib/expenses.js`) |
+| `expenses` | `title`, `amount`, `currency`, `category`, `date`, `paidBy`, `sharedWith`, `note`, `createdAt` | `sharedWith` 는 늘 명시해 저장한다. 비어 있는 예전 지출만 "지금 동행 전원"으로 계산 (`js/lib/expenses.js`). `category: 'transfer'` 는 지출이 아니라 **보낸 돈 기록**(동행끼리 이미 주고받은 돈): `paidBy` = 보낸 사람, `sharedWith` = [받은 사람]. 총 지출·분류에는 넣지 않고, 보낸 사람의 "낸 돈"에 더하고 받은 사람의 "낸 돈"에서 뺀다. 필드는 지출과 같아 규칙은 그대로다 |
 | `files` | `reservationId`, `name`, `type`(PDF·JPEG 만), `size`, `data`(Bytes, 950 KiB), `createdAt` | 예약 서류 본문. 열 때 형식은 `js/lib/file-type.js` 로 다시 거른다 |
 
 ## 지켜야 할 것

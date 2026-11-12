@@ -228,3 +228,33 @@ test('시작 실패: 다시 열어도 안 되면 계속 돌지 않고 "다시 �
   assert.equal(served, 2, '한 번만 스스로 다시 열었다');
   await page.close();
 });
+
+test('지출: 정산 영수증에서 이름을 눌러 이미 보낸 돈을 적으면 그 사람의 "낸 돈"에 더해지고, 고치고 지울 수 있다', async () => {
+  const page = await open('#/trip/T1/expenses');
+  const person = page.locator('.receipt-person[data-email="friend1@example.com"]');
+  await person.waitFor();
+  assert.match(await person.textContent(), /낸 돈 0원/);
+  assert.equal(await page.locator('.tab-count').textContent(), '지출 2건');
+  await person.click();
+  await page.getByRole('heading', { name: '민지 님이 낸 돈' }).waitFor();
+  await page.getByRole('button', { name: '보낸 돈 적기' }).click();
+  await page.locator('#tr-amount').fill('9000');
+  assert.equal(await page.locator('#tr-from').inputValue(), 'friend1@example.com');
+  assert.notEqual(await page.locator('#tr-to').inputValue(), 'friend1@example.com', '받은 사람은 다른 사람');
+  await page.getByRole('button', { name: '적기', exact: true }).click();
+  await page.locator('.receipt-person[data-email="friend1@example.com"]', { hasText: '낸 돈 9,000원' }).waitFor();
+  assert.equal(await page.locator('.tab-count').textContent(), '지출 2건', '보낸 돈 기록은 지출 건수에 들어가지 않는다');
+  assert.equal(await page.locator('.expense-transfer').count(), 1);
+  // 고치기: 목록의 기록을 눌러 금액을 바꾼다
+  await page.locator('.expense-transfer .tl-body').click();
+  await page.locator('#tr-amount').fill('5000');
+  await page.getByRole('button', { name: '저장' }).click();
+  await page.locator('.receipt-person[data-email="friend1@example.com"]', { hasText: '낸 돈 5,000원' }).waitFor();
+  // 지우기
+  await page.locator('.expense-transfer .tl-body').click();
+  await page.locator('dialog[open] .btn-danger').click();
+  await page.locator('dialog[open]').last().getByRole('button', { name: '삭제' }).click(); // 확인 창
+  await page.locator('.receipt-person[data-email="friend1@example.com"]', { hasText: '낸 돈 0원' }).waitFor();
+  noProblems();
+  await page.close();
+});

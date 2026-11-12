@@ -624,6 +624,18 @@ html[data-nav="same"]::view-transition-new(root) { animation-name: vt-fade-in; a
 .receipt-label { white-space: nowrap; }
 .receipt-dots { flex-grow: 1; border-bottom: 2px dotted var(--line); transform: translateY(-3px); min-width: 12px; }
 .receipt-amount { white-space: nowrap; font-variant-numeric: tabular-nums; margin-left: auto; }
+/* 사람 줄은 누를 수 있다: 그 사람이 낸 돈 내역을 열고 이미 보낸 돈을 적는다 */
+.receipt-person { width: 100%; padding: 4px 0; border: 0; border-radius: var(--radius-xs); background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { .receipt-person:hover { background: var(--line-soft); } }
+.receipt-person:active { background: var(--line-soft); }
+.receipt-hint { font-size: var(--fs-xs); margin-top: 4px; }
+.paid-lines { display: flex; flex-direction: column; }
+.paid-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
+.paid-total { font-size: var(--fs-lg); }
+.paid-total .muted { color: var(--ink); font-weight: 700; }
+.paid-records { display: flex; flex-direction: column; gap: 4px; }
+.paid-records-title { font-size: var(--fs-xs); font-weight: 600; }
+.paid-record { display: flex; justify-content: space-between; gap: 12px; min-height: 44px; align-items: center; padding: 0 12px; border: 0; border-radius: var(--radius); background: var(--field); font: inherit; color: inherit; cursor: pointer; font-variant-numeric: tabular-nums; }
 .receipt-transfer { font-weight: 700; }
 .receipt-transfer .receipt-amount { color: var(--accent-text); }
 .receipt-total { font-weight: 800; font-size: var(--fs-md); }

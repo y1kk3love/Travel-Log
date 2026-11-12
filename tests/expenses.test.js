@@ -68,3 +68,52 @@ test('summarize: 동행이 아닌 사람이 나누는 사람에만 있어도 부
   assert.deepEqual(s.perPerson['gone@x.com'], { paid: 0, share: 5000, net: -5000 });
   assert.deepEqual(s.former, ['gone@x.com']);
 });
+
+test('보낸 돈 기록: 보낸 사람은 그만큼 더 낸 것, 받은 사람은 덜 낸 것. 총 지출·분류에는 들어가지 않는다', async () => {
+  const { isTransfer, TRANSFER } = await import('../js/lib/expenses.js');
+  const members = ['a@x.com', 'b@x.com', 'c@x.com'];
+  const expenses = [
+    { amount: 300000, currency: 'KRW', category: 'stay', date: '2027-02-13', paidBy: 'a@x.com', sharedWith: members }, // 총무 a 가 숙소 결제
+    { amount: 100000, currency: 'KRW', category: TRANSFER, date: '2027-01-10', paidBy: 'b@x.com', sharedWith: ['a@x.com'] }, // b 가 a 에게 미리 보냄
+  ];
+  assert.equal(isTransfer(expenses[1]), true);
+  const s = summarize(expenses, members, {});
+  assert.equal(s.totalKRW, 300000);
+  assert.deepEqual(s.byCategory, { stay: 300000 });
+  assert.deepEqual(s.byDate, { '2027-02-13': 300000 });
+  assert.deepEqual(s.byCurrency, { KRW: 300000 });
+  assert.deepEqual(s.perPerson['a@x.com'], { paid: 200000, share: 100000, net: 100000 });
+  assert.deepEqual(s.perPerson['b@x.com'], { paid: 100000, share: 100000, net: 0 }); // 이미 다 냈다
+  assert.deepEqual(s.perPerson['c@x.com'], { paid: 0, share: 100000, net: -100000 });
+  assert.deepEqual(s.moved['b@x.com'], { sent: 100000, received: 0 });
+  assert.deepEqual(s.moved['a@x.com'], { sent: 0, received: 100000 });
+  assert.deepEqual(settle(s.perPerson), [{ from: 'c@x.com', to: 'a@x.com', amountKRW: 100000 }]); // 남은 건 c 뿐
+});
+
+test('보낸 돈 기록: 옛 버전의 계산(받은 사람 혼자 부담한 지출)으로도 사람별 차액이 같다', async () => {
+  const { TRANSFER } = await import('../js/lib/expenses.js');
+  const members = ['a@x.com', 'b@x.com'];
+  const base = { amount: 50000, currency: 'KRW', paidBy: 'b@x.com', sharedWith: ['a@x.com'] };
+  const now = summarize([{ ...base, category: TRANSFER }], members, {});
+  const old = summarize([{ ...base, category: 'etc' }], members, {});
+  for (const m of members) assert.equal(now.perPerson[m].net, old.perPerson[m].net);
+});
+
+test('보낸 돈 기록: 외화는 환율로 바꾸고, 환율이 없으면 빠진 통화로 알린다. 받는 사람이 없거나 자기 자신이면 무시한다', async () => {
+  const { TRANSFER } = await import('../js/lib/expenses.js');
+  const members = ['a@x.com', 'b@x.com'];
+  const t = (extra) => ({ amount: 1000, currency: 'JPY', category: TRANSFER, paidBy: 'b@x.com', sharedWith: ['a@x.com'], ...extra });
+  assert.equal(summarize([t()], members, { JPY: 9 }).perPerson['b@x.com'].paid, 9000);
+  assert.deepEqual(summarize([t()], members, {}).missingRates, ['JPY']);
+  assert.equal(summarize([t({ sharedWith: [] })], members, { JPY: 9 }).perPerson['b@x.com'].paid, 0);
+  assert.equal(summarize([t({ sharedWith: ['b@x.com'] })], members, { JPY: 9 }).perPerson['b@x.com'].paid, 0);
+});
+
+test('defaultReceiver: 가장 많이 받아야 하는 사람(보통 총무), 보내는 사람은 빼고', async () => {
+  const { defaultReceiver } = await import('../js/lib/expenses.js');
+  const perPerson = { 'a@x.com': { net: 200000 }, 'b@x.com': { net: -100000 }, 'c@x.com': { net: -100000 } };
+  const all = ['a@x.com', 'b@x.com', 'c@x.com'];
+  assert.equal(defaultReceiver(perPerson, 'b@x.com', all), 'a@x.com');
+  assert.equal(defaultReceiver(perPerson, 'a@x.com', all), 'b@x.com'); // 총무 자신이 보낼 때는 다른 사람 중에서
+  assert.equal(defaultReceiver(perPerson, 'a@x.com', ['a@x.com']), null);
+});

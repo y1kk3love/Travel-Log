@@ -44,7 +44,20 @@ export function summarize(expenses, members, rates = {}) {
   const perPerson = Object.fromEntries(participants.map((m) => [m, { paid: 0, share: 0, net: 0 }]));
   const missing = new Set();
   let totalKRW = 0;
+  const moved = Object.fromEntries(participants.map((m) => [m, { sent: 0, received: 0 }])); // 사람끼리 이미 주고받은 돈
   for (const e of expenses) {
+    if (isTransfer(e)) {
+      // 보낸 돈 기록: 쓴 돈이 아니라 사람 사이에 오간 돈이라 총 지출·분류에는 넣지 않는다.
+      // 보낸 사람은 그만큼 더 낸 것이고 받은 사람은 그만큼 덜 낸 것이 된다 (둘의 합은 그대로라 정산이 맞는다)
+      const krw = toKRW(e.amount, e.currency, rates);
+      if (krw == null) { missing.add(e.currency); continue; }
+      const { from, to } = transferParties(e);
+      if (from && to && from !== to && from in perPerson && to in perPerson) {
+        perPerson[from].paid += krw; moved[from].sent += krw;
+        perPerson[to].paid -= krw; moved[to].received += krw;
+      }
+      continue;
+    }
     byCurrency[e.currency] = (byCurrency[e.currency] ?? 0) + Number(e.amount || 0);
     const krw = toKRW(e.amount, e.currency, rates);
     if (krw == null) { missing.add(e.currency); continue; }
@@ -56,7 +69,24 @@ export function summarize(expenses, members, rates = {}) {
     if (sharers.length) { const each = krw / sharers.length; for (const m of sharers) perPerson[m].share += each; }
   }
   for (const m of participants) perPerson[m].net = perPerson[m].paid - perPerson[m].share;
-  return { totalKRW, byCurrency, byCategory, byDate, perPerson, participants, former, missingRates: [...missing] };
+  return { totalKRW, byCurrency, byCategory, byDate, perPerson, moved, participants, former, missingRates: [...missing] };
+}
+
+// ---- 보낸 돈 기록 ----
+// 동행끼리 이미 주고받은 돈 (총무에게 미리 보낸 회비, 중간 정산 등). 지출과 같은 모음(expenses)에 category 'transfer' 로 둔다:
+// paidBy = 보낸 사람, sharedWith = [받은 사람]. 이 모양은 옛 버전의 계산(보낸 사람이 내고 받은 사람 혼자 부담한 지출)으로도
+// 사람별 차액이 똑같이 나와서, 앱을 아직 업데이트하지 않은 동행의 정산 결과도 어긋나지 않는다 (총 지출만 그만큼 크게 보인다).
+export const TRANSFER = 'transfer';
+export const isTransfer = (e) => e?.category === TRANSFER;
+export function transferParties(e) {
+  return { from: e?.paidBy ?? null, to: (e?.sharedWith ?? [])[0] ?? null };
+}
+
+// 보낸 돈을 적을 때 받는 사람의 기본값: 지금까지 가장 많이 받아야 하는 사람 (보통 결제를 도맡은 총무). 보내는 사람은 뺀다
+export function defaultReceiver(perPerson, from, candidates) {
+  const others = candidates.filter((m) => m !== from);
+  if (!others.length) return null;
+  return others.reduce((best, m) => ((perPerson[m]?.net ?? 0) > (perPerson[best]?.net ?? 0) ? m : best), others[0]);
 }
 
 // 정산: 덜 낸 사람(net<0)이 더 낸 사람(net>0)에게 보내는 최소 송금 목록
